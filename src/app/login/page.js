@@ -1,0 +1,161 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { login, getCurrentUser } from "../../services/auth";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    // Redirect if already logged in
+    (async () => {
+      const user = await getCurrentUser();
+      if (user) {
+        if (user.role === 'vendor') {
+          router.push('/dashboard');
+        } else if (user.role === 'customer') {
+          router.push('/');
+        } else if (user.role === 'coordinator') {
+          router.push('/'); // Or specific coordinator dashboard if available
+        }
+      }
+    })();
+  }, [router]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const formData = new FormData(e.target);
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    try {
+      // Log the attempt for debugging
+      console.log("Attempting login with:", email);
+      
+      const result = await login({ email, password });
+      console.log("Login result:", result);
+      
+      // Need to allow time for token to be set and state to update potentially
+      // But login function already sets localStorage.
+      
+      // Verify user right after login
+      const user = await getCurrentUser();
+      console.log("Fetched user after login:", user);
+
+      if (user) {
+        if (user.role === 'vendor') {
+          router.push('/dashboard');
+        } else if (user.role === 'customer') {
+          router.push('/');
+        } else {
+          router.push('/');
+        }
+      } else {
+        setError("Login succeeded but user info could not be fetched.");
+      }
+    } catch (err) {
+      console.error("Login error:", err);
+      setError("Invalid email or password");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      await login({ email: "vendor@example.com", password: "password123" });
+      // Slight delay/check to ensure token propagation if needed
+      const user = await getCurrentUser();
+      if (user) {
+         router.push('/dashboard');
+      } else {
+         setError("Demo login failed to retrieve user.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Demo login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
+        <div className="text-center mb-8">
+          <h1 className="font-display text-3xl tracking-wide mb-2">
+            <span className="bg-gradient-to-r from-[#01DBE0] via-[#FD237A] to-[#FE9C05] bg-clip-text text-transparent">
+              VEHNDR
+            </span>
+          </h1>
+          <h2 className="text-xl font-semibold text-gray-800">Login</h2>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg text-center">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+            <input
+              type="email"
+              name="email"
+              required
+              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
+              placeholder="you@example.com"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input
+              type="password"
+              name="password"
+              required
+              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
+              placeholder="••••••••"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-3 rounded-lg bg-black text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {loading ? "Logging in..." : "Sign In"}
+          </button>
+        </form>
+
+        <div className="mt-6">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-gray-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-gray-500">Or for demo</span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleDemoLogin}
+            disabled={loading}
+            className="mt-6 w-full py-3 rounded-lg border-2 border-black/5 bg-gray-50 text-gray-700 font-semibold hover:bg-gray-100 transition-colors"
+          >
+            Login as Demo Vendor
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -4,7 +4,8 @@ import { api } from "./api";
 
 export async function getCurrentUser() {
   try {
-    return await api("/api/auth/current_user");
+    const result = await api("/api/auth/current_user");
+    return result && typeof result === 'object' && 'user' in result ? result.user : result;
   } catch (err) {
     if (err?.status === 401) return null;
     throw err;

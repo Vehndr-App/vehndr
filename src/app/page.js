@@ -8,12 +8,9 @@ export default async function Home() {
   return (
     <div className="mx-auto max-w-6xl p-8 w-full">
       <div className="text-center mb-12">
-        <div className="text-sm uppercase tracking-[0.2em] text-[#FE9C05] font-semibold mb-2">
-          Welcome to
-        </div>
         <h1 className="font-display text-6xl sm:text-7xl tracking-wide mb-4">
           <span className="bg-gradient-to-r from-[#01DBE0] via-[#FD237A] to-[#FE9C05] bg-clip-text text-transparent">
-            VEHNDR
+            Welcome
           </span>
         </h1>
         <p className="mt-4 text-lg font-body text-gray-600 max-w-2xl mx-auto">
