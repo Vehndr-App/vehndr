@@ -2,27 +2,21 @@
 
 import Link from "next/link";
 import { useCart } from "../contexts/CartContext";
-import { useState, useEffect } from "react";
-import { getCurrentUser, logout } from "../services/auth";
+import { useAuth } from "../contexts/AuthContext";
+import { useState } from "react";
+import { logout } from "../services/auth";
 import { useRouter } from "next/navigation";
 
 export default function Navbar() {
   const { totalItems } = useCart();
+  const { user, clearUser } = useAuth();
   const hasItems = totalItems > 0;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const router = useRouter();
-
-  useEffect(() => {
-    (async () => {
-      const u = await getCurrentUser();
-      setUser(u);
-    })();
-  }, []);
 
   const handleLogout = async () => {
     await logout();
-    setUser(null);
+    clearUser();
     router.push('/');
   };
   
@@ -75,22 +69,29 @@ export default function Navbar() {
               >
                 Dashboard
               </Link>
-            ) : (
+            ) : user && user.role === 'coordinator' ? (
               <Link
-                href="/cart"
-                className={`relative inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold transition-all ${
-                  hasItems
-                    ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
-                    : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
-                }`}
+                href="/coordinator-dashboard"
+                className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold transition-all border-2 border-[#FE9C05]/30 hover:border-[#FE9C05] hover:bg-[#FE9C05]/10"
               >
-                <span>Cart</span>
-                {hasItems && (
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#FE9C05] text-xs font-bold text-white">
-                    {totalItems}
-                  </span>
-                )}
+                Dashboard
               </Link>
+            ) : (
+          <Link
+            href="/cart"
+            className={`relative inline-flex items-center gap-2 rounded-full px-4 py-2 font-semibold transition-all ${
+              hasItems
+                ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
+                : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
+            }`}
+          >
+            <span>Cart</span>
+            {hasItems && (
+              <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-[#FE9C05] text-xs font-bold text-white">
+                {totalItems}
+              </span>
+            )}
+          </Link>
             )}
           </div>
         </div>
@@ -122,13 +123,22 @@ export default function Navbar() {
                   Event Coordinators
                 </Link>
                 {user && user.role === 'vendor' && (
-                  <Link 
-                    href="/dashboard" 
-                    className="block text-lg font-semibold hover:text-[#01DBE0] hover:bg-[#01DBE0]/5 transition-colors py-3 px-2 rounded-lg"
-                    onClick={() => setIsMenuOpen(false)}
-                  >
-                    Vendor Dashboard
-                  </Link>
+                <Link
+                  href="/dashboard"
+                  className="block text-lg font-semibold hover:text-[#01DBE0] hover:bg-[#01DBE0]/5 transition-colors py-3 px-2 rounded-lg"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Vendor Dashboard
+                </Link>
+                )}
+                {user && user.role === 'coordinator' && (
+                <Link
+                  href="/coordinator-dashboard"
+                  className="block text-lg font-semibold hover:text-[#FE9C05] hover:bg-[#FE9C05]/5 transition-colors py-3 px-2 rounded-lg"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Coordinator Dashboard
+                </Link>
                 )}
                 <div className="sm:hidden mt-4 pt-4 border-t border-gray-100">
                   {user ? (

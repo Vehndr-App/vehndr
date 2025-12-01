@@ -15,9 +15,13 @@ export default function ProductCard({ product }) {
           Service
         </div>
       )}
-      <div className="aspect-video w-full bg-gradient-to-br from-[#DCA7F0]/20 to-[#C9FF3F]/20 flex items-center justify-center">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={product.image} alt="" className="h-16 w-16 opacity-70 group-hover:scale-110 transition-transform" />
+      <div className="aspect-video w-full bg-gradient-to-br from-[#DCA7F0]/20 to-[#C9FF3F]/20 flex items-center justify-center overflow-hidden">
+        {product.images && product.images.length > 0 ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+        ) : (
+          <div className="text-gray-400 text-sm">No image</div>
+        )}
       </div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">

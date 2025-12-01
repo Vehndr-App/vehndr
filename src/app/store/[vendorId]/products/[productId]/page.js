@@ -17,6 +17,7 @@ export default function ProductPage() {
   const [selected, setSelected] = useState({});
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
   const [addedToCart, setAddedToCart] = useState(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -65,15 +66,50 @@ export default function ProductPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-        {/* Product Image */}
-        <div className="aspect-square rounded-3xl bg-gradient-to-br from-[#DCA7F0]/20 via-[#C9FF3F]/10 to-[#01DBE0]/20 flex items-center justify-center">
-          {isService && (
-            <div className="absolute top-4 right-4 bg-[#FE9C05] text-white px-3 py-1 rounded-full text-sm font-semibold">
-              Service
+        {/* Product Images */}
+        <div className="space-y-3">
+          {/* Main Image */}
+          <div className="relative aspect-square rounded-3xl bg-gradient-to-br from-[#DCA7F0]/20 via-[#C9FF3F]/10 to-[#01DBE0]/20 flex items-center justify-center overflow-hidden">
+            {isService && (
+              <div className="absolute top-4 right-4 z-10 bg-[#FE9C05] text-white px-3 py-1 rounded-full text-sm font-semibold">
+                Service
+              </div>
+            )}
+            {product.images && product.images.length > 0 ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={product.images[selectedImageIndex]}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="text-gray-400 text-lg">No image available</div>
+            )}
+          </div>
+
+          {/* Thumbnail Gallery */}
+          {product.images && product.images.length > 1 && (
+            <div className="grid grid-cols-4 gap-2">
+              {product.images.map((imageUrl, index) => (
+                <button
+                  key={index}
+                  onClick={() => setSelectedImageIndex(index)}
+                  className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                    selectedImageIndex === index
+                      ? 'border-[#01DBE0] shadow-lg'
+                      : 'border-gray-200 hover:border-[#01DBE0]/50'
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imageUrl}
+                    alt={`${product.name} ${index + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
             </div>
           )}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={product.image} alt={product.name} className="h-48 w-48 opacity-80" />
         </div>
 
         {/* Product Details */}

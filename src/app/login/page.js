@@ -2,28 +2,28 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { login, getCurrentUser } from "../../services/auth";
+import { login } from "../../services/auth";
+import { useAuth } from "../../contexts/AuthContext";
+import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     // Redirect if already logged in
-    (async () => {
-      const user = await getCurrentUser();
-      if (user) {
-        if (user.role === 'vendor') {
-          router.push('/dashboard');
-        } else if (user.role === 'customer') {
-          router.push('/');
-        } else if (user.role === 'coordinator') {
-          router.push('/'); // Or specific coordinator dashboard if available
-        }
+    if (user) {
+      if (user.role === 'vendor') {
+        router.push('/dashboard');
+      } else if (user.role === 'coordinator') {
+        router.push('/coordinator-dashboard');
+      } else {
+        router.push('/');
       }
-    })();
-  }, [router]);
+    }
+  }, [user, router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -35,34 +35,17 @@ export default function LoginPage() {
     const password = formData.get("password");
 
     try {
-      // Log the attempt for debugging
       console.log("Attempting login with:", email);
-      
-      const result = await login({ email, password });
-      console.log("Login result:", result);
-      
-      // Need to allow time for token to be set and state to update potentially
-      // But login function already sets localStorage.
-      
-      // Verify user right after login
-      const user = await getCurrentUser();
-      console.log("Fetched user after login:", user);
 
-      if (user) {
-        if (user.role === 'vendor') {
-          router.push('/dashboard');
-        } else if (user.role === 'customer') {
-          router.push('/');
-        } else {
-          router.push('/');
-        }
-      } else {
-        setError("Login succeeded but user info could not be fetched.");
-      }
+      await login({ email, password });
+
+      // Refresh the user in AuthContext
+      await refreshUser();
+
+      // Router will redirect based on user role via useEffect
     } catch (err) {
       console.error("Login error:", err);
       setError("Invalid email or password");
-    } finally {
       setLoading(false);
     }
   };
@@ -72,17 +55,11 @@ export default function LoginPage() {
     setError(null);
     try {
       await login({ email: "vendor@example.com", password: "password123" });
-      // Slight delay/check to ensure token propagation if needed
-      const user = await getCurrentUser();
-      if (user) {
-         router.push('/dashboard');
-      } else {
-         setError("Demo login failed to retrieve user.");
-      }
+      await refreshUser();
+      // Router will redirect based on user role via useEffect
     } catch (err) {
       console.error(err);
       setError("Demo login failed");
-    } finally {
       setLoading(false);
     }
   };
@@ -154,6 +131,15 @@ export default function LoginPage() {
           >
             Login as Demo Vendor
           </button>
+        </div>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Don't have an account?{" "}
+            <Link href="/register" className="text-[#01DBE0] hover:text-[#FD237A] font-semibold transition-colors">
+              Create Account
+            </Link>
+          </p>
         </div>
       </div>
     </div>

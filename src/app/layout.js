@@ -2,6 +2,7 @@ import { Poppins, Bebas_Neue, Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "../components/Navbar";
 import { CartProvider } from "../contexts/CartContext";
+import { AuthProvider } from "../contexts/AuthContext";
 
 const poppins = Poppins({
   weight: ["300", "400", "500", "600", "700"],
@@ -31,10 +32,12 @@ export default function RootLayout({ children }) {
       <body
         className={`${poppins.variable} ${bebasNeue.variable} ${inter.variable} antialiased`}
       >
-        <CartProvider>
-          <Navbar />
-          <main className="min-h-screen">{children}</main>
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <Navbar />
+            <main className="min-h-screen">{children}</main>
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );
