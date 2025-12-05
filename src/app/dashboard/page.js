@@ -757,7 +757,7 @@ function DashboardInner() {
               <ul className="text-sm text-blue-800 space-y-2">
                 <li className="flex items-start">
                   <span className="mr-2">•</span>
-                  <span>Click "Connect Stripe Account" to set up your payment account</span>
+                  <span>Click &quot;Connect Stripe Account&quot; to set up your payment account</span>
                 </li>
                 <li className="flex items-start">
                   <span className="mr-2">•</span>

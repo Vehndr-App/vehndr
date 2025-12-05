@@ -131,7 +131,7 @@ function CoordinatorDashboardInner() {
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
         <h2 className="text-xl font-semibold mb-4 text-gray-900">Create New Event</h2>
         <p className="text-sm text-gray-600 mb-6">
-          Paste the URL of your event page below. We'll automatically extract all the event details.
+          Paste the URL of your event page below. We&apos;ll automatically extract all the event details.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -148,7 +148,7 @@ function CoordinatorDashboardInner() {
               placeholder="https://example.com/my-event"
             />
             <p className="mt-2 text-xs text-gray-500">
-              Enter the full URL of your event's webpage (e.g., Eventbrite, Facebook Event, or your own website)
+              Enter the full URL of your event&apos;s webpage (e.g., Eventbrite, Facebook Event, or your own website)
             </p>
           </div>
 

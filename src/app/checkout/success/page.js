@@ -75,11 +75,11 @@ function SuccessContent() {
         </p>
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-          <h2 className="font-semibold text-blue-900 mb-2">What's Next?</h2>
+          <h2 className="font-semibold text-blue-900 mb-2">What&apos;s Next?</h2>
           <ul className="text-sm text-blue-800 space-y-2 text-left">
             <li className="flex items-start">
               <span className="mr-2">•</span>
-              <span>You'll receive an order confirmation email shortly</span>
+              <span>You&apos;ll receive an order confirmation email shortly</span>
             </li>
             <li className="flex items-start">
               <span className="mr-2">•</span>
