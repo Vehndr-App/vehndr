@@ -1,10 +1,36 @@
 import Link from "next/link";
 import { listVendors } from "../services/vendors";
-import { getUpcomingEvents } from "../services/events";
 
-export default async function Home() {
-  const vendors = await listVendors();
-  const upcomingEvents = await getUpcomingEvents(3);
+export default async function Home({ searchParams }) {
+  const params = await searchParams;
+  const category = typeof params?.category === "string" ? params.category : null;
+
+  // Fetch filtered vendors for display
+  const vendors = await listVendors({ category });
+
+  // Fetch all vendors to get all categories for the filter
+  const allVendors = await listVendors();
+  const allCategories = Array.from(
+    new Set(allVendors.flatMap((v) => v.categories ?? []))
+  ).sort();
+
+  // Group vendors by category
+  const vendorsByCategory = vendors.reduce((acc, vendor) => {
+    const categories = vendor.categories ?? ["Uncategorized"];
+    categories.forEach((cat) => {
+      if (!acc[cat]) {
+        acc[cat] = [];
+      }
+      acc[cat].push(vendor);
+    });
+    return acc;
+  }, {});
+
+  // If a category is selected, only show that category
+  const sortedCategories = category
+    ? [category]
+    : Object.keys(vendorsByCategory).sort();
+
   return (
     <div className="mx-auto max-w-6xl p-8 w-full">
       <div className="text-center mb-12">
@@ -35,60 +61,111 @@ export default async function Home() {
         </div>
       </div>
 
-      {/* Upcoming Events Section */}
-      <div className="mt-16">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="font-display text-3xl tracking-wide">
-            <span className="text-[#01DBE0]">UPCOMING</span> EVENTS
-          </h2>
-          <Link href="/events" className="text-sm font-semibold text-[#FE9C05] hover:text-[#FD237A] transition-colors">
-            View all events →
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-16">
-          {upcomingEvents.map((event) => (
-            <Link
-              key={event.id}
-              href={`/events/${event.id}`}
-              className="group relative rounded-2xl border-2 border-transparent bg-gradient-to-br from-[#C9FF3F]/10 to-[#01DBE0]/10 p-5 hover:border-[#01DBE0] transition-all hover:shadow-xl hover:shadow-[#01DBE0]/20 hover:-translate-y-1"
-            >
-              <div className="absolute top-3 right-3 bg-[#FE9C05] text-white px-2 py-1 rounded-full text-xs font-bold">
-                {event.vendorIds.length} vendors
-              </div>
-              <div className="font-semibold text-lg mb-1 group-hover:text-[#01DBE0] transition-colors">
-                {event.name}
-              </div>
-              <div className="text-xs text-gray-600 font-body mb-2">{event.location}</div>
-              <div className="text-xs font-semibold text-[#FD237A]">
-                {new Date(event.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </div>
-            </Link>
-          ))}
-        </div>
-      </div>
+      {/* Category Filter */}
+      <CategoryFilter categories={allCategories} active={category} />
 
-      {/* Featured Vendors Section */}
-      <div>
-        <div className="mb-6">
-          <h2 className="font-display text-3xl tracking-wide">
-            <span className="text-[#FD237A]">FEATURED</span> VENDORS
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
-          {vendors.map((v) => (
-            <Link
-              key={v.id}
-              href={`/store/${v.id}`}
-              className="group relative rounded-2xl border-2 border-transparent bg-gradient-to-br from-[#01DBE0]/10 to-[#FD237A]/10 p-6 hover:border-[#01DBE0] transition-all hover:shadow-xl hover:shadow-[#01DBE0]/20 hover:-translate-y-1"
-            >
-              <div className="absolute top-3 right-3 h-2 w-2 rounded-full bg-[#C9FF3F] animate-pulse" />
-              <div className="font-semibold text-lg mb-1">{v.name}</div>
-              <div className="text-sm text-gray-600 font-body">{v.description}</div>
-              <div className="mt-3 text-xs font-semibold text-[#FE9C05]">{v.location} • {v.rating}★</div>
-            </Link>
+      {/* Vendors by Category */}
+      <div className="mt-8 space-y-12">
+        {sortedCategories.map((category) => (
+          <CategorySection
+            key={category}
+            category={category}
+            vendors={vendorsByCategory[category]}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CategorySection({ category, vendors }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-display text-3xl tracking-wide">
+          <span className="bg-gradient-to-r from-[#01DBE0] to-[#FD237A] bg-clip-text text-transparent">
+            {category.toUpperCase()}
+          </span>
+        </h2>
+        <Link
+          href={`/vendors?category=${encodeURIComponent(category)}`}
+          className="text-sm font-semibold text-[#FE9C05] hover:text-[#FD237A] transition-colors"
+        >
+          View all →
+        </Link>
+      </div>
+      <div className="overflow-x-auto scrollbar-hide -mx-8 px-8">
+        <div className="flex gap-4 pb-4">
+          {vendors.map((vendor) => (
+            <VendorCard key={vendor.id} vendor={vendor} />
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+function VendorCard({ vendor }) {
+  return (
+    <Link
+      href={`/store/${vendor.id}`}
+      className="group relative flex-shrink-0 w-[280px] h-[320px] rounded-2xl overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+    >
+      {/* Hero Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={vendor.heroImage}
+        alt={vendor.name}
+        className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+      />
+
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+
+      {/* Status Indicator */}
+      <div className="absolute top-4 right-4 h-3 w-3 rounded-full bg-[#C9FF3F] shadow-lg shadow-[#C9FF3F]/50 animate-pulse" />
+
+      {/* Content Overlay */}
+      <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+        <h3 className="font-semibold text-xl mb-2 group-hover:text-[#C9FF3F] transition-colors">
+          {vendor.name}
+        </h3>
+        <p className="text-sm text-gray-200 mb-3 line-clamp-2">
+          {vendor.description}
+        </p>
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-[#FE9C05]">{vendor.location}</span>
+          <span className="font-semibold text-[#C9FF3F]">{vendor.rating}★</span>
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function CategoryFilter({ categories, active }) {
+  return (
+    <div className="mb-8 overflow-x-auto">
+      <div className="flex items-center gap-3 whitespace-nowrap">
+        <FilterChip label="All" href="/" active={active == null} />
+        {categories.map((c) => (
+          <FilterChip key={c} label={c} href={`/?category=${encodeURIComponent(c)}`} active={active?.toLowerCase() === c.toLowerCase()} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function FilterChip({ label, href, active }) {
+  return (
+    <Link
+      href={href}
+      className={`inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all ${
+        active
+          ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
+          : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
+      }`}
+    >
+      {label}
+    </Link>
   );
 }
