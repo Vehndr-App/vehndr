@@ -1,7 +1,14 @@
 import { api } from "./api";
 
-export async function listVendors() {
-  const res = await api("/api/vendors");
+export async function listVendors(params = {}) {
+  const queryParams = new URLSearchParams();
+  if (params.search) queryParams.set("search", params.search);
+  if (params.category) queryParams.set("category", params.category);
+
+  const queryString = queryParams.toString();
+  const url = `/api/vendors${queryString ? `?${queryString}` : ""}`;
+
+  const res = await api(url);
   if (Array.isArray(res)) return res;
   if (Array.isArray(res?.vendors)) return res.vendors;
   if (Array.isArray(res?.data)) return res.data;

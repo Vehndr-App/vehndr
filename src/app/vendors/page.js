@@ -1,16 +1,18 @@
 import Link from "next/link";
 import { listVendors } from "../../services/vendors";
+import SearchBar from "./SearchBar";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
-  const vendors = await listVendors();
+  const searchQuery = typeof params?.search === "string" ? params.search : "";
+  const category = typeof params?.category === "string" ? params.category : null;
+
+  const vendors = await listVendors({ search: searchQuery, category });
+
   const categories = Array.from(
     new Set(vendors.flatMap((v) => v.categories ?? []))
   ).sort();
-  const active = typeof params?.category === "string" ? params.category : null;
-  const filtered = active
-    ? vendors.filter((v) => (v.categories ?? []).map((c) => c.toLowerCase()).includes(active.toLowerCase()))
-    : vendors;
+
   return (
     <div className="mx-auto max-w-6xl p-6">
       <h1 className="font-display text-4xl tracking-wide mb-6">
@@ -18,8 +20,9 @@ export default async function VendorsSelectPage({ searchParams }) {
           CHOOSE A VENDOR
         </span>
       </h1>
-      <CategoryFilter categories={categories} active={active} />
-      <VendorGrid vendors={filtered} />
+      <SearchBar initialSearch={searchQuery} category={category} />
+      <CategoryFilter categories={categories} active={category} />
+      <VendorGrid vendors={vendors} />
     </div>
   );
 }

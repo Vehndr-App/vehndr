@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useCart } from "../../contexts/CartContext";
-import { createCheckoutSession } from "../../services/checkout";
 import { useEffect, useState } from "react";
 import { getVendorProfile } from "../../services/vendors";
+import { useRouter } from "next/navigation";
 
 export default function CartPage() {
   const { vendorCarts, removeItem, clearVendor, getVendorTotal } = useCart();
   const [vendorInfo, setVendorInfo] = useState({});
+  const router = useRouter();
 
   const vendorIds = Object.keys(vendorCarts);
   const hasItems = vendorIds.length > 0;
@@ -97,20 +98,10 @@ export default function CartPage() {
 
                 <div className="flex gap-2 mt-3">
                   <button
-                    className="inline-flex items-center justify-center rounded-md bg-black text-white px-3 py-1.5 text-sm"
-                    onClick={async () => {
-                      const session = await createCheckoutSession({
-                        lineItems: items.map((i) => ({
-                          price_data: { unit_amount: i.price, product_data: { name: i.name, metadata: i.options || {} } },
-                          quantity: i.quantity,
-                          currency: "usd",
-                        })),
-                        vendorId,
-                      });
-                      window.location.href = session.url;
-                    }}
+                    className="inline-flex items-center justify-center rounded-md bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white px-3 py-1.5 text-sm font-semibold hover:opacity-90 transition"
+                    onClick={() => router.push('/checkout')}
                   >
-                    Checkout {vendor?.name || "Vendor"}
+                    Proceed to Checkout
                   </button>
                   <button
                     className="inline-flex items-center justify-center rounded-md border border-black/[.08] px-3 py-1.5 text-sm"

@@ -33,7 +33,7 @@ export async function api(path, { method = "GET", headers = {}, body, signal, cr
     method,
     headers: buildHeaders(headers, body),
     body: requestBody,
-    credentials: credentials ?? (token ? "include" : "same-origin"),
+    credentials: credentials ?? "include",
     signal,
   });
 

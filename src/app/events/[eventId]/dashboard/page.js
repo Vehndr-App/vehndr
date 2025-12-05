@@ -50,7 +50,7 @@ function EventDashboardInner() {
 
   const fetchRecommendedVendors = async () => {
     try {
-      const data = await api("/api/events/recommended_vendors");
+      const data = await api(`/api/events/${params.eventId}/recommended_vendors`);
       setRecommendedVendors(data.vendors || []);
     } catch (err) {
       console.error("Failed to fetch recommended vendors", err);
@@ -278,42 +278,41 @@ function EventDashboardInner() {
                   <Link
                     key={vendor.id}
                     href={`/vendors/${vendor.id}`}
-                    className="block bg-white rounded-xl border-2 border-gray-200 p-4 sm:p-5 hover:border-[#01DBE0] hover:shadow-md transition-all active:scale-[0.98] group"
+                    className="block bg-white rounded-xl border-2 border-gray-200 hover:border-[#01DBE0] hover:shadow-lg transition-all active:scale-[0.98] group overflow-hidden"
                   >
-                    <div className="flex items-start gap-3 sm:gap-4">
-                      {vendor.heroImage && (
-                        <div className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-gray-100">
-                          <img
-                            src={vendor.heroImage}
-                            alt={vendor.name}
-                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                          />
+                    {vendor.heroImage && (
+                      <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden relative">
+                        <img
+                          src={vendor.heroImage}
+                          alt={vendor.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                      </div>
+                    )}
+                    <div className="p-4 sm:p-5">
+                      <h3 className="text-base sm:text-lg font-semibold text-gray-900 group-hover:text-[#01DBE0] transition-colors mb-2 leading-snug">
+                        {vendor.name}
+                      </h3>
+                      {vendor.description && (
+                        <p className="text-sm sm:text-base text-gray-600 line-clamp-2 mb-3">{vendor.description}</p>
+                      )}
+                      {vendor.location && (
+                        <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500 mb-3">
+                          <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          </svg>
+                          <span className="font-medium">{vendor.location}</span>
                         </div>
                       )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-base sm:text-lg font-semibold text-gray-900 group-hover:text-[#01DBE0] transition-colors mb-1 leading-snug">
-                          {vendor.name}
-                        </h3>
-                        {vendor.description && (
-                          <p className="text-sm sm:text-base text-gray-600 line-clamp-2 mb-2">{vendor.description}</p>
-                        )}
-                        {vendor.location && (
-                          <div className="flex items-center gap-1.5 text-xs sm:text-sm text-gray-500">
-                            <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            </svg>
-                            <span className="font-medium">{vendor.location}</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
-                    <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-100">
-                      <div className="text-sm sm:text-base text-[#01DBE0] font-semibold flex items-center gap-2">
-                        View Profile
-                        <svg className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                      <div className="pt-3 mt-3 border-t border-gray-100">
+                        <div className="text-sm sm:text-base text-[#01DBE0] font-semibold flex items-center gap-2">
+                          View Profile
+                          <svg className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
                   </Link>

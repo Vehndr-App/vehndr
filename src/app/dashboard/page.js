@@ -6,6 +6,7 @@ import { api } from "../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import { useVendorOrders } from "../../hooks/useVendorOrders";
 import VendorProfile from "../../components/VendorProfile";
+import StripeConnectButton from "../../components/StripeConnectButton";
 
 export default function DashboardPage() {
   return (
@@ -28,6 +29,8 @@ function DashboardInner() {
   const [activeTab, setActiveTab] = useState('orders');
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
+  const [accountStatus, setAccountStatus] = useState(null);
+  const [loadingAccountStatus, setLoadingAccountStatus] = useState(false);
   const [showProductModal, setShowProductModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [productForm, setProductForm] = useState({
@@ -72,6 +75,19 @@ function DashboardInner() {
     }
   }, []);
 
+  const fetchAccountStatus = useCallback(async (vendorId) => {
+    setLoadingAccountStatus(true);
+    try {
+      const response = await api(`/api/vendors/${vendorId}/stripe/account`);
+      setAccountStatus(response);
+    } catch (err) {
+      console.error("Failed to fetch account status", err);
+      setAccountStatus(null);
+    } finally {
+      setLoadingAccountStatus(false);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       const u = await getCurrentUser();
@@ -80,10 +96,11 @@ function DashboardInner() {
       if (u?.vendorId) {
         await fetchOrders(u.vendorId);
         await fetchProducts(u.vendorId);
+        await fetchAccountStatus(u.vendorId);
       }
       setLoading(false);
     })();
-  }, [fetchOrders, fetchProducts]);
+  }, [fetchOrders, fetchProducts, fetchAccountStatus]);
 
   // Real-time order updates via ActionCable
   const handleNewOrder = useCallback((newOrder) => {
@@ -512,6 +529,16 @@ function DashboardInner() {
           >
             Profile
           </button>
+          <button
+            onClick={() => setActiveTab('payments')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'payments'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+          >
+            Payments
+          </button>
         </nav>
       </div>
 
@@ -704,6 +731,53 @@ function DashboardInner() {
 
         {activeTab === 'profile' && (
           <VendorProfile user={user} onSuccess={handleProfileSuccess} />
+        )}
+
+        {activeTab === 'payments' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Payment Settings</h2>
+              <p className="text-gray-600">
+                Manage your Stripe account to accept payments from customers.
+              </p>
+            </div>
+
+            {loadingAccountStatus ? (
+              <div className="text-sm text-gray-500">Loading account status...</div>
+            ) : (
+              <StripeConnectButton
+                vendorId={user?.vendorId}
+                accountStatus={accountStatus}
+                onStatusUpdate={() => fetchAccountStatus(user?.vendorId)}
+              />
+            )}
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="font-semibold text-blue-900 mb-2">How It Works</h3>
+              <ul className="text-sm text-blue-800 space-y-2">
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Click "Connect Stripe Account" to set up your payment account</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Complete the Stripe Express onboarding (takes about 5 minutes)</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Once approved, customers can purchase your products and services</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Funds are deposited directly to your bank account</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="mr-2">•</span>
+                  <span>Platform fee is automatically deducted from each transaction</span>
+                </li>
+              </ul>
+            </div>
+          </div>
         )}
       </div>
 
