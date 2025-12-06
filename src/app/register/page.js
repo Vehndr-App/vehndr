@@ -11,7 +11,7 @@ export default function RegisterPage() {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedRole, setSelectedRole] = useState("customer");
+  const [selectedRole, setSelectedRole] = useState("vendor");
 
   useEffect(() => {
     // Redirect if already logged in
@@ -20,8 +20,6 @@ export default function RegisterPage() {
         router.push('/dashboard');
       } else if (user.role === 'coordinator') {
         router.push('/coordinator-dashboard');
-      } else {
-        router.push('/');
       }
     }
   }, [user, router]);
@@ -148,21 +146,6 @@ export default function RegisterPage() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-3">I am a...</label>
             <div className="space-y-2">
-              <label className="flex items-center p-3 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-[#01DBE0] transition-colors">
-                <input
-                  type="radio"
-                  name="role"
-                  value="customer"
-                  checked={selectedRole === "customer"}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-4 h-4 text-[#01DBE0] focus:ring-[#01DBE0]"
-                />
-                <div className="ml-3">
-                  <span className="block font-medium text-gray-900">Customer</span>
-                  <span className="block text-xs text-gray-500">Browse and purchase products/services</span>
-                </div>
-              </label>
-
               <label className="flex items-center p-3 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-[#FD237A] transition-colors">
                 <input
                   type="radio"
