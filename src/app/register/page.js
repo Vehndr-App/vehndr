@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { register } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
+import ReCAPTCHA from "react-google-recaptcha";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedRole, setSelectedRole] = useState("vendor");
+  const recaptchaRef = useRef(null);
 
   useEffect(() => {
     // Redirect if already logged in
@@ -49,6 +51,14 @@ export default function RegisterPage() {
       return;
     }
 
+    // Get reCAPTCHA token
+    const recaptchaToken = recaptchaRef.current?.getValue();
+    if (!recaptchaToken) {
+      setError("Please complete the reCAPTCHA verification");
+      setLoading(false);
+      return;
+    }
+
     try {
       console.log("Attempting registration with:", email, role);
 
@@ -57,7 +67,8 @@ export default function RegisterPage() {
         password,
         passwordConfirmation,
         name: name || undefined,
-        role
+        role,
+        recaptchaToken
       });
 
       // Refresh the user in AuthContext
@@ -66,6 +77,9 @@ export default function RegisterPage() {
       // Router will redirect based on user role via useEffect
     } catch (err) {
       console.error("Registration error:", err);
+      // Reset reCAPTCHA on error
+      recaptchaRef.current?.reset();
+
       // Display backend validation errors if available
       if (err?.details?.errors && Array.isArray(err.details.errors)) {
         setError(err.details.errors.join(", "));
@@ -176,6 +190,13 @@ export default function RegisterPage() {
                 </div>
               </label>
             </div>
+          </div>
+
+          <div className="flex justify-center">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
+            />
           </div>
 
           <button

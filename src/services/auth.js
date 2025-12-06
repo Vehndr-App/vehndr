@@ -23,10 +23,17 @@ export async function login({ email, password }) {
   return result?.user || result;
 }
 
-export async function register({ email, password, passwordConfirmation, name, role }) {
+export async function register({ email, password, passwordConfirmation, name, role, recaptchaToken }) {
   const result = await api("/api/auth/register", {
     method: "POST",
-    body: { email, password, password_confirmation: passwordConfirmation, name, role },
+    body: {
+      email,
+      password,
+      password_confirmation: passwordConfirmation,
+      name,
+      role,
+      recaptcha_token: recaptchaToken
+    },
   });
   if (typeof window !== "undefined" && result?.token) {
     window.localStorage.setItem("vehndr_token", result.token);
