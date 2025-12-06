@@ -102,7 +102,7 @@ export default function CheckoutPage() {
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Checkout</h1>
       <p className="text-gray-600 mb-2">Review your order and complete payment</p>
       <p className="text-sm text-gray-500 mb-8">
-        Guest checkout available - we'll collect your email during payment
+        Guest checkout available - we&apos;ll collect your email during payment
       </p>
 
       {error && (
