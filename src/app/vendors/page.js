@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { listVendors } from "../../services/vendors";
 import SearchBar from "./SearchBar";
+import PriceFilter from "./PriceFilter";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
   const searchQuery = typeof params?.search === "string" ? params.search : "";
   const category = typeof params?.category === "string" ? params.category : null;
+  const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
+  const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
 
   // Fetch filtered vendors for display
-  const vendors = await listVendors({ search: searchQuery, category });
+  const vendors = await listVendors({ search: searchQuery, category, minPrice, maxPrice });
 
   // Fetch all vendors to get all categories for the filter
   const allVendors = await listVendors();
@@ -42,6 +45,7 @@ export default async function VendorsSelectPage({ searchParams }) {
       </h1>
       <SearchBar initialSearch={searchQuery} category={category} />
       <CategoryFilter categories={allCategories} active={category} />
+      <PriceFilter minPrice={minPrice} maxPrice={maxPrice} />
 
       {/* Vendors by Category */}
       <div className="mt-8 space-y-12">

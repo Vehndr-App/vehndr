@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { listVendors } from "../services/vendors";
+import PriceFilter from "./vendors/PriceFilter";
 
 export default async function Home({ searchParams }) {
   const params = await searchParams;
   const category = typeof params?.category === "string" ? params.category : null;
+  const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
+  const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
 
   // Fetch filtered vendors for display
-  const vendors = await listVendors({ category });
+  const vendors = await listVendors({ category, minPrice, maxPrice });
 
   // Fetch all vendors to get all categories for the filter
   const allVendors = await listVendors();
@@ -61,8 +64,9 @@ export default async function Home({ searchParams }) {
         </div>
       </div>
 
-      {/* Category Filter */}
+      {/* Category and Price Filters */}
       <CategoryFilter categories={allCategories} active={category} />
+      <PriceFilter minPrice={minPrice} maxPrice={maxPrice} />
 
       {/* Vendors by Category */}
       <div className="mt-8 space-y-12">
