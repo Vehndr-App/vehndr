@@ -12,10 +12,10 @@ export async function getCurrentUser() {
   }
 }
 
-export async function login({ email, password }) {
+export async function login({ email, password, recaptchaToken }) {
   const result = await api("/api/auth/login", {
     method: "POST",
-    body: { email, password },
+    body: { email, password, recaptcha_token: recaptchaToken },
   });
   if (typeof window !== "undefined" && result?.token) {
     window.localStorage.setItem("vehndr_token", result.token);

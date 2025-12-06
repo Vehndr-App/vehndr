@@ -1,16 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { login } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
+import ReCAPTCHA from "react-google-recaptcha";
 
 export default function LoginPage() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const recaptchaRef = useRef(null);
 
   useEffect(() => {
     // Redirect if already logged in
@@ -34,10 +36,18 @@ export default function LoginPage() {
     const email = formData.get("email");
     const password = formData.get("password");
 
+    // Get reCAPTCHA token
+    const recaptchaToken = recaptchaRef.current?.getValue();
+    if (!recaptchaToken) {
+      setError("Please complete the reCAPTCHA verification");
+      setLoading(false);
+      return;
+    }
+
     try {
       console.log("Attempting login with:", email);
 
-      await login({ email, password });
+      await login({ email, password, recaptchaToken });
 
       // Refresh the user in AuthContext
       await refreshUser();
@@ -45,6 +55,8 @@ export default function LoginPage() {
       // Router will redirect based on user role via useEffect
     } catch (err) {
       console.error("Login error:", err);
+      // Reset reCAPTCHA on error
+      recaptchaRef.current?.reset();
       setError("Invalid email or password");
       setLoading(false);
     }
@@ -53,12 +65,23 @@ export default function LoginPage() {
   const handleDemoLogin = async () => {
     setLoading(true);
     setError(null);
+
+    // Get reCAPTCHA token
+    const recaptchaToken = recaptchaRef.current?.getValue();
+    if (!recaptchaToken) {
+      setError("Please complete the reCAPTCHA verification");
+      setLoading(false);
+      return;
+    }
+
     try {
-      await login({ email: "vendor@example.com", password: "password123" });
+      await login({ email: "vendor@example.com", password: "password123", recaptchaToken });
       await refreshUser();
       // Router will redirect based on user role via useEffect
     } catch (err) {
       console.error(err);
+      // Reset reCAPTCHA on error
+      recaptchaRef.current?.reset();
       setError("Demo login failed");
       setLoading(false);
     }
@@ -102,6 +125,13 @@ export default function LoginPage() {
               required
               className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
               placeholder="••••••••"
+            />
+          </div>
+
+          <div className="flex justify-center">
+            <ReCAPTCHA
+              ref={recaptchaRef}
+              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
             />
           </div>
 
