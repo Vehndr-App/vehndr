@@ -18,6 +18,7 @@ export default function DashboardPage() {
 
 function DashboardInner() {
   const [user, setUser] = useState(null);
+  const [vendor, setVendor] = useState(null);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedOrderId, setExpandedOrderId] = useState(null);
@@ -75,6 +76,16 @@ function DashboardInner() {
     }
   }, []);
 
+  const fetchVendor = useCallback(async (vendorId) => {
+    try {
+      const data = await api(`/api/vendors/${vendorId}`);
+      const vendorData = data.vendor || data;
+      setVendor(vendorData);
+    } catch (err) {
+      console.error("Failed to fetch vendor", err);
+    }
+  }, []);
+
   const fetchAccountStatus = useCallback(async (vendorId) => {
     setLoadingAccountStatus(true);
     try {
@@ -94,13 +105,14 @@ function DashboardInner() {
       setUser(u);
 
       if (u?.vendorId) {
+        await fetchVendor(u.vendorId);
         await fetchOrders(u.vendorId);
         await fetchProducts(u.vendorId);
         await fetchAccountStatus(u.vendorId);
       }
       setLoading(false);
     })();
-  }, [fetchOrders, fetchProducts, fetchAccountStatus]);
+  }, [fetchVendor, fetchOrders, fetchProducts, fetchAccountStatus]);
 
   // Real-time order updates via ActionCable
   const handleNewOrder = useCallback((newOrder) => {
@@ -267,6 +279,9 @@ function DashboardInner() {
   const handleProfileSuccess = (vendorData) => {
     setSuccessMessage('Profile saved successfully!');
     setTimeout(() => setSuccessMessage(null), 3000);
+
+    // Update vendor state with the saved data
+    setVendor(vendorData);
 
     // Update user with new vendor ID if it was just created
     if (!user.vendorId && vendorData.id) {
@@ -488,11 +503,9 @@ function DashboardInner() {
       )}
 
       <h1 className="text-2xl font-semibold mb-4">Vendor Dashboard</h1>
-      {user && (
+      {vendor && (
         <div className="text-sm text-black/60 mb-8">
-          Signed in as <span className="font-medium text-black">{user.name}</span>
-          <br/>
-          Vendor ID: <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">{user.vendorId}</span>
+          Signed in as <span className="font-medium text-black">{vendor.name}</span>
         </div>
       )}
 

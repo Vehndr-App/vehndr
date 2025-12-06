@@ -4,15 +4,17 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "../services/api";
 
 const CATEGORY_OPTIONS = [
-  "Catering",
-  "Photography",
-  "Videography",
-  "Florist",
-  "DJ/Music",
+  "Food & Beverage",
+  "Health & Wellness",
+  "Clothing & Accessories",
+  "Beauty",
   "Venue",
-  "Decoration",
-  "Planning",
+  "Photography",
+  "Rentals",
+  "Photography & Videography",
+  "DJ/Music",
   "Transportation",
+  "Workshops",
   "Entertainment",
   "Other"
 ];
