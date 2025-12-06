@@ -15,24 +15,9 @@ export function CartProvider({ children }) {
       try {
         const response = await api('/api/cart');
 
-        // Transform backend cart items to vendorCarts structure
-        if (response && response.items) {
-          const grouped = {};
-          response.items.forEach(item => {
-            const vendorId = item.vendorId;
-            if (!grouped[vendorId]) {
-              grouped[vendorId] = [];
-            }
-            grouped[vendorId].push({
-              id: item.productId,
-              vendorId: item.vendorId,
-              name: item.product?.name || 'Product',
-              price: item.product?.price || 0,
-              quantity: item.quantity,
-              options: item.selectedOptions || {},
-            });
-          });
-          setVendorCarts(grouped);
+        // Backend returns { vendorCarts: {vendorId: [items]} }
+        if (response && response.vendorCarts) {
+          setVendorCarts(response.vendorCarts);
         }
       } catch (err) {
         console.error('Failed to load cart:', err);
@@ -46,6 +31,7 @@ export function CartProvider({ children }) {
 
   const addItem = async (product, quantity = 1, selectedOptions = {}) => {
     // Optimistically update UI
+    const previousState = vendorCarts;
     setVendorCarts((prev) => {
       const vendorId = product.vendorId;
       const vendorItems = prev[vendorId] || [];
@@ -77,7 +63,7 @@ export function CartProvider({ children }) {
 
     // Sync with backend
     try {
-      await api('/api/cart/items', {
+      const response = await api('/api/cart/items', {
         method: 'POST',
         body: {
           productId: product.id,
@@ -85,19 +71,15 @@ export function CartProvider({ children }) {
           selectedOptions: selectedOptions
         }
       });
+
+      // Update state with backend response to ensure sync
+      if (response && response.vendorCarts) {
+        setVendorCarts(response.vendorCarts);
+      }
     } catch (err) {
       console.error('Failed to add item to backend cart:', err);
       // Revert optimistic update on error
-      setVendorCarts((prev) => {
-        const vendorId = product.vendorId;
-        const vendorItems = prev[vendorId] || [];
-        return {
-          ...prev,
-          [vendorId]: vendorItems.filter(i =>
-            !(i.id === product.id && JSON.stringify(i.options) === JSON.stringify(selectedOptions))
-          )
-        };
-      });
+      setVendorCarts(previousState);
     }
   };
 
@@ -120,9 +102,14 @@ export function CartProvider({ children }) {
     try {
       // For now, we'll just reload the cart after removal
       // You may want to enhance the backend API to support removing by productId
-      await api(`/api/cart/vendors/${vendorId}`, {
+      const response = await api(`/api/cart/vendors/${vendorId}`, {
         method: 'DELETE'
       });
+
+      // Update state with backend response to ensure sync
+      if (response && response.vendorCarts) {
+        setVendorCarts(response.vendorCarts);
+      }
     } catch (err) {
       console.error('Failed to remove item from backend cart:', err);
       // Revert on error
@@ -141,9 +128,14 @@ export function CartProvider({ children }) {
 
     // Sync with backend
     try {
-      await api(`/api/cart/vendors/${vendorId}`, {
+      const response = await api(`/api/cart/vendors/${vendorId}`, {
         method: 'DELETE'
       });
+
+      // Update state with backend response to ensure sync
+      if (response && response.vendorCarts) {
+        setVendorCarts(response.vendorCarts);
+      }
     } catch (err) {
       console.error('Failed to clear vendor from backend cart:', err);
       // Revert on error

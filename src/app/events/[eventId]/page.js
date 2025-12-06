@@ -29,9 +29,23 @@ export default async function EventDetailPage({ params, searchParams }) {
     new Set(eventVendors.flatMap((v) => v.categories ?? []))
   ).sort();
   const activeCategory = typeof sp?.category === "string" ? sp.category : null;
-  const filteredVendors = activeCategory
-    ? eventVendors.filter((v) => (v.categories ?? []).map((c) => c.toLowerCase()).includes(activeCategory.toLowerCase()))
-    : eventVendors;
+
+  // Group vendors by category (matching /vendors page)
+  const vendorsByCategory = eventVendors.reduce((acc, vendor) => {
+    const vendorCategories = vendor.categories ?? ["Uncategorized"];
+    vendorCategories.forEach((cat) => {
+      if (!acc[cat]) {
+        acc[cat] = [];
+      }
+      acc[cat].push(vendor);
+    });
+    return acc;
+  }, {});
+
+  // If a category is selected, only show that category
+  const sortedCategories = activeCategory
+    ? [activeCategory]
+    : Object.keys(vendorsByCategory).sort();
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -88,8 +102,8 @@ export default async function EventDetailPage({ params, searchParams }) {
         </h2>
 
         {/* Category filter chips */}
-        <div className="mb-6 overflow-x-auto">
-          <div className="flex items-center gap-2 whitespace-nowrap">
+        <div className="mb-8 overflow-x-auto">
+          <div className="flex items-center gap-3 whitespace-nowrap">
             <FilterChip label="All" href={`/events/${event.id}`} active={activeCategory == null} />
             {categories.map((c) => (
               <FilterChip
@@ -102,41 +116,77 @@ export default async function EventDetailPage({ params, searchParams }) {
           </div>
         </div>
 
-        {/* Vendor grid (filtered) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredVendors.map((vendor) => (
-            <Link
-              key={vendor.id}
-              href={`/store/${vendor.id}`}
-              className="group relative rounded-xl border-2 border-transparent bg-white hover:border-[#01DBE0] transition-all hover:shadow-xl hover:shadow-[#01DBE0]/20 hover:-translate-y-1 p-4"
-            >
-              <div className="flex items-start gap-3">
-                <div className="h-12 w-12 rounded-lg bg-gradient-to-br from-[#DCA7F0]/20 to-[#C9FF3F]/20 flex items-center justify-center flex-shrink-0">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={vendor.heroImage} alt="" className="h-6 w-6 opacity-70" />
-                </div>
-                <div className="flex-1">
-                  <div className="font-semibold mb-1 group-hover:text-[#01DBE0] transition-colors">
-                    {vendor.name}
-                  </div>
-                  <div className="text-xs text-gray-600 font-body mb-2">
-                    {vendor.description}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-[#FE9C05] font-semibold">{vendor.location}</span>
-                    <span>•</span>
-                    <span className="text-[#FD237A] font-semibold">{vendor.rating}★</span>
-                  </div>
-                </div>
-              </div>
-              <div className="mt-3 inline-flex items-center text-xs font-semibold text-[#01DBE0] group-hover:text-[#FD237A] transition-colors">
-                View Products →
-              </div>
-            </Link>
+        {/* Vendors by Category (matching /vendors page) */}
+        <div className="space-y-12">
+          {sortedCategories.map((cat) => (
+            <CategorySection
+              key={cat}
+              category={cat}
+              vendors={vendorsByCategory[cat]}
+              isFiltered={activeCategory !== null}
+            />
           ))}
         </div>
       </div>
     </div>
+  );
+}
+
+function CategorySection({ category, vendors, isFiltered }) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-display text-3xl tracking-wide">
+          <span className="bg-gradient-to-r from-[#01DBE0] to-[#FD237A] bg-clip-text text-transparent">
+            {category.toUpperCase()}
+          </span>
+        </h2>
+      </div>
+      <div className="overflow-x-auto scrollbar-hide -mx-6 px-6">
+        <div className="flex gap-4 pb-4">
+          {vendors.map((vendor) => (
+            <VendorCard key={vendor.id} vendor={vendor} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VendorCard({ vendor }) {
+  return (
+    <Link
+      href={`/store/${vendor.id}`}
+      className="group relative flex-shrink-0 w-[280px] h-[320px] rounded-2xl overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+    >
+      {/* Hero Image */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={vendor.heroImage}
+        alt={vendor.name}
+        className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+      />
+
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+
+      {/* Status Indicator */}
+      <div className="absolute top-4 right-4 h-3 w-3 rounded-full bg-[#C9FF3F] shadow-lg shadow-[#C9FF3F]/50 animate-pulse" />
+
+      {/* Content Overlay */}
+      <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+        <h3 className="font-semibold text-xl mb-2 group-hover:text-[#C9FF3F] transition-colors">
+          {vendor.name}
+        </h3>
+        <p className="text-sm text-gray-200 mb-3 line-clamp-2">
+          {vendor.description}
+        </p>
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-[#FE9C05]">{vendor.location}</span>
+          <span className="font-semibold text-[#C9FF3F]">{vendor.rating}★</span>
+        </div>
+      </div>
+    </Link>
   );
 }
 
@@ -145,8 +195,8 @@ function FilterChip({ label, href, active }) {
     <Link
       href={href}
       className={`inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-        active 
-          ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30" 
+        active
+          ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
           : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
       }`}
     >

@@ -100,7 +100,10 @@ export default function CheckoutPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Checkout</h1>
-      <p className="text-gray-600 mb-8">Review your order and complete payment</p>
+      <p className="text-gray-600 mb-2">Review your order and complete payment</p>
+      <p className="text-sm text-gray-500 mb-8">
+        Guest checkout available - we'll collect your email during payment
+      </p>
 
       {error && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">

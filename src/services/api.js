@@ -1,6 +1,18 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
 
+function getOrCreateCartToken() {
+  if (typeof window === "undefined") return null;
+
+  let cartToken = window.localStorage?.getItem("vehndr_cart_token");
+  if (!cartToken) {
+    // Generate a new cart token (UUID v4)
+    cartToken = crypto.randomUUID();
+    window.localStorage?.setItem("vehndr_cart_token", cartToken);
+  }
+  return cartToken;
+}
+
 function buildHeaders(extraHeaders = {}, body) {
   const headers = { ...extraHeaders };
   const hasFormData = typeof FormData !== "undefined" && body instanceof FormData;
@@ -8,6 +20,8 @@ function buildHeaders(extraHeaders = {}, body) {
     headers["Content-Type"] = headers["Content-Type"] || "application/json";
     headers["Accept"] = headers["Accept"] || "application/json";
   }
+
+  // Add JWT token if authenticated
   const token =
     typeof window !== "undefined"
       ? window.localStorage?.getItem("vehndr_token")
@@ -15,6 +29,13 @@ function buildHeaders(extraHeaders = {}, body) {
   if (token && !headers["Authorization"]) {
     headers["Authorization"] = `Bearer ${token}`;
   }
+
+  // Add cart token for guest carts
+  const cartToken = getOrCreateCartToken();
+  if (cartToken && !headers["X-Cart-Token"]) {
+    headers["X-Cart-Token"] = cartToken;
+  }
+
   return headers;
 }
 
