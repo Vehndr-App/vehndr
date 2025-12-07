@@ -2,9 +2,8 @@ import Link from "next/link";
 import { getEvent } from "../../../services/events";
 import { listVendors } from "../../../services/vendors";
 
-export default async function EventDetailPage({ params, searchParams }) {
+export default async function EventDetailPage({ params }) {
   const { eventId } = await params;
-  const sp = await searchParams;
   const event = await getEvent(eventId);
   const allVendors = await listVendors();
   
@@ -24,28 +23,34 @@ export default async function EventDetailPage({ params, searchParams }) {
   // Get vendor details for this event
   const eventVendors = allVendors.filter(v => event.vendorIds.includes(v.id));
 
-  // Category chip filter (like /vendors)
-  const categories = Array.from(
-    new Set(eventVendors.flatMap((v) => v.categories ?? []))
-  ).sort();
-  const activeCategory = typeof sp?.category === "string" ? sp.category : null;
+  // Helper function to map vendor to single category
+  const getCategoryForVendor = (vendor) => {
+    const categories = vendor.categories ?? ["Uncategorized"];
 
-  // Group vendors by category (matching /vendors page)
+    // Check if vendor has food/beverage category (priority category)
+    const hasFoodCategory = categories.some(cat =>
+      cat.toLowerCase().includes('food') || cat.toLowerCase().includes('beverage')
+    );
+
+    if (hasFoodCategory) {
+      return "Food and Drink";
+    }
+
+    return "Artisan & Craft";
+  };
+
+  // Group vendors by their assigned category (each vendor in ONE section only)
   const vendorsByCategory = eventVendors.reduce((acc, vendor) => {
-    const vendorCategories = vendor.categories ?? ["Uncategorized"];
-    vendorCategories.forEach((cat) => {
-      if (!acc[cat]) {
-        acc[cat] = [];
-      }
-      acc[cat].push(vendor);
-    });
+    const category = getCategoryForVendor(vendor);
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(vendor);
     return acc;
   }, {});
 
-  // If a category is selected, only show that category
-  const sortedCategories = activeCategory
-    ? [activeCategory]
-    : Object.keys(vendorsByCategory).sort();
+  // Only use categories that have vendors
+  const categories = Object.keys(vendorsByCategory).sort();
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -97,33 +102,17 @@ export default async function EventDetailPage({ params, searchParams }) {
 
       {/* Vendors Section */}
       <div>
-        <h2 className="font-display text-3xl tracking-wide mb-4">
+        <h2 className="font-display text-3xl tracking-wide mb-8">
           <span className="text-[#FE9C05]">{eventVendors.length}</span> VENDORS AT THIS EVENT
         </h2>
 
-        {/* Category filter chips */}
-        <div className="mb-8 overflow-x-auto">
-          <div className="flex items-center gap-3 whitespace-nowrap">
-            <FilterChip label="All" href={`/events/${event.id}`} active={activeCategory == null} />
-            {categories.map((c) => (
-              <FilterChip
-                key={c}
-                label={c}
-                href={`/events/${event.id}?category=${encodeURIComponent(c)}`}
-                active={activeCategory?.toLowerCase() === c.toLowerCase()}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Vendors by Category (matching /vendors page) */}
+        {/* Vendors by Category */}
         <div className="space-y-12">
-          {sortedCategories.map((cat) => (
+          {categories.map((cat) => (
             <CategorySection
               key={cat}
               category={cat}
               vendors={vendorsByCategory[cat]}
-              isFiltered={activeCategory !== null}
             />
           ))}
         </div>
@@ -132,7 +121,7 @@ export default async function EventDetailPage({ params, searchParams }) {
   );
 }
 
-function CategorySection({ category, vendors, isFiltered }) {
+function CategorySection({ category, vendors }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -186,21 +175,6 @@ function VendorCard({ vendor }) {
           <span className="font-semibold text-[#C9FF3F]">{vendor.rating}★</span>
         </div>
       </div>
-    </Link>
-  );
-}
-
-function FilterChip({ label, href, active }) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-        active
-          ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
-          : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
-      }`}
-    >
-      {label}
     </Link>
   );
 }
