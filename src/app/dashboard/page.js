@@ -27,6 +27,11 @@ function DashboardInner() {
   const [showCompleted, setShowCompleted] = useState(false);
   const [showPending, setShowPending] = useState(false);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [refundingOrderId, setRefundingOrderId] = useState(null);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundOrder, setRefundOrder] = useState(null);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('requested_by_customer');
   const [activeTab, setActiveTab] = useState('orders');
   const [products, setProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
@@ -162,6 +167,67 @@ function DashboardInner() {
       alert("Failed to complete order. Please try again.");
     } finally {
       setCompletingOrderId(null);
+    }
+  };
+
+  const openRefundModal = (order) => {
+    setRefundOrder(order);
+    setRefundAmount((order.totalCents / 100).toFixed(2));
+    setRefundReason('requested_by_customer');
+    setShowRefundModal(true);
+  };
+
+  const closeRefundModal = () => {
+    setShowRefundModal(false);
+    setRefundOrder(null);
+    setRefundAmount('');
+    setRefundReason('requested_by_customer');
+  };
+
+  const handleRefundOrder = async () => {
+    if (!refundOrder) return;
+
+    const amountCents = Math.round(parseFloat(refundAmount) * 100);
+
+    if (amountCents <= 0 || amountCents > refundOrder.totalCents) {
+      alert('Invalid refund amount');
+      return;
+    }
+
+    setRefundingOrderId(refundOrder.id);
+    try {
+      const response = await api(`/api/orders/${refundOrder.id}/refund`, {
+        method: 'POST',
+        body: JSON.stringify({
+          amount_cents: amountCents,
+          reason: refundReason
+        })
+      });
+
+      // Show success message
+      setSuccessMessage(response.message || 'Refund processed successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
+      // Update the order in local state
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === refundOrder.id
+            ? {
+                ...order,
+                refundStatus: response.refund_status || response.refundStatus,
+                refundAmountCents: response.refund_amount_cents || response.refundAmountCents,
+                refundedAt: response.refunded_at || response.refundedAt
+              }
+            : order
+        )
+      );
+
+      closeRefundModal();
+    } catch (err) {
+      console.error("Failed to refund order", err);
+      alert(`Failed to refund order: ${err.message || 'Please try again.'}`);
+    } finally {
+      setRefundingOrderId(null);
     }
   };
 
@@ -336,13 +402,22 @@ function DashboardInner() {
 
             <div>
               <div className="text-xs text-gray-500 mb-1">Status</div>
-              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                ${order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                  order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                  order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                  order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
-                {order.status}
-              </span>
+              <div className="flex flex-col gap-1">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                  ${order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                    order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                    order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                    order.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
+                  {order.status}
+                </span>
+                {order.refundStatus && order.refundStatus !== 'none' && (
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                    {order.refundStatus === 'full_refund' ? 'Refunded' :
+                     order.refundStatus === 'partial_refund' ? 'Partial Refund' :
+                     'Refund Pending'}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="ml-auto text-right">
@@ -455,6 +530,30 @@ function DashboardInner() {
               </div>
             </div>
 
+            {/* Refund Information */}
+            {order.refundStatus && order.refundStatus !== 'none' && order.refundAmountCents > 0 && (
+              <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <h4 className="text-sm font-semibold mb-2 text-orange-900">Refund Information</h4>
+                <div className="text-sm text-orange-800 space-y-1">
+                  <div><span className="font-medium">Status:</span> {
+                    order.refundStatus === 'full_refund' ? 'Full Refund' :
+                    order.refundStatus === 'partial_refund' ? 'Partial Refund' :
+                    'Refund Pending'
+                  }</div>
+                  <div><span className="font-medium">Amount:</span> ${(order.refundAmountCents / 100).toFixed(2)}</div>
+                  {order.refundedAt && (
+                    <div><span className="font-medium">Refunded on:</span> {new Date(order.refundedAt).toLocaleDateString('en-US', {
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-4 border-t border-gray-200">
               <div className="text-sm text-gray-600">
                 Order placed on {new Date(order.created_at || order.createdAt).toLocaleDateString('en-US', {
@@ -466,21 +565,35 @@ function DashboardInner() {
                 })}
               </div>
 
-              {order.status !== 'completed' && order.status !== 'cancelled' && (
-                <button
-                  onClick={() => handleCompleteOrder(order.id)}
-                  disabled={completingOrderId === order.id}
-                  className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                >
-                  {completingOrderId === order.id && (
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              <div className="flex gap-2">
+                {order.status !== 'completed' && order.status !== 'cancelled' && (
+                  <button
+                    onClick={() => handleCompleteOrder(order.id)}
+                    disabled={completingOrderId === order.id}
+                    className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                  >
+                    {completingOrderId === order.id && (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    {completingOrderId === order.id ? 'Completing...' : 'Mark as Completed'}
+                  </button>
+                )}
+
+                {order.paymentStatus === 'succeeded' && (!order.refundStatus || order.refundStatus === 'none') && (
+                  <button
+                    onClick={() => openRefundModal(order)}
+                    className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
                     </svg>
-                  )}
-                  {completingOrderId === order.id ? 'Completing...' : 'Mark as Completed'}
-                </button>
-              )}
+                    Refund Order
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -987,6 +1100,106 @@ function DashboardInner() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Modal */}
+      {showRefundModal && refundOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Refund Order</h2>
+                <button
+                  onClick={closeRefundModal}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600 mb-2">Order Total</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    ${(refundOrder.totalCents / 100).toFixed(2)}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Refund Amount (USD)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={(refundOrder.totalCents / 100).toFixed(2)}
+                    value={refundAmount}
+                    onChange={(e) => setRefundAmount(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    placeholder="0.00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Maximum refund: ${(refundOrder.totalCents / 100).toFixed(2)}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Reason
+                  </label>
+                  <select
+                    value={refundReason}
+                    onChange={(e) => setRefundReason(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                  >
+                    <option value="requested_by_customer">Requested by customer</option>
+                    <option value="duplicate">Duplicate charge</option>
+                    <option value="fraudulent">Fraudulent</option>
+                  </select>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                  <div className="flex items-start">
+                    <svg className="w-5 h-5 text-yellow-600 mr-2 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <div className="text-sm text-yellow-800">
+                      This action will process a refund through Stripe. This action cannot be undone.
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={closeRefundModal}
+                    disabled={refundingOrderId === refundOrder.id}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRefundOrder}
+                    disabled={refundingOrderId === refundOrder.id}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  >
+                    {refundingOrderId === refundOrder.id && (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    {refundingOrderId === refundOrder.id ? 'Processing...' : 'Process Refund'}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
