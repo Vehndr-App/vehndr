@@ -61,7 +61,7 @@ export default function VendorProfile({ user, onSuccess }) {
     } finally {
       setLoading(false);
     }
-  }, [user?.vendorId, user]);
+  }, [user]);
 
   useEffect(() => {
     if (user?.vendorId) {
@@ -203,6 +203,7 @@ export default function VendorProfile({ user, onSuccess }) {
           {(formData.heroImageUrl || formData.heroImage) && (
             <div className="mb-3">
               <div className="relative w-full h-48 rounded-lg overflow-hidden border border-gray-200">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={formData.heroImage ? URL.createObjectURL(formData.heroImage) : formData.heroImageUrl}
                   alt="Hero preview"

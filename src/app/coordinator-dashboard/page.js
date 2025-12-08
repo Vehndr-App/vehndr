@@ -278,6 +278,7 @@ function CoordinatorDashboardInner() {
 
                   {event.image && (
                     <div className="flex-shrink-0">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={event.image}
                         alt={event.name}

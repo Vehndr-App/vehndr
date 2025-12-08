@@ -31,6 +31,7 @@ function EventDashboardInner() {
       fetchEventDashboard();
       fetchRecommendedVendors();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, params.eventId]);
 
   const fetchEventDashboard = async () => {
@@ -282,6 +283,7 @@ function EventDashboardInner() {
                   >
                     {vendor.heroImage && (
                       <div className="w-full h-40 sm:h-48 bg-gradient-to-br from-gray-100 to-gray-200 overflow-hidden relative">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={vendor.heroImage}
                           alt={vendor.name}

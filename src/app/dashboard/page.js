@@ -469,6 +469,7 @@ function DashboardInner() {
                       {/* Product Image */}
                       {product?.images && product.images.length > 0 && (
                         <div className="flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={product.images[0]}
                             alt={productName}
@@ -793,6 +794,7 @@ function DashboardInner() {
                   >
                     {images.length > 0 && (
                       <div className="aspect-square bg-gray-100 relative group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={images[0]}
                           alt={product.name}
@@ -1031,6 +1033,7 @@ function DashboardInner() {
                       <div className="grid grid-cols-3 gap-2">
                         {editingProduct.images.map((imageUrl, index) => (
                           <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={imageUrl}
                               alt={`Product image ${index + 1}`}
@@ -1049,6 +1052,7 @@ function DashboardInner() {
                       <div className="grid grid-cols-3 gap-2">
                         {Array.from(productForm.images).map((file, index) => (
                           <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-200">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={URL.createObjectURL(file)}
                               alt={`Preview ${index + 1}`}

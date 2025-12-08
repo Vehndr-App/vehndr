@@ -190,6 +190,7 @@ export function CartProvider({ children }) {
       totalItems,
       loading
     }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [vendorCarts, allItems, totalItems, loading]
   );
 

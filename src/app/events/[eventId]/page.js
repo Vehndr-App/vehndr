@@ -20,7 +20,7 @@ export default async function EventDetailPage({ params }) {
             </svg>
           </div>
           <h1 className="text-xl font-semibold text-[var(--gray-900)] mb-2">Event Not Found</h1>
-          <p className="text-[var(--gray-500)] mb-4">The event you're looking for doesn't exist.</p>
+          <p className="text-[var(--gray-500)] mb-4">The event you&apos;re looking for doesn&apos;t exist.</p>
           <Link href="/events" className="btn btn-outline inline-flex">
             ← Back to Events
           </Link>
