@@ -16,9 +16,9 @@ export default function PriceFilter({ minPrice, maxPrice }) {
   ];
 
   return (
-    <div className="mb-8 overflow-x-auto">
-      <div className="flex items-center gap-3 whitespace-nowrap">
-        <span className="text-sm font-semibold text-gray-600 mr-2">Price:</span>
+    <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+      <span className="text-sm font-medium text-[var(--gray-500)] flex-shrink-0">Price:</span>
+      <div className="flex items-center gap-2">
         {priceRanges.map((range) => {
           const isActive =
             (range.minPrice === null && minPrice === null && range.maxPrice === null && maxPrice === null) ||
@@ -33,30 +33,16 @@ export default function PriceFilter({ minPrice, maxPrice }) {
           const href = `${pathname}${params.toString() ? `?${params.toString()}` : ''}`;
 
           return (
-            <FilterChip
+            <Link
               key={range.label}
-              label={range.label}
               href={href}
-              active={isActive}
-            />
+              className={`chip ${isActive ? 'chip-active' : 'chip-filled'}`}
+            >
+              {range.label}
+            </Link>
           );
         })}
       </div>
     </div>
-  );
-}
-
-function FilterChip({ label, href, active }) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-        active
-          ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
-          : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }

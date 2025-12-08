@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { listVendors } from "../../services/vendors";
-import SearchBar from "./SearchBar";
-import PriceFilter from "./PriceFilter";
+import SearchFilters from "../../components/SearchFilters";
+import FavoriteButton from "../../components/FavoriteButton";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
@@ -37,121 +37,200 @@ export default async function VendorsSelectPage({ searchParams }) {
     : Object.keys(vendorsByCategory).sort();
 
   return (
-    <div className="mx-auto max-w-6xl p-6">
-      <h1 className="font-display text-4xl tracking-wide mb-6">
-        <span className="bg-gradient-to-r from-[#01DBE0] to-[#FD237A] bg-clip-text text-transparent">
-          FIND YOUR VENDOR
-        </span>
-      </h1>
-      <SearchBar initialSearch={searchQuery} category={category} />
-      <CategoryFilter categories={allCategories} active={category} />
-      <PriceFilter minPrice={minPrice} maxPrice={maxPrice} />
+    <div className="w-full">
+      {/* Header with Search */}
+      <div className="bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6">
+          <div className="mb-4">
+            <h1 className="font-display text-2xl sm:text-3xl tracking-tight text-[var(--gray-900)]">
+              Find Vendors
+            </h1>
+            <p className="text-[var(--gray-500)] text-sm mt-1">
+              {vendors.length} vendor{vendors.length !== 1 ? 's' : ''} available
+            </p>
+          </div>
+          
+          {/* Search and Filters */}
+          <SearchFilters categories={allCategories} />
+        </div>
+      </div>
 
-      {/* Vendors by Category */}
-      <div className="mt-8 space-y-12">
-        {sortedCategories.map((cat) => (
-          <CategorySection
-            key={cat}
-            category={cat}
-            vendors={vendorsByCategory[cat]}
-            isFiltered={category !== null}
-          />
-        ))}
+      {/* Active Filters */}
+      {(category || minPrice || maxPrice) && (
+        <div className="bg-white border-b border-[var(--gray-100)]">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-[var(--gray-500)]">Filters:</span>
+              {category && (
+                <FilterBadge label={category} href="/vendors" />
+              )}
+              {(minPrice || maxPrice) && (
+                <FilterBadge 
+                  label={`$${minPrice || '0'} - $${maxPrice || '∞'}`} 
+                  href={category ? `/vendors?category=${encodeURIComponent(category)}` : "/vendors"}
+                />
+              )}
+              <Link 
+                href="/vendors" 
+                className="text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)] ml-2"
+              >
+                Clear all
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6">
+        {/* Vendors by Category */}
+        <div className="space-y-10">
+          {sortedCategories.length > 0 ? (
+            sortedCategories.map((cat) => (
+              <CategorySection
+                key={cat}
+                category={cat}
+                vendors={vendorsByCategory[cat]}
+                isFiltered={category !== null}
+              />
+            ))
+          ) : (
+            <EmptyState />
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function FilterBadge({ label, href }) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[var(--violet-100)] text-[var(--violet-700)] text-sm font-medium hover:bg-[var(--violet-200)] transition-colors"
+    >
+      {label}
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="6" x2="6" y2="18"/>
+        <line x1="6" y1="6" x2="18" y2="18"/>
+      </svg>
+    </Link>
   );
 }
 
 function CategorySection({ category, vendors, isFiltered }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="font-display text-3xl tracking-wide">
-          <span className="bg-gradient-to-r from-[#01DBE0] to-[#FD237A] bg-clip-text text-transparent">
-            {category.toUpperCase()}
-          </span>
+    <section className="animate-slide-up">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-[var(--gray-900)]">
+          {category}
         </h2>
         {!isFiltered && (
           <Link
             href={`/vendors?category=${encodeURIComponent(category)}`}
-            className="text-sm font-semibold text-[#FE9C05] hover:text-[#FD237A] transition-colors"
+            className="flex items-center gap-1 text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]"
           >
-            View all →
+            View all
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
           </Link>
         )}
       </div>
-      <div className="overflow-x-auto scrollbar-hide -mx-6 px-6">
-        <div className="flex gap-4 pb-4">
-          {vendors.map((vendor) => (
-            <VendorCard key={vendor.id} vendor={vendor} />
-          ))}
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+        {vendors.map((vendor, index) => (
+          <VendorCard key={vendor.id} vendor={vendor} index={index} />
+        ))}
       </div>
-    </div>
+    </section>
   );
 }
 
-function VendorCard({ vendor }) {
+function VendorCard({ vendor, index }) {
+  const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
+  
   return (
     <Link
       href={`/store/${vendor.id}`}
-      className="group relative flex-shrink-0 w-[280px] h-[320px] rounded-2xl overflow-hidden hover:shadow-2xl hover:-translate-y-1 transition-all duration-300"
+      className="group"
+      style={{ animationDelay: `${index * 50}ms` }}
     >
-      {/* Hero Image */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={vendor.heroImage}
-        alt={vendor.name}
-        className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-      />
+      {/* Image */}
+      <div className="relative aspect-[4/3] rounded-[var(--radius-xl)] overflow-hidden mb-2 shadow-[var(--shadow-card)] group-hover:shadow-[var(--shadow-card-hover)] transition-all">
+        {hasImage ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={vendor.heroImage}
+            alt={vendor.name}
+            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-primary flex items-center justify-center">
+            <span className="text-white/90 text-4xl font-display">
+              {vendor.name?.charAt(0) || 'V'}
+            </span>
+          </div>
+        )}
+        
+        {/* Favorite button */}
+        <FavoriteButton vendorId={vendor.id} className="absolute top-2 right-2" />
 
-      {/* Gradient Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+        {/* Status Badge */}
+        <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/90 backdrop-blur-sm text-xs font-medium text-[var(--gray-700)]">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)]"></span>
+          Open
+        </div>
 
-      {/* Status Indicator */}
-      <div className="absolute top-4 right-4 h-3 w-3 rounded-full bg-[#C9FF3F] shadow-lg shadow-[#C9FF3F]/50 animate-pulse" />
+        {/* Rating Badge */}
+        {vendor.rating && (
+          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-semibold text-[var(--gray-900)]">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--amber-500)" stroke="none">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+            </svg>
+            {vendor.rating}
+          </div>
+        )}
+      </div>
 
-      {/* Content Overlay */}
-      <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-        <h3 className="font-semibold text-xl mb-2 group-hover:text-[#C9FF3F] transition-colors">
+      {/* Info */}
+      <div>
+        <h3 className="font-semibold text-sm text-[var(--gray-900)] line-clamp-1 group-hover:text-[var(--violet-600)] transition-colors">
           {vendor.name}
         </h3>
-        <p className="text-sm text-gray-200 mb-3 line-clamp-2">
+        <p className="text-xs text-[var(--gray-500)] line-clamp-2 mt-0.5 min-h-[32px]">
           {vendor.description}
         </p>
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-[#FE9C05]">{vendor.location}</span>
-          <span className="font-semibold text-[#C9FF3F]">{vendor.rating}★</span>
+        <div className="flex items-center gap-1 mt-1.5 text-xs text-[var(--gray-400)]">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          {vendor.location}
         </div>
       </div>
     </Link>
   );
 }
 
-function CategoryFilter({ categories, active }) {
+function EmptyState() {
   return (
-    <div className="mb-8 overflow-x-auto">
-      <div className="flex items-center gap-3 whitespace-nowrap">
-        <FilterChip label="All" href="/vendors" active={active == null} />
-        {categories.map((c) => (
-          <FilterChip key={c} label={c} href={`/vendors?category=${encodeURIComponent(c)}`} active={active?.toLowerCase() === c.toLowerCase()} />
-        ))}
+    <div className="text-center py-16">
+      <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[var(--gray-100)] flex items-center justify-center">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="m21 21-4.35-4.35"/>
+        </svg>
       </div>
+      <h3 className="text-lg font-semibold text-[var(--gray-900)] mb-2">No vendors found</h3>
+      <p className="text-[var(--gray-500)] mb-6 max-w-sm mx-auto">
+        Try adjusting your filters or search to find what you&apos;re looking for.
+      </p>
+      <Link
+        href="/vendors"
+        className="btn btn-gradient inline-flex"
+      >
+        Clear Filters
+      </Link>
     </div>
-  );
-}
-
-function FilterChip({ label, href, active }) {
-  return (
-    <Link
-      href={href}
-      className={`inline-flex items-center rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-        active
-          ? "bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white shadow-lg shadow-[#FD237A]/30"
-          : "border-2 border-[#01DBE0]/30 hover:border-[#01DBE0] hover:bg-[#01DBE0]/10"
-      }`}
-    >
-      {label}
-    </Link>
   );
 }
