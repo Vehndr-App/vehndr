@@ -23,7 +23,7 @@ export async function login({ email, password, recaptchaToken }) {
   return result?.user || result;
 }
 
-export async function register({ email, password, passwordConfirmation, name, role, recaptchaToken }) {
+export async function register({ email, password, passwordConfirmation, name, businessName, role, recaptchaToken }) {
   const result = await api("/api/auth/register", {
     method: "POST",
     body: {
@@ -31,6 +31,7 @@ export async function register({ email, password, passwordConfirmation, name, ro
       password,
       password_confirmation: passwordConfirmation,
       name,
+      business_name: businessName,
       role,
       recaptcha_token: recaptchaToken
     },

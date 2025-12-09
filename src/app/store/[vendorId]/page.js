@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import ProductCard from "../../../components/ProductCard";
+import SmartImage from "../../../components/SmartImage";
 import Link from "next/link";
 
 export default function StorefrontPage() {
@@ -12,6 +13,8 @@ export default function StorefrontPage() {
   const [products, setProducts] = useState([]);
   const [sort, setSort] = useState("recommended");
   const [activeTab, setActiveTab] = useState("all");
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -42,13 +45,20 @@ export default function StorefrontPage() {
     }
   }, [filteredProducts, sort]);
 
-  const hasImage = vendor?.heroImage && vendor.heroImage.length > 0;
+  const hasHeroImage = vendor?.heroImage && vendor.heroImage.length > 0;
+  const galleryImages = vendor?.galleryImages || [];
+  const allImages = hasHeroImage ? [vendor.heroImage, ...galleryImages] : galleryImages;
   const productCount = products.filter(p => !p.isService).length;
   const serviceCount = products.filter(p => p.isService).length;
 
+  const openGallery = (index = 0) => {
+    setGalleryIndex(index);
+    setShowGallery(true);
+  };
+
   if (!vendor) {
     return (
-      <div className="mx-auto w-full max-w-6xl px-4 py-8">
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 pb-24">
         <div className="animate-pulse space-y-4">
           <div className="h-48 bg-[var(--gray-200)] rounded-[var(--radius-2xl)]" />
           <div className="h-8 bg-[var(--gray-200)] rounded w-1/3" />
@@ -59,56 +69,109 @@ export default function StorefrontPage() {
   }
 
   return (
-    <div className="w-full">
-      {/* Hero Section */}
-      <div className="relative h-48 sm:h-56 overflow-hidden">
-        {hasImage ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
+    <div className="w-full pb-24">
+      {/* Hero Section - Uber Eats Style with Multiple Images */}
+      <div className="relative">
+        {/* Main Hero Image */}
+        <div 
+          className="relative h-52 sm:h-64 overflow-hidden cursor-pointer"
+          onClick={() => allImages.length > 0 && openGallery(0)}
+        >
+        {hasHeroImage ? (
+          <SmartImage
             src={vendor.heroImage}
             alt={vendor.name}
             className="absolute inset-0 w-full h-full object-cover"
+            fallbackClassName="bg-gradient-primary"
           />
         ) : (
           <div className="absolute inset-0 bg-gradient-primary" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-        
-        {/* Vendor Info Overlay */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
-          <div className="mx-auto max-w-6xl">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-display text-white tracking-tight">
-                  {vendor.name}
-                </h1>
-                <div className="flex items-center gap-3 mt-2 text-sm text-white/80">
-                  {vendor.rating && (
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+          
+          {/* Photo Count Badge */}
+          {allImages.length > 1 && (
+            <button 
+              onClick={(e) => { e.stopPropagation(); openGallery(0); }}
+              className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 bg-black/50 backdrop-blur-sm rounded-full text-xs font-medium text-white hover:bg-black/70 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              {allImages.length} photos
+            </button>
+          )}
+          
+          {/* Back Button */}
+          <Link 
+            href="/vendors"
+            className="absolute top-4 left-4 w-10 h-10 flex items-center justify-center bg-black/50 backdrop-blur-sm rounded-full text-white hover:bg-black/70 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </Link>
+
+          {/* Vendor Info Overlay */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+            <div className="mx-auto max-w-6xl">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-display text-white tracking-tight">
+                    {vendor.name}
+                  </h1>
+                  <div className="flex items-center gap-3 mt-2 text-sm text-white/80">
+                    {vendor.rating && (
+                      <span className="flex items-center gap-1">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--amber-500)" stroke="none">
+                          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                        </svg>
+                        {vendor.rating}
+                      </span>
+                    )}
                     <span className="flex items-center gap-1">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--amber-500)" stroke="none">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                        <circle cx="12" cy="10" r="3"/>
                       </svg>
-                      {vendor.rating}
+                      {vendor.location}
                     </span>
-                  )}
-                  <span className="flex items-center gap-1">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-                      <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                    {vendor.location}
-                  </span>
+                  </div>
                 </div>
-              </div>
-              
-              {/* Status Badge */}
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
-                <span className="w-2 h-2 rounded-full bg-[var(--mint-500)]"></span>
-                Open Now
+                
+                {/* Status Badge */}
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
+                  <span className="w-2 h-2 rounded-full bg-[var(--mint-500)]"></span>
+                  Open Now
+                </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* Gallery Thumbnails Strip - Uber Eats Style */}
+        {galleryImages.length > 0 && (
+          <div className="bg-white border-b border-[var(--gray-100)]">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <div className="flex gap-2 py-3 overflow-x-auto scrollbar-hide -mx-4 px-4">
+                {galleryImages.slice(0, 6).map((url, index) => (
+                  <button
+                    key={index}
+                    onClick={() => openGallery(hasHeroImage ? index + 1 : index)}
+                    className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden hover:opacity-90 transition-opacity relative bg-[var(--gray-100)]"
+                  >
+                    <SmartImage src={url} alt={`Gallery ${index + 1}`} className="w-full h-full object-cover" />
+                    {index === 5 && galleryImages.length > 6 && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white font-semibold">+{galleryImages.length - 6}</span>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -116,6 +179,17 @@ export default function StorefrontPage() {
         <p className="text-[var(--gray-600)] text-sm mt-4 mb-6">
           {vendor.description}
         </p>
+
+        {/* Categories Pills */}
+        {vendor.categories && vendor.categories.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            {vendor.categories.map((category, index) => (
+              <span key={index} className="chip chip-filled text-xs">
+                {category}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Tap to Pay Section - GoPuff/Uber Eats style */}
         <div className="mb-6 p-4 rounded-[var(--radius-xl)] bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border border-[var(--violet-100)]">
@@ -230,6 +304,76 @@ export default function StorefrontPage() {
           </div>
         </div>
       </div>
+
+      {/* Full Screen Gallery Modal */}
+      {showGallery && allImages.length > 0 && (
+        <div className="fixed inset-0 z-50 bg-black">
+          {/* Header */}
+          <div className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
+            <button
+              onClick={() => setShowGallery(false)}
+              className="w-10 h-10 flex items-center justify-center bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+            <span className="text-white font-medium">
+              {galleryIndex + 1} / {allImages.length}
+            </span>
+            <div className="w-10" /> {/* Spacer */}
+          </div>
+
+          {/* Main Image */}
+          <div className="h-full flex items-center justify-center p-4">
+            <SmartImage
+              src={allImages[galleryIndex]}
+              alt={`Photo ${galleryIndex + 1}`}
+              className="max-w-full max-h-full object-contain"
+              fallbackClassName="bg-[var(--gray-800)]"
+            />
+          </div>
+
+          {/* Navigation Arrows */}
+          {galleryIndex > 0 && (
+            <button
+              onClick={() => setGalleryIndex(galleryIndex - 1)}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+          {galleryIndex < allImages.length - 1 && (
+            <button
+              onClick={() => setGalleryIndex(galleryIndex + 1)}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Thumbnail Strip */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
+            <div className="flex gap-2 justify-center overflow-x-auto scrollbar-hide">
+              {allImages.map((url, index) => (
+                <button
+                  key={index}
+                  onClick={() => setGalleryIndex(index)}
+                  className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden transition-all bg-[var(--gray-800)] ${
+                    index === galleryIndex ? 'ring-2 ring-white' : 'opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <SmartImage src={url} alt={`Thumbnail ${index + 1}`} className="w-full h-full object-cover" />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

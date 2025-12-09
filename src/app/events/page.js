@@ -2,6 +2,10 @@ import Link from "next/link";
 import { listEvents } from "../../services/events";
 import EventFilters from "../../components/EventFilters";
 
+// Force dynamic rendering to always get fresh data
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default async function EventsPage({ searchParams }) {
   const params = await searchParams;
   const category = typeof params?.category === "string" ? params.category : null;

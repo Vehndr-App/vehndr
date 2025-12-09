@@ -28,7 +28,8 @@ function fallbackFind(id) {
 
 export async function listEvents() {
   try {
-    return await api("/api/events");
+    // Disable caching to always get fresh data
+    return await api("/api/events", { cache: 'no-store' });
   } catch (_) {
     return fallbackList();
   }
@@ -56,4 +57,28 @@ export async function getUpcomingEvents(limit = 6) {
   } catch (_) {
     return fallbackList().filter((e) => e.status === "upcoming").slice(0, limit);
   }
+}
+
+export async function createEvent(eventData) {
+  return await api("/api/events", {
+    method: "POST",
+    body: eventData,
+  });
+}
+
+export async function updateEvent(eventId, eventData) {
+  return await api(`/api/events/${eventId}`, {
+    method: "PATCH",
+    body: eventData,
+  });
+}
+
+export async function publishEvent(eventId) {
+  return await api(`/api/events/${eventId}/publish`, {
+    method: "PATCH",
+  });
+}
+
+export async function getMyEvents() {
+  return await api("/api/events/my_events");
 }

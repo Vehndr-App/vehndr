@@ -39,7 +39,7 @@ function buildHeaders(extraHeaders = {}, body) {
   return headers;
 }
 
-export async function api(path, { method = "GET", headers = {}, body, signal, credentials } = {}) {
+export async function api(path, { method = "GET", headers = {}, body, signal, credentials, cache } = {}) {
   const requestBody =
     body && typeof body !== "string" && !(body instanceof FormData)
       ? JSON.stringify(body)
@@ -50,13 +50,20 @@ export async function api(path, { method = "GET", headers = {}, body, signal, cr
       ? window.localStorage?.getItem("vehndr_token")
       : null;
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const fetchOptions = {
     method,
     headers: buildHeaders(headers, body),
     body: requestBody,
     credentials: credentials ?? "include",
     signal,
-  });
+  };
+  
+  // Add cache option for Next.js server components
+  if (cache) {
+    fetchOptions.cache = cache;
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, fetchOptions);
 
   if (!response.ok) {
     let errorDetail;

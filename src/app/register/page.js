@@ -13,6 +13,8 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [selectedRole, setSelectedRole] = useState("vendor");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export default function RegisterPage() {
     const password = formData.get("password");
     const passwordConfirmation = formData.get("passwordConfirmation");
     const name = formData.get("name");
+    const businessName = formData.get("businessName");
     const role = formData.get("role");
 
     // Client-side validation
@@ -66,7 +69,8 @@ export default function RegisterPage() {
         email,
         password,
         passwordConfirmation,
-        name: name || undefined,
+        name,
+        businessName,
         role,
         recaptchaToken
       });
@@ -92,130 +96,247 @@ export default function RegisterPage() {
     }
   };
 
+  const EyeIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+      <circle cx="12" cy="12" r="3"/>
+    </svg>
+  );
+
+  const EyeOffIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+      <line x1="1" y1="1" x2="23" y2="23"/>
+    </svg>
+  );
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-        <div className="text-center mb-8">
-          <h1 className="font-display text-3xl tracking-wide mb-2">
-            <span className="bg-gradient-to-r from-[#01DBE0] via-[#FD237A] to-[#FE9C05] bg-clip-text text-transparent">
-              VEHNDR
-            </span>
-          </h1>
-          <h2 className="text-xl font-semibold text-gray-800">Create Account</h2>
-        </div>
-
-        {error && (
-          <div className="mb-6 p-3 bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg text-center">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleRegister} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Name (Optional)</label>
-            <input
-              type="text"
-              name="name"
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
-              placeholder="Your name"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
-            <input
-              type="email"
-              name="email"
-              required
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              name="password"
-              required
-              minLength="6"
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
-              placeholder="••••••••"
-            />
-            <p className="mt-1 text-xs text-gray-500">Minimum 6 characters</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
-            <input
-              type="password"
-              name="passwordConfirmation"
-              required
-              minLength="6"
-              className="w-full px-4 py-2 rounded-lg border border-gray-200 focus:border-[#01DBE0] focus:ring-2 focus:ring-[#01DBE0]/20 outline-none transition-all"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-3">I am a...</label>
-            <div className="space-y-2">
-              <label className="flex items-center p-3 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-[#FD237A] transition-colors">
-                <input
-                  type="radio"
-                  name="role"
-                  value="vendor"
-                  checked={selectedRole === "vendor"}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-4 h-4 text-[#FD237A] focus:ring-[#FD237A]"
-                />
-                <div className="ml-3">
-                  <span className="block font-medium text-gray-900">Vendor</span>
-                  <span className="block text-xs text-gray-500">Sell products and manage inventory</span>
-                </div>
-              </label>
-
-              <label className="flex items-center p-3 rounded-lg border-2 border-gray-200 cursor-pointer hover:border-[#FE9C05] transition-colors">
-                <input
-                  type="radio"
-                  name="role"
-                  value="coordinator"
-                  checked={selectedRole === "coordinator"}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="w-4 h-4 text-[#FE9C05] focus:ring-[#FE9C05]"
-                />
-                <div className="ml-3">
-                  <span className="block font-medium text-gray-900">Event Coordinator</span>
-                  <span className="block text-xs text-gray-500">Organize and manage events</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <div className="flex justify-center">
-            <ReCAPTCHA
-              ref={recaptchaRef}
-              sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3 rounded-lg bg-black text-white font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {loading ? "Creating Account..." : "Create Account"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            Already have an account?{" "}
-            <Link href="/login" className="text-[#01DBE0] hover:text-[#FD237A] font-semibold transition-colors">
-              Sign In
+    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] p-4 py-8">
+      {/* Background decoration */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-[var(--violet-200)] rounded-full blur-3xl opacity-30"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-[var(--magenta-200)] rounded-full blur-3xl opacity-30"></div>
+      </div>
+      
+      <div className="relative max-w-md w-full">
+        {/* Card */}
+        <div className="bg-white rounded-[var(--radius-3xl)] shadow-[var(--shadow-xl)] p-8 border border-[var(--gray-100)]">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <Link href="/" className="inline-block">
+              <h1 className="font-display text-3xl tracking-tight text-gradient-primary">
+                vehndr
+              </h1>
             </Link>
-          </p>
+            <h2 className="mt-3 text-xl font-semibold text-[var(--gray-900)]">Create Account</h2>
+            <p className="mt-1 text-sm text-[var(--gray-500)]">Join the marketplace and start connecting</p>
+          </div>
+
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-3 bg-red-50 border border-red-100 text-[var(--error)] text-sm rounded-[var(--radius-lg)] text-center flex items-center justify-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {error}
+            </div>
+          )}
+
+          {/* Register Form */}
+          <form onSubmit={handleRegister} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                Full Name
+              </label>
+              <input
+                type="text"
+                name="name"
+                required
+                className="input"
+                placeholder="Your full name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                Business Name
+              </label>
+              <input
+                type="text"
+                name="businessName"
+                required
+                className="input"
+                placeholder="Your business or organization name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                Email Address
+              </label>
+              <input
+                type="email"
+                name="email"
+                required
+                className="input"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  required
+                  minLength="6"
+                  className="input pr-12"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--gray-400)] hover:text-[var(--gray-600)] transition-colors"
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+              <p className="mt-1.5 text-xs text-[var(--gray-500)]">Minimum 6 characters</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  name="passwordConfirmation"
+                  required
+                  minLength="6"
+                  className="input pr-12"
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--gray-400)] hover:text-[var(--gray-600)] transition-colors"
+                >
+                  {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-3">
+                I am a...
+              </label>
+              <div className="space-y-3">
+                {/* Vendor Option */}
+                <label 
+                  className={`flex items-center justify-between p-4 rounded-[var(--radius-xl)] border-2 cursor-pointer transition-all duration-200 ${
+                    selectedRole === "vendor" 
+                      ? "border-[var(--violet-500)] bg-[var(--violet-50)]" 
+                      : "border-[var(--gray-200)] hover:border-[var(--violet-300)] hover:bg-[var(--gray-50)]"
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="vendor"
+                      checked={selectedRole === "vendor"}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      className="w-4 h-4 text-[var(--violet-600)] focus:ring-[var(--violet-500)] border-[var(--gray-300)]"
+                    />
+                    <div className="ml-3">
+                      <span className="block font-semibold text-[var(--gray-900)]">Vendor</span>
+                      <span className="block text-xs text-[var(--gray-500)] mt-0.5">Sell products and manage inventory</span>
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-[var(--radius-lg)] bg-gradient-primary flex items-center justify-center shadow-[var(--shadow-button)]">
+                    <span className="text-2xl">🏪</span>
+                  </div>
+                </label>
+
+                {/* Event Coordinator Option */}
+                <label 
+                  className={`flex items-center justify-between p-4 rounded-[var(--radius-xl)] border-2 cursor-pointer transition-all duration-200 ${
+                    selectedRole === "coordinator" 
+                      ? "border-[var(--magenta-500)] bg-[var(--magenta-50)]" 
+                      : "border-[var(--gray-200)] hover:border-[var(--magenta-300)] hover:bg-[var(--gray-50)]"
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="coordinator"
+                      checked={selectedRole === "coordinator"}
+                      onChange={(e) => setSelectedRole(e.target.value)}
+                      className="w-4 h-4 text-[var(--magenta-600)] focus:ring-[var(--magenta-500)] border-[var(--gray-300)]"
+                    />
+                    <div className="ml-3">
+                      <span className="block font-semibold text-[var(--gray-900)]">Event Coordinator</span>
+                      <span className="block text-xs text-[var(--gray-500)] mt-0.5">Organize and manage events</span>
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-[var(--radius-lg)] bg-gradient-sunset flex items-center justify-center shadow-[var(--shadow-md)]">
+                    <span className="text-2xl">🎪</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-center py-2">
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                  </svg>
+                  Creating Account...
+                </span>
+              ) : (
+                "Create Account"
+              )}
+            </button>
+          </form>
+
+          {/* Sign In Link */}
+          <div className="mt-8 text-center">
+            <p className="text-sm text-[var(--gray-600)]">
+              Already have an account?{" "}
+              <Link 
+                href="/login" 
+                className="text-[var(--violet-600)] hover:text-[var(--violet-700)] font-semibold transition-colors"
+              >
+                Sign In
+              </Link>
+            </p>
+          </div>
         </div>
+        
+        {/* Footer */}
+        <p className="mt-6 text-center text-xs text-[var(--gray-400)]">
+          By creating an account, you agree to our Terms of Service and Privacy Policy
+        </p>
       </div>
     </div>
   );
