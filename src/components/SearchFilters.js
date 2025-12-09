@@ -161,7 +161,10 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
           
           {/* Search Input */}
           <div className="flex-[2] relative">
-            <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] transition-colors">
+            <label 
+              htmlFor="vendor-search"
+              className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] focus-within:bg-[var(--gray-50)] focus-within:ring-2 focus-within:ring-[var(--violet-500)]/20 transition-colors cursor-text"
+            >
               <div className="w-10 h-10 rounded-full bg-[var(--coral-100)] flex items-center justify-center flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--coral-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"/>
@@ -171,16 +174,23 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
               <div className="flex-1 min-w-0">
                 <div className="text-xs font-medium text-[var(--gray-500)]">Search</div>
                 <input
+                  id="vendor-search"
                   ref={searchInputRef}
                   type="text"
+                  inputMode="search"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck="false"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && applyFilters()}
                   placeholder="Vendors, products, services..."
-                  className="w-full text-sm font-semibold text-[var(--gray-900)] placeholder:text-[var(--gray-400)] placeholder:font-normal bg-transparent border-none outline-none"
+                  className="w-full text-sm font-semibold text-[var(--gray-900)] placeholder:text-[var(--gray-400)] placeholder:font-normal bg-transparent border-none outline-none appearance-none"
+                  style={{ fontSize: '16px' }} /* Prevents iOS zoom on focus */
                 />
               </div>
-            </div>
+            </label>
           </div>
 
           {/* Divider */}
