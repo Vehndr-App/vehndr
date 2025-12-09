@@ -2,6 +2,7 @@ import { Plus_Jakarta_Sans, DM_Sans, Outfit } from "next/font/google";
 import "./globals.css";
 import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
+import EventBestie from "../components/EventBestie";
 import { CartProvider } from "../contexts/CartContext";
 import { AuthProvider } from "../contexts/AuthContext";
 
@@ -46,6 +47,7 @@ export default function RootLayout({ children }) {
             <Navbar />
             <main className="min-h-screen pb-20">{children}</main>
             <BottomNav />
+            <EventBestie />
           </CartProvider>
         </AuthProvider>
       </body>

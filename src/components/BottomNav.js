@@ -1,14 +1,49 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
 
+// Get favorites count from localStorage
+function getFavoritesCount() {
+  if (typeof window === "undefined") return 0;
+  try {
+    const favorites = JSON.parse(localStorage.getItem("vehndr_favorites") || "[]");
+    return favorites.length;
+  } catch {
+    return 0;
+  }
+}
+
 export default function BottomNav() {
   const pathname = usePathname();
   const { totalItems } = useCart();
   const { user } = useAuth();
+  const [favoritesCount, setFavoritesCount] = useState(0);
+
+  // Track favorites count
+  useEffect(() => {
+    setFavoritesCount(getFavoritesCount());
+
+    // Listen for storage changes
+    const handleStorage = () => setFavoritesCount(getFavoritesCount());
+    window.addEventListener("storage", handleStorage);
+    
+    // Also check on focus (when returning to tab)
+    const handleFocus = () => setFavoritesCount(getFavoritesCount());
+    window.addEventListener("focus", handleFocus);
+
+    // Poll for changes (for same-tab updates)
+    const interval = setInterval(() => setFavoritesCount(getFavoritesCount()), 1000);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleFocus);
+      clearInterval(interval);
+    };
+  }, []);
   
   // Determine which nav items to show based on user role
   const getNavItems = () => {
@@ -35,9 +70,9 @@ export default function BottomNav() {
     // Default: customer/attendee
     return [
       { href: '/', label: 'Explore', icon: ExploreIcon },
-      { href: '/events', label: 'Events', icon: EventsIcon },
-      { href: '/vendors', label: 'Vendors', icon: VendorsIcon },
+      { href: '/appointments', label: 'Bookings', icon: AppointmentsIcon },
       { href: '/cart', label: 'Cart', icon: CartIcon, badge: totalItems > 0 ? totalItems : null },
+      { href: '/favorites', label: 'Saved', icon: FavoritesIcon, badge: favoritesCount > 0 ? favoritesCount : null },
       { href: user ? '/profile' : '/login', label: user ? 'Profile' : 'Login', icon: ProfileIcon },
     ];
   };
@@ -192,6 +227,44 @@ function ProfileIcon({ filled }) {
         <>
           <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
           <circle cx="12" cy="7" r="4"/>
+        </>
+      )}
+    </svg>
+  );
+}
+
+function FavoritesIcon({ filled }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "var(--coral-500)" : "none"} stroke={filled ? "var(--coral-500)" : "currentColor"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  );
+}
+
+function MessagesIcon({ filled }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? "0" : "1.5"} strokeLinecap="round" strokeLinejoin="round">
+      {filled ? (
+        <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/>
+      ) : (
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      )}
+    </svg>
+  );
+}
+
+function AppointmentsIcon({ filled }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? "0" : "1.5"} strokeLinecap="round" strokeLinejoin="round">
+      {filled ? (
+        <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2zm-7 5h5v5h-5v-5z"/>
+      ) : (
+        <>
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+          <rect x="12" y="14" width="5" height="4" rx="1"/>
         </>
       )}
     </svg>

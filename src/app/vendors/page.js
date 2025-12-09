@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listVendors } from "../../services/vendors";
 import SearchFilters from "../../components/SearchFilters";
 import FavoriteButton from "../../components/FavoriteButton";
+import { getVendorPlaceholderImage } from "../../utils/placeholderImages";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
@@ -148,6 +149,7 @@ function CategorySection({ category, vendors, isFiltered }) {
 
 function VendorCard({ vendor, index }) {
   const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
+  const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id);
   
   return (
     <Link
@@ -157,29 +159,15 @@ function VendorCard({ vendor, index }) {
     >
       {/* Image */}
       <div className="relative aspect-[4/3] rounded-[var(--radius-xl)] overflow-hidden mb-2 shadow-[var(--shadow-card)] group-hover:shadow-[var(--shadow-card-hover)] transition-all">
-        {hasImage ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={vendor.heroImage}
-            alt={vendor.name}
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-primary flex items-center justify-center">
-            <span className="text-white/90 text-4xl font-display">
-              {vendor.name?.charAt(0) || 'V'}
-            </span>
-          </div>
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={hasImage ? vendor.heroImage : placeholderImage}
+          alt={vendor.name}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
         
         {/* Favorite button */}
-        <FavoriteButton vendorId={vendor.id} className="absolute top-2 right-2" />
-
-        {/* Status Badge */}
-        <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-full bg-white/90 backdrop-blur-sm text-xs font-medium text-[var(--gray-700)]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)]"></span>
-          Open
-        </div>
+        <FavoriteButton vendorId={vendor.id} className="absolute top-2 right-2 z-10" />
 
         {/* Rating Badge */}
         {vendor.rating && (

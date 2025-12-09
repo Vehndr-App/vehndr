@@ -1,22 +1,54 @@
 import Link from "next/link";
 import { listVendors } from "../services/vendors";
-import SearchFilters from "../components/SearchFilters";
+import { api } from "../services/api";
 import FavoriteButton from "../components/FavoriteButton";
+import HeroMedia from "../components/HeroMedia";
+import HomeToggle from "../components/HomeToggle";
+import { getVendorPlaceholderImage } from "../utils/placeholderImages";
+
+// Fetch events function
+async function listEvents(params = {}) {
+  try {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.set("search", params.search);
+    if (params.type) queryParams.set("type", params.type);
+    if (params.date) queryParams.set("date", params.date);
+    
+    const url = `/api/events${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
+    const response = await api(url);
+    return Array.isArray(response) ? response : response?.events || [];
+  } catch (error) {
+    console.error("Failed to fetch events:", error);
+    return [];
+  }
+}
 
 export default async function Home({ searchParams }) {
   const params = await searchParams;
+  const mode = typeof params?.mode === "string" ? params.mode : "vendors";
+  const search = typeof params?.search === "string" ? params.search : null;
   const category = typeof params?.category === "string" ? params.category : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
   const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
+  const eventType = typeof params?.type === "string" ? params.type : null;
+  const eventDate = typeof params?.date === "string" ? params.date : null;
 
-  // Fetch filtered vendors for display
-  const vendors = await listVendors({ category, minPrice, maxPrice });
+  // Fetch data based on mode
+  let vendors = [];
+  let events = [];
+  let allCategories = [];
 
-  // Fetch all vendors to get all categories for the filter
-  const allVendors = await listVendors();
-  const allCategories = Array.from(
-    new Set(allVendors.flatMap((v) => v.categories ?? []))
-  ).sort();
+  if (mode === "events") {
+    events = await listEvents({ search, type: eventType, date: eventDate });
+  } else {
+    // Fetch filtered vendors for display
+    vendors = await listVendors({ search, category, minPrice, maxPrice });
+    // Fetch all vendors to get all categories for the filter
+    const allVendors = await listVendors();
+    allCategories = Array.from(
+      new Set(allVendors.flatMap((v) => v.categories ?? []))
+    ).sort();
+  }
 
   // Group vendors by category
   const vendorsByCategory = vendors.reduce((acc, vendor) => {
@@ -39,20 +71,17 @@ export default async function Home({ searchParams }) {
     <div className="w-full">
       {/* Hero Section with Video/Graphic Support */}
       <section className="relative overflow-hidden">
-        {/* Background - Video or Gradient */}
+        {/* Background - Video, Image, or Gradient */}
         <div className="absolute inset-0 bg-gradient-to-br from-[var(--violet-600)] via-[var(--magenta-500)] to-[var(--coral-500)]">
-          {/* Video placeholder - uncomment and add video source when ready */}
           {/* 
-          <video 
-            autoPlay 
-            muted 
-            loop 
-            playsInline
-            className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-50"
-          >
-            <source src="/hero-video.mp4" type="video/mp4" />
-          </video>
+            To add a video, place your video file at /public/hero-video.mp4 
+            Supported formats: .mp4, .webm
+            Recommended: 1920x1080, < 10MB, 15-30 seconds loop
           */}
+          <HeroMedia 
+            videoSrc="/hero-video.mp4"
+            imageSrc="/hero-image.jpg"
+          />
           
           {/* Animated gradient overlay */}
           <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVHJhbnNmb3JtPSJyb3RhdGUoNDUpIj48cGF0aCBkPSJNLTEwIDMwaDYwdi0yMGgtNjB6IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2EpIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIi8+PC9zdmc+')] opacity-50" />
@@ -60,93 +89,134 @@ export default async function Home({ searchParams }) {
         
         {/* Content */}
         <div className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-6 sm:pt-12 sm:pb-8">
-          <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-8">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white/90 text-xs font-medium mb-4">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)] animate-pulse"></span>
-              Live at 50+ events
-            </div>
-            
-            <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-3">
-              Find your perfect event vendors
-            </h1>
-            
-            <p className="text-white/80 text-sm sm:text-base max-w-lg mx-auto">
-              The marketplace connecting event coordinators with vendors, and attendees with amazing products.
-            </p>
-          </div>
-          
-          {/* Search Filters - Airbnb Style */}
-          <div className="max-w-3xl mx-auto">
-            <SearchFilters categories={allCategories} />
-          </div>
+          {/* Airbnb-style Toggle */}
+          <HomeToggle categories={allCategories} initialMode={mode} />
         </div>
       </section>
 
       {/* Quick Actions - Category Icons */}
-      <section className="bg-white border-b border-[var(--gray-100)]">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
-          <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
-            <QuickActionCard 
-              href="/events" 
-              icon="🎪" 
-              label="Events"
-              color="#EDE9FE"
-            />
-            <QuickActionCard 
-              href="/vendors?category=Food%20%26%20Beverage" 
-              icon="🍕" 
-              label="Food & Drink"
-              color="#FEE2E2"
-              badge="Popular"
-            />
-            <QuickActionCard 
-              href="/vendors?category=Health%20%26%20Wellness" 
-              icon="💆" 
-              label="Wellness"
-              color="#D1FAE5"
-            />
-            <QuickActionCard 
-              href="/vendors?category=Clothing%20%26%20Accessories" 
-              icon="👗" 
-              label="Fashion"
-              color="#FCE7F3"
-            />
-            <QuickActionCard 
-              href="/vendors?category=Entertainment" 
-              icon="🎸" 
-              label="Entertainment"
-              color="#FEF3C7"
-            />
-            <QuickActionCard 
-              href="/vendors?category=Photography" 
-              icon="📸" 
-              label="Photography"
-              color="#E0E7FF"
-            />
-            <QuickActionCard 
-              href="/vendors?category=Rentals" 
-              icon="🎪" 
-              label="Rentals"
-              color="#CFFAFE"
-            />
-            <QuickActionCard 
-              href="/vendors?category=DJ%2FMusic" 
-              icon="🎧" 
-              label="DJ/Music"
-              color="#F3E8FF"
-            />
+      {mode === "vendors" && (
+        <section className="bg-white border-b border-[var(--gray-100)]">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
+            <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
+              <QuickActionCard 
+                href="/?mode=events" 
+                icon="🗓️" 
+                label="Events"
+                color="#EDE9FE"
+              />
+              <QuickActionCard 
+                href="/vendors?category=Food%20%26%20Beverage" 
+                icon="🍕" 
+                label="Food & Drink"
+                color="#FEE2E2"
+                badge="Popular"
+              />
+              <QuickActionCard 
+                href="/vendors?category=Health%20%26%20Wellness" 
+                icon="💆" 
+                label="Wellness"
+                color="#D1FAE5"
+              />
+              <QuickActionCard 
+                href="/vendors?category=Clothing%20%26%20Accessories" 
+                icon="👗" 
+                label="Fashion"
+                color="#FCE7F3"
+              />
+              <QuickActionCard 
+                href="/vendors?category=Entertainment" 
+                icon="🎸" 
+                label="Entertainment"
+                color="#FEF3C7"
+              />
+              <QuickActionCard 
+                href="/vendors?category=Photography" 
+                icon="📸" 
+                label="Photography"
+                color="#E0E7FF"
+              />
+              <QuickActionCard 
+                href="/vendors?category=Rentals" 
+                icon="⛺" 
+                label="Rentals"
+                color="#CFFAFE"
+              />
+              <QuickActionCard 
+                href="/vendors?category=DJ%2FMusic" 
+                icon="🎧" 
+                label="DJ/Music"
+                color="#F3E8FF"
+              />
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      {/* Active Filters Display */}
-      {(category || minPrice || maxPrice) && (
+      {/* Event Quick Actions */}
+      {mode === "events" && (
+        <section className="bg-white border-b border-[var(--gray-100)]">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
+            <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
+              <QuickActionCard 
+                href="/?mode=vendors" 
+                icon="🏪" 
+                label="Vendors"
+                color="#F3E8FF"
+              />
+              <QuickActionCard 
+                href="/?mode=events&type=party" 
+                icon="🎉" 
+                label="Parties"
+                color="#FCE7F3"
+                badge="Hot"
+              />
+              <QuickActionCard 
+                href="/?mode=events&type=wedding" 
+                icon="💒" 
+                label="Weddings"
+                color="#FEE2E2"
+              />
+              <QuickActionCard 
+                href="/?mode=events&type=concert" 
+                icon="🎸" 
+                label="Concerts"
+                color="#FEF3C7"
+              />
+              <QuickActionCard 
+                href="/?mode=events&type=festival" 
+                icon="🎪" 
+                label="Festivals"
+                color="#CFFAFE"
+              />
+              <QuickActionCard 
+                href="/?mode=events&type=corporate" 
+                icon="💼" 
+                label="Corporate"
+                color="#E0E7FF"
+              />
+              <QuickActionCard 
+                href="/?mode=events&type=wellness" 
+                icon="🧘" 
+                label="Wellness"
+                color="#D1FAE5"
+              />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Active Filters Display - Vendors */}
+      {mode === "vendors" && (search || category || minPrice || maxPrice) && (
         <section className="bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-[var(--gray-500)]">Active filters:</span>
+              {search && (
+                <FilterBadge label={`"${search}"`} href="/" />
+              )}
               {category && (
-                <FilterBadge label={category} href="/" />
+                <FilterBadge label={category} href={search ? `/?search=${encodeURIComponent(search)}` : "/"} />
               )}
               {(minPrice || maxPrice) && (
                 <FilterBadge 
@@ -165,45 +235,119 @@ export default async function Home({ searchParams }) {
         </section>
       )}
 
-      {/* Main Content */}
-      <div className="py-6">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 mb-6">
-          {/* Results Count */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--gray-900)]">
-                {category ? `${category} Vendors` : "All Vendors"}
-              </h2>
-              <p className="text-sm text-[var(--gray-500)]">
-                {vendors.length} vendor{vendors.length !== 1 ? 's' : ''} available
-              </p>
+      {/* Active Filters Display - Events */}
+      {mode === "events" && (search || eventType || eventDate) && (
+        <section className="bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-[var(--gray-500)]">Active filters:</span>
+              {search && (
+                <FilterBadge label={`"${search}"`} href="/?mode=events" />
+              )}
+              {eventType && (
+                <FilterBadge label={eventType} href="/?mode=events" />
+              )}
+              {eventDate && (
+                <FilterBadge label={eventDate} href="/?mode=events" />
+              )}
+              <Link 
+                href="/?mode=events" 
+                className="text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)] ml-2"
+              >
+                Clear all
+              </Link>
             </div>
-            <Link
-              href="/vendors"
-              className="text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]"
-            >
-              View all →
-            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* Main Content - Vendors */}
+      {mode === "vendors" && (
+        <div className="py-6">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 mb-6">
+            {/* Results Count */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--gray-900)]">
+                  {search 
+                    ? `Results for "${search}"` 
+                    : category 
+                      ? `${category} Vendors` 
+                      : "All Vendors"}
+                </h2>
+                <p className="text-sm text-[var(--gray-500)]">
+                  {vendors.length} vendor{vendors.length !== 1 ? 's' : ''} {search ? 'found' : 'available'}
+                </p>
+              </div>
+              <Link
+                href="/vendors"
+                className="text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]"
+              >
+                View all →
+              </Link>
+            </div>
+          </div>
+
+          {/* Vendors by Category */}
+          <div className="space-y-10">
+            {sortedCategories.length > 0 ? (
+              sortedCategories.map((cat) => (
+                <CategorySection
+                  key={cat}
+                  category={cat}
+                  vendors={vendorsByCategory[cat]}
+                />
+              ))
+            ) : (
+              <div className="mx-auto max-w-6xl px-4 sm:px-6">
+                <EmptyState type="vendors" />
+              </div>
+            )}
           </div>
         </div>
+      )}
 
-        {/* Vendors by Category */}
-        <div className="space-y-10">
-          {sortedCategories.length > 0 ? (
-            sortedCategories.map((cat) => (
-              <CategorySection
-                key={cat}
-                category={cat}
-                vendors={vendorsByCategory[cat]}
-              />
-            ))
-          ) : (
-            <div className="mx-auto max-w-6xl px-4 sm:px-6">
-              <EmptyState />
+      {/* Main Content - Events */}
+      {mode === "events" && (
+        <div className="py-6">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 mb-6">
+            {/* Results Count */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--gray-900)]">
+                  {search 
+                    ? `Events matching "${search}"` 
+                    : eventType 
+                      ? `${eventType.charAt(0).toUpperCase() + eventType.slice(1)} Events` 
+                      : "Upcoming Events"}
+                </h2>
+                <p className="text-sm text-[var(--gray-500)]">
+                  {events.length} event{events.length !== 1 ? 's' : ''} {search ? 'found' : 'near you'}
+                </p>
+              </div>
+              <Link
+                href="/events"
+                className="text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]"
+              >
+                View all →
+              </Link>
             </div>
-          )}
+          </div>
+
+          {/* Events Grid */}
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            {events.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {events.map((event, index) => (
+                  <EventCard key={event.id} event={event} index={index} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState type="events" />
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -212,7 +356,7 @@ function QuickActionCard({ href, icon, label, color, badge }) {
   return (
     <Link
       href={href}
-      className="flex flex-col items-center gap-2 min-w-[72px]"
+      className="flex flex-col items-center gap-2 min-w-[72px] pt-2"
     >
       <div 
         className="relative w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm transition-transform hover:scale-105 active:scale-95"
@@ -220,7 +364,7 @@ function QuickActionCard({ href, icon, label, color, badge }) {
       >
         {icon}
         {badge && (
-          <span className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-[var(--coral-500)] text-white text-[9px] font-bold rounded-full">
+          <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-[var(--coral-500)] text-white text-[9px] font-bold rounded-full shadow-sm">
             {badge}
           </span>
         )}
@@ -273,6 +417,7 @@ function CategorySection({ category, vendors }) {
 
 function VendorCard({ vendor, index }) {
   const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
+  const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id);
   
   return (
     <Link
@@ -282,20 +427,12 @@ function VendorCard({ vendor, index }) {
     >
       {/* Image */}
       <div className="relative aspect-[4/3] rounded-[var(--radius-xl)] overflow-hidden mb-2 shadow-[var(--shadow-card)] group-hover:shadow-[var(--shadow-card-hover)] transition-all">
-        {hasImage ? (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={vendor.heroImage}
-            alt={vendor.name}
-            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-primary flex items-center justify-center">
-            <span className="text-white/90 text-4xl font-display">
-              {vendor.name?.charAt(0) || 'V'}
-            </span>
-          </div>
-        )}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={hasImage ? vendor.heroImage : placeholderImage}
+          alt={vendor.name}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+        />
         
         {/* Favorite button - Airbnb style */}
         <FavoriteButton vendorId={vendor.id} className="absolute top-2 right-2" />
@@ -331,21 +468,131 @@ function VendorCard({ vendor, index }) {
   );
 }
 
-function EmptyState() {
+function EventCard({ event, index }) {
+  const eventDate = event.start_time ? new Date(event.start_time) : null;
+  
+  return (
+    <Link
+      href={`/events/${event.id}`}
+      className="group"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all overflow-hidden">
+        {/* Event Image */}
+        <div className="relative aspect-[16/9]">
+          {event.image_url ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={event.image_url}
+              alt={event.name}
+              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--violet-500)] to-[var(--magenta-500)] flex items-center justify-center">
+              <span className="text-5xl">🎉</span>
+            </div>
+          )}
+          
+          {/* Date Badge */}
+          {eventDate && (
+            <div className="absolute top-3 left-3 bg-white rounded-[var(--radius-lg)] p-2 shadow-lg text-center min-w-[50px]">
+              <div className="text-xs font-bold text-[var(--coral-500)] uppercase">
+                {eventDate.toLocaleDateString('en-US', { month: 'short' })}
+              </div>
+              <div className="text-lg font-bold text-[var(--gray-900)]">
+                {eventDate.getDate()}
+              </div>
+            </div>
+          )}
+
+          {/* Status Badge */}
+          {event.status && (
+            <div className="absolute top-3 right-3">
+              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
+                event.status === 'upcoming' 
+                  ? 'bg-[var(--mint-500)] text-white'
+                  : event.status === 'active'
+                  ? 'bg-[var(--violet-500)] text-white'
+                  : 'bg-[var(--gray-400)] text-white'
+              }`}>
+                {event.status === 'upcoming' ? 'Upcoming' : event.status === 'active' ? 'Live' : 'Past'}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Event Info */}
+        <div className="p-4">
+          <h3 className="font-semibold text-[var(--gray-900)] line-clamp-1 group-hover:text-[var(--violet-600)] transition-colors mb-1">
+            {event.name}
+          </h3>
+          
+          {eventDate && (
+            <p className="text-sm text-[var(--gray-500)] mb-2">
+              {eventDate.toLocaleDateString('en-US', { 
+                weekday: 'short',
+                month: 'short', 
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit'
+              })}
+            </p>
+          )}
+
+          {event.location && (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--gray-400)]">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+              <span className="line-clamp-1">{event.location}</span>
+            </div>
+          )}
+
+          {/* Attendees */}
+          {event.attendee_count > 0 && (
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-[var(--gray-100)]">
+              <div className="flex -space-x-2">
+                {[...Array(Math.min(3, event.attendee_count))].map((_, i) => (
+                  <div key={i} className="w-6 h-6 rounded-full bg-gradient-to-br from-[var(--violet-400)] to-[var(--magenta-400)] border-2 border-white" />
+                ))}
+              </div>
+              <span className="text-xs text-[var(--gray-500)]">
+                {event.attendee_count}+ going
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function EmptyState({ type = "vendors" }) {
+  const isEvents = type === "events";
+  
   return (
     <div className="text-center py-16">
       <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[var(--gray-100)] flex items-center justify-center">
-        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="m21 21-4.35-4.35"/>
-        </svg>
+        {isEvents ? (
+          <span className="text-4xl">🗓️</span>
+        ) : (
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        )}
       </div>
-      <h3 className="text-lg font-semibold text-[var(--gray-900)] mb-2">No vendors found</h3>
+      <h3 className="text-lg font-semibold text-[var(--gray-900)] mb-2">
+        {isEvents ? "No events found" : "No vendors found"}
+      </h3>
       <p className="text-[var(--gray-500)] mb-6 max-w-sm mx-auto">
-        Try adjusting your filters or browse all vendors to discover something new.
+        {isEvents 
+          ? "Try adjusting your filters or check back later for new events."
+          : "Try adjusting your filters or browse all vendors to discover something new."}
       </p>
       <Link
-        href="/"
+        href={isEvents ? "/?mode=events" : "/"}
         className="btn btn-gradient inline-flex"
       >
         Clear Filters
