@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 /**
  * SmartImage component that handles HEIC/HEIF images by converting them to JPEG
@@ -11,26 +11,7 @@ export default function SmartImage({ src, alt, className, fallbackClassName, ...
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    if (!src) {
-      setLoading(false);
-      setError(true);
-      return;
-    }
-
-    // Check if the URL suggests HEIC format
-    const isHeic = src.toLowerCase().includes('.heic') || src.toLowerCase().includes('.heif');
-    
-    if (isHeic) {
-      convertHeicToJpeg(src);
-    } else {
-      // For non-HEIC images, just use the src directly
-      setImageSrc(src);
-      setLoading(false);
-    }
-  }, [src]);
-
-  const convertHeicToJpeg = async (url) => {
+  const convertHeicToJpeg = useCallback(async (url) => {
     try {
       // Dynamically import heic2any only when needed
       const heic2any = (await import('heic2any')).default;
@@ -61,7 +42,26 @@ export default function SmartImage({ src, alt, className, fallbackClassName, ...
       setImageSrc(src);
       setLoading(false);
     }
-  };
+  }, [src]);
+
+  useEffect(() => {
+    if (!src) {
+      setLoading(false);
+      setError(true);
+      return;
+    }
+
+    // Check if the URL suggests HEIC format
+    const isHeic = src.toLowerCase().includes('.heic') || src.toLowerCase().includes('.heif');
+    
+    if (isHeic) {
+      convertHeicToJpeg(src);
+    } else {
+      // For non-HEIC images, just use the src directly
+      setImageSrc(src);
+      setLoading(false);
+    }
+  }, [src, convertHeicToJpeg]);
 
   // Cleanup object URLs on unmount
   useEffect(() => {

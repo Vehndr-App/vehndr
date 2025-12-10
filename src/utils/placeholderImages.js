@@ -94,10 +94,12 @@ export function getProductPlaceholderImage(product) {
   return getVendorPlaceholderImage(categories, productId);
 }
 
-export default {
+const placeholderImages = {
   getVendorPlaceholderImage,
   getProductPlaceholderImage,
   categoryImages,
   defaultImages,
 };
+
+export default placeholderImages;
 
