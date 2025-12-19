@@ -223,7 +223,7 @@ function EmptyState({ searchQuery }) {
             No results found
           </h2>
           <p className="text-[var(--gray-500)] max-w-sm mx-auto">
-            No conversations match "{searchQuery}"
+            No conversations match &ldquo;{searchQuery}&rdquo;
           </p>
         </>
       ) : (
