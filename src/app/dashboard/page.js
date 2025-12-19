@@ -21,13 +21,16 @@ function DashboardInner() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accountStatus, setAccountStatus] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
   const fetchOrders = useCallback(async (vendorId) => {
     try {
       const vendorOrders = await api(`/api/vendors/${vendorId}/orders`);
-      setOrders(vendorOrders);
+      setOrders(vendorOrders || []);
     } catch (err) {
       console.error("Failed to fetch orders", err);
+      setOrders([]);
     }
   }, []);
 
@@ -38,6 +41,7 @@ function DashboardInner() {
       setVendor(vendorData);
     } catch (err) {
       console.error("Failed to fetch vendor", err);
+      setVendor(null);
     }
   }, []);
 
@@ -66,6 +70,50 @@ function DashboardInner() {
       setLoading(false);
     })();
   }, [fetchVendor, fetchOrders, fetchAccountStatus]);
+
+  const handleBiometricAuth = async () => {
+    setAuthError(null);
+    
+    if (!window.PublicKeyCredential) {
+      setAuthError("Biometric authentication not supported");
+      return;
+    }
+
+    try {
+      // Check if biometrics are available
+      const available = await window.PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      
+      if (!available) {
+        setAuthError("Face ID/Touch ID not available");
+        return;
+      }
+
+      // Simple authentication - in production, you'd verify with backend
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+
+      const publicKeyCredentialRequestOptions = {
+        challenge,
+        timeout: 60000,
+        userVerification: "required",
+        allowCredentials: []
+      };
+
+      await navigator.credentials.get({
+        publicKey: publicKeyCredentialRequestOptions
+      });
+
+      setIsAuthenticated(true);
+      setAuthError(null);
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        setAuthError("Authentication cancelled");
+      } else {
+        // Fallback: allow manual unlock for development/testing
+        setIsAuthenticated(true);
+      }
+    }
+  };
 
   // Real-time order updates
   const handleNewOrder = useCallback((newOrder) => {
@@ -145,14 +193,32 @@ function DashboardInner() {
           </div>
 
           {/* Today's Revenue Card */}
-          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-white/70 text-sm mb-1">Today&apos;s Sales</p>
-                <p className="text-currency text-white">${(todayRevenue / 100).toFixed(2)}</p>
-                <p className="text-white/60 text-sm mt-1">{todaysOrders.length} order{todaysOrders.length !== 1 ? 's' : ''}</p>
+          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1">
+                <p className="text-white/70 text-sm mb-3">Today&apos;s Sales</p>
+                <div className="relative mb-2">
+                  {!isAuthenticated && (
+                    <button
+                      onClick={handleBiometricAuth}
+                      className="absolute -inset-2 backdrop-blur-md bg-white/20 rounded-lg flex items-center justify-center z-10"
+                      aria-label="Unlock to view sales"
+                    >
+                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    </button>
+                  )}
+                  <p className="text-4xl font-bold text-white leading-tight">${(todayRevenue / 100).toFixed(2)}</p>
+                </div>
+                <div className="relative">
+                  {!isAuthenticated && (
+                    <div className="absolute -inset-1 backdrop-blur-md bg-white/20 rounded z-10"></div>
+                  )}
+                  <p className="text-white/60 text-sm">{todaysOrders.length} order{todaysOrders.length !== 1 ? 's' : ''}</p>
+                </div>
               </div>
-              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
                 <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
@@ -168,15 +234,30 @@ function DashboardInner() {
           <div className="grid grid-cols-3 gap-3">
             <div className="card bg-white p-4 text-center">
               <p className="text-[var(--gray-500)] text-xs mb-1">This Week</p>
-              <p className="text-h4 text-[var(--foreground)]">${(weekRevenue / 100).toFixed(0)}</p>
+              <div className="relative" style={{ display: 'inline-block' }}>
+                {!isAuthenticated && (
+                  <div className="absolute backdrop-blur-md bg-white/60 rounded-lg z-10" style={{ top: '-4px', left: '-4px', right: '-4px', bottom: '-4px' }}></div>
+                )}
+                <p className="text-h4 text-[var(--foreground)]">${(weekRevenue / 100).toFixed(0)}</p>
+              </div>
             </div>
             <div className="card bg-white p-4 text-center">
               <p className="text-[var(--gray-500)] text-xs mb-1">Total Sales</p>
-              <p className="text-h4 text-[var(--foreground)]">${(totalRevenue / 100).toFixed(0)}</p>
+              <div className="relative" style={{ display: 'inline-block' }}>
+                {!isAuthenticated && (
+                  <div className="absolute backdrop-blur-md bg-white/60 rounded-lg z-10" style={{ top: '-4px', left: '-4px', right: '-4px', bottom: '-4px' }}></div>
+                )}
+                <p className="text-h4 text-[var(--foreground)]">${(totalRevenue / 100).toFixed(0)}</p>
+              </div>
             </div>
             <div className="card bg-white p-4 text-center">
               <p className="text-[var(--gray-500)] text-xs mb-1">Avg Order</p>
-              <p className="text-h4 text-[var(--foreground)]">${(avgOrderValue / 100).toFixed(0)}</p>
+              <div className="relative" style={{ display: 'inline-block' }}>
+                {!isAuthenticated && (
+                  <div className="absolute backdrop-blur-md bg-white/60 rounded-lg z-10" style={{ top: '-4px', left: '-4px', right: '-4px', bottom: '-4px' }}></div>
+                )}
+                <p className="text-h4 text-[var(--foreground)]">${(avgOrderValue / 100).toFixed(0)}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -223,7 +304,7 @@ function DashboardInner() {
             </div>
             <div className="space-y-3">
               {pendingOrders.slice(0, 3).map((order) => (
-                <OrderCard key={order.id} order={order} />
+                <OrderCard key={order.id} order={order} isAuthenticated={isAuthenticated} />
               ))}
             </div>
           </div>
@@ -281,7 +362,7 @@ function DashboardInner() {
   );
 }
 
-function OrderCard({ order }) {
+function OrderCard({ order, isAuthenticated }) {
   const orderDate = new Date(order.created_at || order.createdAt);
   const total = (order.total_cents || order.totalCents) / 100;
   const customerName = order.customer?.name || 'Guest';
@@ -308,7 +389,12 @@ function OrderCard({ order }) {
           </div>
           <div className="flex items-center justify-between mt-1">
             <p className="text-sm text-[var(--gray-500)]">{itemCount} item{itemCount !== 1 ? 's' : ''}</p>
-            <p className="font-semibold text-[var(--foreground)]">${total.toFixed(2)}</p>
+            <div className="relative" style={{ display: 'inline-block' }}>
+              {!isAuthenticated && (
+                <div className="absolute backdrop-blur-md bg-white/60 rounded-lg z-10" style={{ top: '-4px', left: '-4px', right: '-4px', bottom: '-4px' }}></div>
+              )}
+              <p className="font-semibold text-[var(--foreground)]">${total.toFixed(2)}</p>
+            </div>
           </div>
           <p className="text-xs text-[var(--gray-400)] mt-1">
             {orderDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}

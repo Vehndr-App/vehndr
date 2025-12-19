@@ -321,22 +321,23 @@ function ProductsInner() {
                 <div>
                   <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Images</label>
                   
-                  {/* Existing images */}
-                  {editingProduct?.images?.length > 0 && (
-                    <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                      {editingProduct.images.map((url, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={url} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
-                      ))}
-                    </div>
-                  )}
-                  
                   {/* New images preview */}
                   {productForm.images.length > 0 && (
                     <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
                       {Array.from(productForm.images).map((file, i) => (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img key={i} src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                        <div key={i} className="relative flex-shrink-0">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setProductForm({ ...productForm, images: Array.from(productForm.images).filter((_, idx) => idx !== i) })}
+                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
                       ))}
                     </div>
                   )}
