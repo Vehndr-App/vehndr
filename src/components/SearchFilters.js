@@ -180,7 +180,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
                   inputMode="search"
                   autoComplete="off"
                   autoCorrect="off"
-                  autoCapitalize="off"
+                  autoCapitalize="none"
                   spellCheck="false"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

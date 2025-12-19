@@ -19,6 +19,7 @@ function PaymentsInner() {
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fetchAccountStatus = useCallback(async (vendorId) => {
     try {
@@ -29,6 +30,33 @@ function PaymentsInner() {
       setAccountStatus(null);
     }
   }, []);
+
+  const refreshAccountStatus = async () => {
+    if (!user?.vendorId || refreshing) return;
+
+    setRefreshing(true);
+    try {
+      const response = await api(`/api/vendors/${user.vendorId}/stripe/refresh`, {
+        method: 'POST'
+      });
+
+      if (response.success) {
+        // Update the account status with the fresh data
+        setAccountStatus({
+          ...accountStatus,
+          chargesEnabled: response.chargesEnabled,
+          payoutsEnabled: response.payoutsEnabled,
+          detailsSubmitted: response.detailsSubmitted,
+          onboardingCompleted: response.onboardingCompleted
+        });
+      }
+    } catch (err) {
+      console.error("Failed to refresh account status", err);
+      alert("Failed to refresh account status. Please try again.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -52,7 +80,7 @@ function PaymentsInner() {
     );
   }
 
-  const isConnected = accountStatus?.charges_enabled;
+  const isConnected = accountStatus?.chargesEnabled;
 
   return (
     <div className="min-h-screen bg-[var(--background)] pb-24">
@@ -112,26 +140,43 @@ function PaymentsInner() {
           {/* Account Details */}
           {accountStatus && (
             <div className="card bg-white p-0 overflow-hidden">
-              <div className="p-4 border-b border-[var(--gray-100)]">
+              <div className="p-4 border-b border-[var(--gray-100)] flex items-center justify-between">
                 <h3 className="text-h4">Account Details</h3>
+                {accountStatus.connected && (
+                  <button
+                    onClick={refreshAccountStatus}
+                    disabled={refreshing}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-[var(--violet-600)] hover:bg-[var(--violet-50)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <svg
+                      className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {refreshing ? 'Refreshing...' : 'Refresh Status'}
+                  </button>
+                )}
               </div>
               <div className="divide-y divide-[var(--gray-100)]">
                 <div className="flex items-center justify-between p-4">
                   <span className="text-[var(--gray-600)]">Charges Enabled</span>
-                  <StatusBadge enabled={accountStatus.charges_enabled} />
+                  <StatusBadge enabled={accountStatus.chargesEnabled} />
                 </div>
                 <div className="flex items-center justify-between p-4">
                   <span className="text-[var(--gray-600)]">Payouts Enabled</span>
-                  <StatusBadge enabled={accountStatus.payouts_enabled} />
+                  <StatusBadge enabled={accountStatus.payoutsEnabled} />
                 </div>
                 <div className="flex items-center justify-between p-4">
                   <span className="text-[var(--gray-600)]">Details Submitted</span>
-                  <StatusBadge enabled={accountStatus.details_submitted} />
+                  <StatusBadge enabled={accountStatus.detailsSubmitted} />
                 </div>
-                {accountStatus.stripe_account_id && (
+                {accountStatus.accountId && (
                   <div className="flex items-center justify-between p-4">
                     <span className="text-[var(--gray-600)]">Account ID</span>
-                    <span className="font-mono text-sm text-[var(--gray-500)]">{accountStatus.stripe_account_id}</span>
+                    <span className="font-mono text-sm text-[var(--gray-500)]">{accountStatus.accountId}</span>
                   </div>
                 )}
               </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState, useEffect } from "react";
+import { createContext, useContext, useMemo, useState, useEffect, useCallback } from "react";
 import { api } from "../services/api";
 
 const CartContext = createContext(null);
@@ -117,31 +117,30 @@ export function CartProvider({ children }) {
     }
   };
 
-  const clearVendor = async (vendorId) => {
+  const clearVendor = useCallback(async (vendorId) => {
     // Optimistically update UI
-    const previousState = vendorCarts;
     setVendorCarts((prev) => {
+      const previousState = prev;
       const updated = { ...prev };
       delete updated[vendorId];
-      return updated;
-    });
 
-    // Sync with backend
-    try {
-      const response = await api(`/api/cart/vendors/${vendorId}`, {
+      // Sync with backend
+      api(`/api/cart/vendors/${vendorId}`, {
         method: 'DELETE'
+      }).then((response) => {
+        // Update state with backend response to ensure sync
+        if (response && response.vendorCarts) {
+          setVendorCarts(response.vendorCarts);
+        }
+      }).catch((err) => {
+        console.error('Failed to clear vendor from backend cart:', err);
+        // Revert on error
+        setVendorCarts(previousState);
       });
 
-      // Update state with backend response to ensure sync
-      if (response && response.vendorCarts) {
-        setVendorCarts(response.vendorCarts);
-      }
-    } catch (err) {
-      console.error('Failed to clear vendor from backend cart:', err);
-      // Revert on error
-      setVendorCarts(previousState);
-    }
-  };
+      return updated;
+    });
+  }, []);
 
   const clearAll = async () => {
     // Optimistically update UI

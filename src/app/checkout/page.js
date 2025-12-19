@@ -5,14 +5,21 @@ import { useCart } from '../../contexts/CartContext';
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useRouter } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements } from '@stripe/react-stripe-js';
+import PaymentForm from '../../components/PaymentForm';
+
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 export default function CheckoutPage() {
-  const { vendorCarts, totalItems, allItems } = useCart();
+  const { vendorCarts, totalItems, allItems, clearVendorCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [activeVendor, setActiveVendor] = useState(null);
   const [error, setError] = useState(null);
   const [vendorDetails, setVendorDetails] = useState({});
   const [loadingVendors, setLoadingVendors] = useState(true);
+  const [clientSecrets, setClientSecrets] = useState({});
+  const [paymentIntents, setPaymentIntents] = useState({});
   const router = useRouter();
 
   // Calculate grand total
@@ -52,33 +59,68 @@ export default function CheckoutPage() {
     setError(null);
 
     try {
-      const items = vendorCarts[vendorId];
-
-      // Create checkout session (with demo_mode for development)
-      const response = await api('/api/checkout/sessions', {
+      // Create PaymentIntent for custom checkout using cart items on server
+      const response = await api('/api/checkout/payment_intent', {
         method: 'POST',
         body: {
-          vendorId: vendorId,
-          demo_mode: true, // Enable demo mode for development
-          items: items.map(item => ({
-            productId: item.id,
-            quantity: item.quantity,
-            selectedOptions: item.options
-          }))
+          vendorId: vendorId
         }
       });
 
-      // Redirect to checkout (Stripe or demo)
-      if (response.url) {
-        window.location.href = response.url;
-      } else {
-        throw new Error('No checkout URL returned');
-      }
+      // Store the client secret and payment intent ID for this vendor
+      setClientSecrets(prev => ({
+        ...prev,
+        [vendorId]: response.clientSecret
+      }));
+      setPaymentIntents(prev => ({
+        ...prev,
+        [vendorId]: response.paymentIntentId
+      }));
     } catch (err) {
-      setError(err.message || 'Failed to create checkout session');
+      setError(err.message || 'Failed to initialize payment');
+    } finally {
       setLoading(false);
       setActiveVendor(null);
     }
+  };
+
+  const handlePaymentSuccess = async (vendorId, paymentIntent) => {
+    try {
+      // Confirm payment with backend
+      await api('/api/checkout/confirm_payment', {
+        method: 'POST',
+        body: {
+          paymentIntentId: paymentIntent.id
+        }
+      });
+
+      // Clear vendor cart from local state
+      if (clearVendorCart) {
+        clearVendorCart(vendorId);
+      }
+
+      // Clear the client secret for this vendor
+      setClientSecrets(prev => {
+        const updated = { ...prev };
+        delete updated[vendorId];
+        return updated;
+      });
+
+      // Redirect to success page
+      router.push(`/checkout/success?vendor_id=${vendorId}`);
+    } catch (err) {
+      setError(err.message || 'Failed to confirm payment');
+    }
+  };
+
+  const handlePaymentError = (vendorId, error) => {
+    setError(error.message || 'Payment failed');
+    // Clear the client secret so user can try again
+    setClientSecrets(prev => {
+      const updated = { ...prev };
+      delete updated[vendorId];
+      return updated;
+    });
   };
 
   const calculateVendorTotal = (vendorId) => {
@@ -282,23 +324,47 @@ export default function CheckoutPage() {
                   </div>
 
                   {canCheckout ? (
-                    <button
-                      onClick={() => handleCheckout(vendorId)}
-                      disabled={loading}
-                      className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isProcessing ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
-                            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-                          </svg>
-                          Processing...
-                        </span>
-                      ) : (
-                        `Pay ${vendor?.name || 'Vendor'} $${(total / 100).toFixed(2)}`
-                      )}
-                    </button>
+                    clientSecrets[vendorId] ? (
+                      <Elements
+                        stripe={stripePromise}
+                        options={{
+                          clientSecret: clientSecrets[vendorId],
+                          appearance: {
+                            theme: 'stripe',
+                            variables: {
+                              colorPrimary: '#8b5cf6',
+                              borderRadius: '8px',
+                            }
+                          },
+                          loader: 'auto'
+                        }}
+                      >
+                        <PaymentForm
+                          vendorName={vendor?.name || 'Vendor'}
+                          totalCents={total}
+                          onSuccess={(paymentIntent) => handlePaymentSuccess(vendorId, paymentIntent)}
+                          onError={(error) => handlePaymentError(vendorId, error)}
+                        />
+                      </Elements>
+                    ) : (
+                      <button
+                        onClick={() => handleCheckout(vendorId)}
+                        disabled={loading}
+                        className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isProcessing ? (
+                          <span className="flex items-center justify-center gap-2">
+                            <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+                            </svg>
+                            Initializing...
+                          </span>
+                        ) : (
+                          `Continue to Payment`
+                        )}
+                      </button>
+                    )
                   ) : (
                     <div className="text-center p-3 bg-[var(--amber-50)] border border-[var(--amber-200)] rounded-[var(--radius-lg)]">
                       <p className="text-sm text-[var(--amber-700)]">

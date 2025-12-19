@@ -14,34 +14,15 @@ function SuccessContent() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    const sessionId = searchParams.get('session_id');
     const vendorId = searchParams.get('vendor_id');
 
-    if (!sessionId) {
-      setError('No session ID provided');
-      setLoading(false);
-      return;
-    }
-
     // Clear the vendor's items from cart
-    if (vendorId) {
+    if (vendorId && clearVendor) {
       clearVendor(vendorId);
     }
 
-    // Optional: Fetch order details from backend
-    const fetchOrderDetails = async () => {
-      try {
-        // You could add an endpoint to fetch order details by session ID
-        // const orderData = await api(`/api/checkout/session/${sessionId}`);
-        // setOrder(orderData);
-        setLoading(false);
-      } catch (err) {
-        console.error('Failed to fetch order details', err);
-        setLoading(false);
-      }
-    };
-
-    fetchOrderDetails();
+    // Mark as loaded since payment was already confirmed
+    setLoading(false);
   }, [searchParams, clearVendor]);
 
   if (loading) {
