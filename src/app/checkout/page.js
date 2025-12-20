@@ -336,7 +336,8 @@ export default function CheckoutPage() {
                               borderRadius: '8px',
                             }
                           },
-                          loader: 'auto'
+                          loader: 'auto',
+                          paymentMethodOrder: ['apple_pay', 'google_pay', 'card']
                         }}
                       >
                         <PaymentForm

@@ -92,7 +92,14 @@ export default function PaymentForm({ vendorName, totalCents, onSuccess, onError
       </div>
 
       {/* Payment Element */}
-      <PaymentElement />
+      <PaymentElement
+        options={{
+          wallets: {
+            applePay: 'auto',
+            googlePay: 'auto'
+          }
+        }}
+      />
 
       {errorMessage && (
         <div className="p-3 bg-red-50 border border-red-200 rounded-[var(--radius-lg)] text-red-700 text-sm">
