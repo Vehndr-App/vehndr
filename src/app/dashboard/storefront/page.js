@@ -180,9 +180,17 @@ function POSSystem() {
         formData.append('product[duration]', productData.duration);
       }
 
+      // Add new images
       if (productData.images && productData.images.length > 0) {
         productData.images.forEach((image) => {
           formData.append('images[]', image);
+        });
+      }
+
+      // When editing, send the list of existing images to keep
+      if (editingProduct && productData.existingImages) {
+        productData.existingImages.forEach((imageUrl) => {
+          formData.append('keep_images[]', imageUrl);
         });
       }
 
@@ -890,7 +898,8 @@ function ProductModal({ product, onSave, onClose }) {
     price: product ? (product.price / 100).toString() : '',
     isService: product?.isService || false,
     duration: product?.duration?.toString() || '',
-    images: []
+    images: [],
+    existingImages: product?.images || []
   });
   const [saving, setSaving] = useState(false);
 
@@ -1006,27 +1015,58 @@ function ProductModal({ product, onSave, onClose }) {
             {/* Images */}
             <div>
               <label className="block text-sm font-semibold text-[var(--gray-700)] mb-2">Photos</label>
-              
-              {form.images.length > 0 && (
-                <div className="flex gap-2 mb-3 overflow-x-auto scrollbar-hide">
-                  {Array.from(form.images).map((file, i) => (
-                    <div key={i} className="relative flex-shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={URL.createObjectURL(file)} alt="" className="w-20 h-20 rounded-xl object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, images: Array.from(form.images).filter((_, idx) => idx !== i) })}
-                        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--error)] text-white flex items-center justify-center shadow-md"
-                      >
-                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
+
+              {/* Existing images */}
+              {form.existingImages.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-[var(--gray-500)] mb-2">Current images</p>
+                  <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                    {form.existingImages.map((imageUrl, i) => (
+                      <div key={i} className="relative flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={imageUrl} alt="" className="w-20 h-20 rounded-xl object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setForm({
+                            ...form,
+                            existingImages: form.existingImages.filter((_, idx) => idx !== i)
+                          })}
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--error)] text-white flex items-center justify-center shadow-md"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
-              
+
+              {/* New images preview */}
+              {form.images.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-[var(--gray-500)] mb-2">New images to add</p>
+                  <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                    {Array.from(form.images).map((file, i) => (
+                      <div key={i} className="relative flex-shrink-0">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={URL.createObjectURL(file)} alt="" className="w-20 h-20 rounded-xl object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setForm({ ...form, images: Array.from(form.images).filter((_, idx) => idx !== i) })}
+                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--error)] text-white flex items-center justify-center shadow-md"
+                        >
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <label className="flex items-center justify-center gap-2 h-12 rounded-xl border-2 border-dashed border-[var(--gray-300)] text-[var(--gray-500)] cursor-pointer hover:border-[var(--violet-400)] hover:text-[var(--violet-600)] transition-colors">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />

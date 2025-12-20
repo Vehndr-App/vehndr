@@ -28,7 +28,8 @@ function ProductsInner() {
     price: '',
     isService: false,
     duration: '',
-    images: []
+    images: [],
+    existingImages: []
   });
 
   const fetchProducts = useCallback(async (vendorId) => {
@@ -68,7 +69,8 @@ function ProductsInner() {
         price: product.price ? (product.price / 100).toString() : '',
         isService: product.isService || false,
         duration: product.duration?.toString() || '',
-        images: []
+        images: [],
+        existingImages: product.images || []
       });
     } else {
       setEditingProduct(null);
@@ -78,7 +80,8 @@ function ProductsInner() {
         price: '',
         isService: false,
         duration: '',
-        images: []
+        images: [],
+        existingImages: []
       });
     }
     setShowModal(true);
@@ -103,9 +106,17 @@ function ProductsInner() {
         formData.append('product[duration]', productForm.duration);
       }
 
+      // Add new images
       if (productForm.images && productForm.images.length > 0) {
         productForm.images.forEach((image) => {
           formData.append('images[]', image);
+        });
+      }
+
+      // When editing, send the list of existing images to keep
+      if (editingProduct) {
+        productForm.existingImages.forEach((imageUrl) => {
+          formData.append('keep_images[]', imageUrl);
         });
       }
 
@@ -320,28 +331,58 @@ function ProductsInner() {
 
                 <div>
                   <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Images</label>
-                  
-                  {/* New images preview */}
-                  {productForm.images.length > 0 && (
-                    <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                      {Array.from(productForm.images).map((file, i) => (
-                        <div key={i} className="relative flex-shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => setProductForm({ ...productForm, images: Array.from(productForm.images).filter((_, idx) => idx !== i) })}
-                            className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
-                          >
-                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      ))}
+
+                  {/* Existing images */}
+                  {productForm.existingImages.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs text-[var(--gray-500)] mb-2">Current images</p>
+                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                        {productForm.existingImages.map((imageUrl, i) => (
+                          <div key={i} className="relative flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setProductForm({
+                                ...productForm,
+                                existingImages: productForm.existingImages.filter((_, idx) => idx !== i)
+                              })}
+                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                  
+
+                  {/* New images preview */}
+                  {productForm.images.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs text-[var(--gray-500)] mb-2">New images to add</p>
+                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                        {Array.from(productForm.images).map((file, i) => (
+                          <div key={i} className="relative flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setProductForm({ ...productForm, images: Array.from(productForm.images).filter((_, idx) => idx !== i) })}
+                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
+                            >
+                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <input
                     type="file"
                     accept="image/*"
