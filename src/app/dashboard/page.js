@@ -264,7 +264,7 @@ function DashboardInner() {
       </div>
 
       {/* Stripe Status Alert */}
-      {accountStatus && !accountStatus.charges_enabled && (
+      {accountStatus && !accountStatus.chargesEnabled && (
         <div className="px-4 mt-4">
           <div className="max-w-lg mx-auto">
             <Link href="/dashboard/payments" className="block">
