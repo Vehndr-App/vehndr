@@ -22,7 +22,6 @@ export default function BottomNav() {
   const { totalItems } = useCart();
   const { user } = useAuth();
   const [favoritesCount, setFavoritesCount] = useState(0);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   // Track favorites count
   useEffect(() => {
@@ -31,7 +30,7 @@ export default function BottomNav() {
     // Listen for storage changes
     const handleStorage = () => setFavoritesCount(getFavoritesCount());
     window.addEventListener("storage", handleStorage);
-    
+
     // Also check on focus (when returning to tab)
     const handleFocus = () => setFavoritesCount(getFavoritesCount());
     window.addEventListener("focus", handleFocus);
@@ -45,15 +44,6 @@ export default function BottomNav() {
       clearInterval(interval);
     };
   }, []);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    if (showMoreMenu) {
-      const handleClickOutside = () => setShowMoreMenu(false);
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
-    }
-  }, [showMoreMenu]);
   
   // Determine which nav items to show based on user role
   const getNavItems = () => {
@@ -63,7 +53,7 @@ export default function BottomNav() {
         { href: '/dashboard/orders', label: 'Orders', icon: OrdersIcon },
         { href: '/dashboard/storefront', label: 'Storefront', icon: StorefrontIcon },
         { href: '/messages', label: 'Messages', icon: MessagesIcon },
-        { type: 'more', label: 'More', icon: MoreIcon },
+        { href: '/dashboard/profile', label: 'Account', icon: ProfileIcon },
       ];
     }
     
@@ -89,76 +79,12 @@ export default function BottomNav() {
 
   const navItems = getNavItems();
 
-  // Vendor "More" menu items
-  const moreMenuItems = [
-    { href: '/dashboard/products', label: 'Items & Services', icon: ItemsMenuIcon },
-    { href: '/dashboard/transactions', label: 'Transactions', icon: TransactionsMenuIcon },
-    { href: '/dashboard/reports', label: 'Reports', icon: ReportsMenuIcon },
-    { href: '/dashboard/payments', label: 'Banking', icon: BankingMenuIcon },
-    { href: '/dashboard/profile', label: 'Store Profile', icon: StoreMenuIcon },
-    { href: '/profile', label: 'Account', icon: ProfileIcon },
-  ];
-
   return (
     <>
-      {/* More Menu Overlay */}
-      {showMoreMenu && user?.role === 'vendor' && (
-        <div className="fixed inset-0 z-[45]" onClick={() => setShowMoreMenu(false)}>
-          <div className="absolute inset-0 bg-black/20" />
-          <div 
-            className="absolute bottom-20 right-4 w-56 bg-white rounded-2xl shadow-xl overflow-hidden animate-slide-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-2">
-              {moreMenuItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setShowMoreMenu(false)}
-                  className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[var(--gray-50)] transition-colors"
-                >
-                  <div className="w-5 h-5 text-[var(--gray-600)]">
-                    <item.icon filled={false} />
-                  </div>
-                  <span className="font-medium text-[var(--foreground)]">{item.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[var(--gray-200)] safe-area-bottom">
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
           {navItems.map((item, index) => {
-            if (item.type === 'more') {
-              return (
-                <button
-                  key="more"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowMoreMenu(!showMoreMenu);
-                  }}
-                  className={`flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] transition-colors relative ${
-                    showMoreMenu 
-                      ? 'text-[var(--violet-600)]' 
-                      : 'text-[var(--gray-400)] hover:text-[var(--gray-600)]'
-                  }`}
-                >
-                  <div className="relative">
-                    <item.icon filled={showMoreMenu} />
-                  </div>
-                  <span className={`text-[10px] font-medium ${showMoreMenu ? 'font-semibold' : ''}`}>
-                    {item.label}
-                  </span>
-                  {showMoreMenu && (
-                    <span className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-[var(--violet-600)] rounded-full" />
-                  )}
-                </button>
-              );
-            }
-
-            const isActive = pathname === item.href || 
+            const isActive = pathname === item.href ||
               (item.href !== '/' && pathname.startsWith(item.href));
             const Icon = item.icon;
             
@@ -321,16 +247,6 @@ function MessagesIcon({ filled }) {
   );
 }
 
-function MoreIcon({ filled }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <line x1="3" y1="12" x2="21" y2="12"/>
-      <line x1="3" y1="6" x2="21" y2="6"/>
-      <line x1="3" y1="18" x2="21" y2="18"/>
-    </svg>
-  );
-}
-
 function ProfileIcon({ filled }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? "0" : "1.5"} strokeLinecap="round" strokeLinejoin="round">
@@ -368,48 +284,6 @@ function AppointmentsIcon({ filled }) {
           <rect x="12" y="14" width="5" height="4" rx="1"/>
         </>
       )}
-    </svg>
-  );
-}
-
-// More Menu Icons
-function ItemsMenuIcon({ filled }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-    </svg>
-  );
-}
-
-function TransactionsMenuIcon({ filled }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"/>
-    </svg>
-  );
-}
-
-function ReportsMenuIcon({ filled }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-    </svg>
-  );
-}
-
-function BankingMenuIcon({ filled }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-      <line x1="1" y1="10" x2="23" y2="10"/>
-    </svg>
-  );
-}
-
-function StoreMenuIcon({ filled }) {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
     </svg>
   );
 }

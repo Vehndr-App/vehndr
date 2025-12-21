@@ -192,35 +192,19 @@ function DashboardInner() {
             </Link>
           </div>
 
-          {/* Today's Revenue Card */}
+          {/* Today's Orders Card */}
           <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <p className="text-white/70 text-sm mb-3">Today&apos;s Sales</p>
-                <div className="relative mb-2">
-                  {!isAuthenticated && (
-                    <button
-                      onClick={handleBiometricAuth}
-                      className="absolute -inset-2 backdrop-blur-md bg-white/20 rounded-lg flex items-center justify-center z-10"
-                      aria-label="Unlock to view sales"
-                    >
-                      <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                    </button>
-                  )}
-                  <p className="text-4xl font-bold text-white leading-tight">${(todayRevenue / 100).toFixed(2)}</p>
+                <p className="text-white/70 text-sm mb-3">Total Orders</p>
+                <div className="mb-2">
+                  <p className="text-4xl font-bold text-white leading-tight">{orders.length}</p>
                 </div>
-                <div className="relative">
-                  {!isAuthenticated && (
-                    <div className="absolute -inset-1 backdrop-blur-md bg-white/20 rounded z-10"></div>
-                  )}
-                  <p className="text-white/60 text-sm">{todaysOrders.length} order{todaysOrders.length !== 1 ? 's' : ''}</p>
-                </div>
+                <p className="text-white/60 text-sm">{todaysOrders.length} order{todaysOrders.length !== 1 ? 's' : ''} today</p>
               </div>
               <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
                 <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                 </svg>
               </div>
             </div>
