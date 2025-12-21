@@ -66,7 +66,7 @@ export default function ProductPage() {
   const isService = product.isService === true;
   const hasOptions = (product.options?.length ?? 0) > 0;
   const optionDefs = product.options ?? [];
-  const isValid = (!hasOptions || optionDefs.every((o) => selected[o.id])) && 
+  const isValid = (!hasOptions || optionDefs.every((o) => selected[o.id])) &&
                   (!isService || (selectedDate && selectedTimeSlot));
   
   const placeholderImage = getVendorPlaceholderImage(vendor.categories, product.id);
