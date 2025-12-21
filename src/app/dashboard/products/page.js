@@ -28,9 +28,22 @@ function ProductsInner() {
     price: '',
     isService: false,
     duration: '',
+    availableTimeSlots: [],
     images: [],
     existingImages: []
   });
+
+  // Default time slots - 24 hours, 30-minute intervals (same as backend)
+  const DEFAULT_TIME_SLOTS = [
+    '12:00 AM', '12:30 AM', '1:00 AM', '1:30 AM', '2:00 AM', '2:30 AM',
+    '3:00 AM', '3:30 AM', '4:00 AM', '4:30 AM', '5:00 AM', '5:30 AM',
+    '6:00 AM', '6:30 AM', '7:00 AM', '7:30 AM', '8:00 AM', '8:30 AM',
+    '9:00 AM', '9:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+    '12:00 PM', '12:30 PM', '1:00 PM', '1:30 PM', '2:00 PM', '2:30 PM',
+    '3:00 PM', '3:30 PM', '4:00 PM', '4:30 PM', '5:00 PM', '5:30 PM',
+    '6:00 PM', '6:30 PM', '7:00 PM', '7:30 PM', '8:00 PM', '8:30 PM',
+    '9:00 PM', '9:30 PM', '10:00 PM', '10:30 PM', '11:00 PM', '11:30 PM'
+  ];
 
   const fetchProducts = useCallback(async (vendorId) => {
     try {
@@ -69,6 +82,7 @@ function ProductsInner() {
         price: product.price ? (product.price / 100).toString() : '',
         isService: product.isService || false,
         duration: product.duration?.toString() || '',
+        availableTimeSlots: product.availableTimeSlots || [],
         images: [],
         existingImages: product.images || []
       });
@@ -80,6 +94,7 @@ function ProductsInner() {
         price: '',
         isService: false,
         duration: '',
+        availableTimeSlots: [],
         images: [],
         existingImages: []
       });
@@ -104,6 +119,11 @@ function ProductsInner() {
       formData.append('product[is_service]', productForm.isService);
       if (productForm.isService && productForm.duration) {
         formData.append('product[duration]', productForm.duration);
+      }
+      if (productForm.isService && productForm.availableTimeSlots.length > 0) {
+        productForm.availableTimeSlots.forEach((slot) => {
+          formData.append('product[available_time_slots][]', slot);
+        });
       }
 
       // Add new images
@@ -316,17 +336,80 @@ function ProductsInner() {
                 </div>
 
                 {productForm.isService && (
-                  <div>
-                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Duration (minutes)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={productForm.duration}
-                      onChange={(e) => setProductForm({ ...productForm, duration: e.target.value })}
-                      className="input"
-                      placeholder="60"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Duration (minutes)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={productForm.duration}
+                        onChange={(e) => setProductForm({ ...productForm, duration: e.target.value })}
+                        className="input"
+                        placeholder="60"
+                      />
+                    </div>
+
+                    {/* Time Slots Selector */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-[var(--gray-700)]">Available Time Slots</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (productForm.availableTimeSlots.length === DEFAULT_TIME_SLOTS.length) {
+                              setProductForm({ ...productForm, availableTimeSlots: [] });
+                            } else {
+                              setProductForm({ ...productForm, availableTimeSlots: [...DEFAULT_TIME_SLOTS] });
+                            }
+                          }}
+                          className="text-xs text-[var(--violet-600)] font-medium"
+                        >
+                          {productForm.availableTimeSlots.length === DEFAULT_TIME_SLOTS.length ? 'Deselect All' : 'Select All'}
+                        </button>
+                      </div>
+                      <p className="text-xs text-[var(--gray-500)] mb-3">
+                        Choose which time slots are available for booking ({productForm.availableTimeSlots.length} selected)
+                      </p>
+                      <div className="max-h-48 overflow-y-auto border border-[var(--gray-200)] rounded-lg p-3 space-y-1">
+                        {DEFAULT_TIME_SLOTS.map((slot) => {
+                          const isSelected = productForm.availableTimeSlots.includes(slot);
+                          return (
+                            <button
+                              key={slot}
+                              type="button"
+                              onClick={() => {
+                                if (isSelected) {
+                                  setProductForm({
+                                    ...productForm,
+                                    availableTimeSlots: productForm.availableTimeSlots.filter(s => s !== slot)
+                                  });
+                                } else {
+                                  setProductForm({
+                                    ...productForm,
+                                    availableTimeSlots: [...productForm.availableTimeSlots, slot]
+                                  });
+                                }
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                                isSelected
+                                  ? 'bg-[var(--violet-600)] text-white font-medium'
+                                  : 'bg-[var(--gray-50)] text-[var(--gray-700)] hover:bg-[var(--gray-100)]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span>{slot}</span>
+                                {isSelected && (
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div>
@@ -439,8 +522,15 @@ function ProductCard({ product, onEdit, onDelete }) {
           )}
         </div>
         <p className="text-lg font-bold text-[var(--foreground)]">${price.toFixed(2)}</p>
-        {product.isService && product.duration && (
-          <p className="text-xs text-[var(--gray-500)]">{product.duration} min</p>
+        {product.isService && (
+          <div className="text-xs text-[var(--gray-500)] space-y-0.5">
+            {product.duration && <p>{product.duration} min</p>}
+            {product.availableTimeSlots && product.availableTimeSlots.length > 0 && (
+              <p className="text-[var(--violet-600)] font-medium">
+                {product.availableTimeSlots.length} time slot{product.availableTimeSlots.length !== 1 ? 's' : ''}
+              </p>
+            )}
+          </div>
         )}
         <div className="flex gap-2 mt-3">
           <button
