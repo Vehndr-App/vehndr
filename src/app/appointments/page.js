@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { api } from "../../services/api";
+import RescheduleModal from "../../components/RescheduleModal";
 
 // Keep saveBooking for backward compatibility (no-op now)
 export function saveBooking(booking) {
@@ -18,6 +19,7 @@ export default function AppointmentsPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("upcoming"); // upcoming, past, all
+  const [rescheduleBooking, setRescheduleBooking] = useState(null);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -67,6 +69,28 @@ export default function AppointmentsPage() {
 
   const upcomingCount = bookings.filter(b => new Date(b.date) >= now).length;
   const pastCount = bookings.filter(b => new Date(b.date) < now).length;
+
+  const handleRescheduleSuccess = async () => {
+    // Refetch bookings after successful reschedule
+    try {
+      const response = await api('/bookings/my_bookings');
+      const transformedBookings = response.map(booking => ({
+        id: booking.id,
+        serviceName: booking.product?.name || 'Service',
+        vendorName: booking.vendor?.name || 'Vendor',
+        vendorId: booking.vendorId,
+        date: booking.bookingDate,
+        timeSlot: booking.startTime,
+        duration: booking.product?.duration || 0,
+        price: booking.product?.price || 0,
+        status: booking.status,
+        options: {}
+      }));
+      setBookings(transformedBookings);
+    } catch (error) {
+      console.error('Error refetching bookings:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -157,18 +181,26 @@ export default function AppointmentsPage() {
         {filteredBookings.length > 0 ? (
           <div className="space-y-4">
             {filteredBookings.map((booking) => (
-              <BookingCard key={booking.id} booking={booking} />
+              <BookingCard key={booking.id} booking={booking} onReschedule={setRescheduleBooking} />
             ))}
           </div>
         ) : (
           <EmptyState filter={filter} />
         )}
       </div>
+
+      {/* Reschedule Modal */}
+      <RescheduleModal
+        booking={rescheduleBooking}
+        isOpen={!!rescheduleBooking}
+        onClose={() => setRescheduleBooking(null)}
+        onSuccess={handleRescheduleSuccess}
+      />
     </div>
   );
 }
 
-function BookingCard({ booking }) {
+function BookingCard({ booking, onReschedule }) {
   const bookingDate = new Date(booking.date);
   const isPast = bookingDate < new Date();
   
@@ -249,7 +281,10 @@ function BookingCard({ booking }) {
           >
             View Vendor
           </Link>
-          <button className="flex-1 h-9 rounded-[var(--radius-lg)] border border-[var(--coral-200)] text-[var(--coral-600)] text-sm font-medium flex items-center justify-center hover:bg-[var(--coral-50)] transition-colors">
+          <button
+            onClick={() => onReschedule(booking)}
+            className="flex-1 h-9 rounded-[var(--radius-lg)] border border-[var(--coral-200)] text-[var(--coral-600)] text-sm font-medium flex items-center justify-center hover:bg-[var(--coral-50)] transition-colors"
+          >
             Reschedule
           </button>
         </div>
