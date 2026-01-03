@@ -4,39 +4,57 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { api } from "../../services/api";
 
-// Get bookings from localStorage
-const BOOKINGS_KEY = "vehndr_bookings";
-
-function getBookings() {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(localStorage.getItem(BOOKINGS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
+// Keep saveBooking for backward compatibility (no-op now)
 export function saveBooking(booking) {
-  const bookings = getBookings();
-  bookings.push({
-    ...booking,
-    id: `booking_${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    status: "confirmed"
-  });
-  localStorage.setItem(BOOKINGS_KEY, JSON.stringify(bookings));
+  // Bookings are now created on checkout, not stored locally
+  console.log("Booking will be saved on checkout:", booking);
 }
 
 export default function AppointmentsPage() {
   const router = useRouter();
   const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("upcoming"); // upcoming, past, all
 
   useEffect(() => {
-    setBookings(getBookings());
-  }, []);
+    const fetchBookings = async () => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const response = await api('/bookings/my_bookings');
+
+        // Transform API bookings to match component format
+        const transformedBookings = response.map(booking => ({
+          id: booking.id,
+          serviceName: booking.product?.name || 'Service',
+          vendorName: booking.vendor?.name || 'Vendor',
+          vendorId: booking.vendorId,
+          date: booking.bookingDate,
+          timeSlot: booking.startTime,
+          duration: booking.product?.duration || 0,
+          price: booking.product?.price || 0,
+          status: booking.status,
+          options: {}
+        }));
+
+        setBookings(transformedBookings);
+      } catch (error) {
+        console.error('Error fetching bookings:', error);
+        setBookings([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, [user]);
 
   const now = new Date();
   
@@ -49,6 +67,31 @@ export default function AppointmentsPage() {
 
   const upcomingCount = bookings.filter(b => new Date(b.date) >= now).length;
   const pastCount = bookings.filter(b => new Date(b.date) < now).length;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--gray-50)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-[var(--violet-600)] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-[var(--gray-500)]">Loading appointments...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-[var(--gray-50)] flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-[var(--gray-900)] mb-2">Sign in to view appointments</h2>
+          <p className="text-[var(--gray-500)] mb-6">You need to be signed in to see your bookings.</p>
+          <Link href="/login" className="btn btn-gradient inline-flex">
+            Sign In
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--gray-50)] pb-24">

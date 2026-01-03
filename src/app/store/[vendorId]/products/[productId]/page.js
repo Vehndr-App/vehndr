@@ -38,6 +38,8 @@ export default function ProductPage() {
   const [selected, setSelected] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(null);
+  const [availableSlots, setAvailableSlots] = useState([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -51,6 +53,40 @@ export default function ProductPage() {
       setProduct(p);
     })();
   }, [vendorId, productId]);
+
+  // Fetch available time slots when date is selected
+  useEffect(() => {
+    if (!selectedDate || !product?.isService) {
+      setAvailableSlots([]);
+      return;
+    }
+
+    const fetchTimeSlots = async () => {
+      setLoadingSlots(true);
+      setSelectedTimeSlot(null); // Reset time slot when date changes
+
+      try {
+        const dateStr = selectedDate.toISOString().split('T')[0];
+        const response = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vendors/${vendorId}/availabilities/time_slots?date=${dateStr}`
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch time slots');
+        }
+
+        const data = await response.json();
+        setAvailableSlots(data.slots || []);
+      } catch (error) {
+        console.error('Error fetching time slots:', error);
+        setAvailableSlots([]);
+      } finally {
+        setLoadingSlots(false);
+      }
+    };
+
+    fetchTimeSlots();
+  }, [selectedDate, vendorId, product]);
 
   if (!product || !vendor) {
     return (
@@ -336,27 +372,54 @@ export default function ProductPage() {
                 </div>
 
                 {/* Time Slot Selection */}
-                {product.availableTimeSlots && (
+                {selectedDate && (
                   <div>
                     <label className="block text-sm font-semibold text-[var(--gray-900)] mb-3">
                       Select Time <span className="text-[var(--coral-500)]">*</span>
                     </label>
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto">
-                      {product.availableTimeSlots.map((slot) => (
-                        <button
-                          key={slot}
-                          onClick={() => setSelectedTimeSlot(slot)}
-                          className={`px-3 py-2.5 rounded-[var(--radius-lg)] text-sm font-medium transition-all ${
-                            selectedTimeSlot === slot
-                              ? "bg-[var(--violet-600)] text-white shadow-md"
-                              : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--violet-100)] hover:text-[var(--violet-700)]"
-                          }`}
-                        >
-                          {slot}
-                        </button>
-                      ))}
-                    </div>
-                    {!selectedTimeSlot && (
+
+                    {loadingSlots ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="w-8 h-8 border-3 border-[var(--violet-600)] border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    ) : availableSlots.length === 0 ? (
+                      <div className="text-center py-8 px-4 bg-[var(--gray-50)] rounded-[var(--radius-lg)]">
+                        <svg className="mx-auto mb-2" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="8" x2="12" y2="12"/>
+                          <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <p className="text-sm text-[var(--gray-500)]">No time slots available for this date</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-64 overflow-y-auto">
+                        {availableSlots.map((slot) => (
+                          <button
+                            key={slot.time}
+                            onClick={() => slot.available && setSelectedTimeSlot(slot.time)}
+                            disabled={!slot.available}
+                            className={`px-3 py-2.5 rounded-[var(--radius-lg)] text-sm font-medium transition-all relative ${
+                              selectedTimeSlot === slot.time
+                                ? "bg-[var(--violet-600)] text-white shadow-md"
+                                : slot.available
+                                ? "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--violet-100)] hover:text-[var(--violet-700)]"
+                                : "bg-[var(--gray-50)] text-[var(--gray-300)] cursor-not-allowed"
+                            }`}
+                          >
+                            <div>{slot.time}</div>
+                            {slot.available && slot.capacity > 0 && slot.capacity <= 3 && (
+                              <div className="text-[10px] mt-0.5 opacity-75">
+                                {slot.capacity} {slot.capacity === 1 ? 'spot' : 'spots'}
+                              </div>
+                            )}
+                            {!slot.available && (
+                              <div className="text-[10px] mt-0.5">Full</div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!selectedTimeSlot && availableSlots.length > 0 && (
                       <p className="text-xs text-[var(--coral-500)] mt-2">Please select a time slot to continue</p>
                     )}
                   </div>

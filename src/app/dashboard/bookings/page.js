@@ -5,46 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../contexts/AuthContext";
 import AuthGate from "../../../components/AuthGate";
-
-// Mock bookings data - in production this would come from the API
-const MOCK_BOOKINGS = [
-  {
-    id: "1",
-    customerName: "Sarah Johnson",
-    customerEmail: "sarah@example.com",
-    serviceName: "Chair Massage Session",
-    date: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString().split('T')[0], // Tomorrow
-    timeSlot: "10:00 AM",
-    duration: 30,
-    price: 5000,
-    status: "confirmed",
-    options: { pressure: "Medium", focus: "Full Upper Body" }
-  },
-  {
-    id: "2",
-    customerName: "Mike Chen",
-    customerEmail: "mike@example.com",
-    serviceName: "Private Yoga Session",
-    date: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2).toISOString().split('T')[0], // Day after tomorrow
-    timeSlot: "9:00 AM",
-    duration: 60,
-    price: 7500,
-    status: "confirmed",
-    options: { level: "Intermediate", style: "Vinyasa" }
-  },
-  {
-    id: "3",
-    customerName: "Emily Rodriguez",
-    customerEmail: "emily@example.com",
-    serviceName: "Guided Meditation",
-    date: new Date().toISOString().split('T')[0], // Today
-    timeSlot: "2:00 PM",
-    duration: 45,
-    price: 3500,
-    status: "confirmed",
-    options: { type: "Mindfulness" }
-  }
-];
+import { api } from "../../../services/api";
 
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -60,8 +21,44 @@ function VendorBookingsInner() {
   const { user } = useAuth();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [bookings, setBookings] = useState(MOCK_BOOKINGS);
+  const [bookings, setBookings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState("calendar"); // calendar, list
+
+  // Fetch vendor bookings
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!user?.vendorId) return;
+
+      try {
+        setLoading(true);
+        const response = await api(`/api/vendors/${user.vendorId}/bookings`);
+
+        // Transform API bookings to match component format
+        const transformedBookings = response.map(booking => ({
+          id: booking.id,
+          customerName: booking.customerName || 'N/A',
+          customerEmail: booking.customerEmail || '',
+          serviceName: booking.product?.name || 'Service',
+          date: booking.bookingDate,
+          timeSlot: booking.startTime,
+          duration: booking.product?.duration || 0,
+          price: booking.product?.price || 0,
+          status: booking.status,
+          employeeName: booking.employee?.name,
+          options: {}
+        }));
+
+        setBookings(transformedBookings);
+      } catch (error) {
+        console.error('Error fetching bookings:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBookings();
+  }, [user]);
 
   // Get bookings for selected date
   const selectedDateBookings = bookings.filter(
@@ -98,6 +95,17 @@ function VendorBookingsInner() {
     const weekFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
     return bookingDate >= today && bookingDate <= weekFromNow;
   }).length;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[var(--gray-50)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-[var(--violet-600)] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-[var(--gray-500)]">Loading bookings...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[var(--gray-50)] pb-24">
@@ -278,12 +286,24 @@ function VendorBookingsInner() {
                     
                     <p className="font-medium text-[var(--gray-800)] mb-1">{booking.serviceName}</p>
                     
-                    <div className="flex items-center gap-2 text-sm text-[var(--gray-500)]">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
-                      </svg>
-                      {booking.customerName}
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 text-sm text-[var(--gray-500)]">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        {booking.customerName}
+                      </div>
+                      {booking.employeeName && (
+                        <div className="flex items-center gap-2 text-sm text-[var(--gray-500)]">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                            <circle cx="8.5" cy="7" r="4"/>
+                            <polyline points="17 11 19 13 23 9"/>
+                          </svg>
+                          Staff: {booking.employeeName}
+                        </div>
+                      )}
                     </div>
 
                     {booking.options && Object.keys(booking.options).length > 0 && (
