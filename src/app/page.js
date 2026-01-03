@@ -112,41 +112,35 @@ export default async function Home({ searchParams }) {
                 color="#FEE2E2"
                 badge="Popular"
               />
-              <QuickActionCard 
-                href="/vendors?category=Health%20%26%20Wellness" 
-                icon="💆" 
+              <QuickActionCard
+                href="/vendors?category=Health%20%26%20Wellness"
+                icon="💆"
                 label="Wellness"
                 color="#D1FAE5"
               />
-              <QuickActionCard 
-                href="/vendors?category=Clothing%20%26%20Accessories" 
-                icon="👗" 
+              <QuickActionCard
+                href="/vendors?category=Clothing%20%26%20Accessories"
+                icon="👗"
                 label="Fashion"
                 color="#FCE7F3"
               />
-              <QuickActionCard 
-                href="/vendors?category=Entertainment" 
-                icon="🎸" 
-                label="Entertainment"
+              <QuickActionCard
+                href="/vendors?category=Beauty"
+                icon="💄"
+                label="Beauty"
                 color="#FEF3C7"
               />
-              <QuickActionCard 
-                href="/vendors?category=Photography" 
-                icon="📸" 
-                label="Photography"
+              <QuickActionCard
+                href="/vendors?category=Workshops"
+                icon="🎨"
+                label="Workshops"
                 color="#E0E7FF"
               />
-              <QuickActionCard 
-                href="/vendors?category=Rentals" 
-                icon="⛺" 
-                label="Rentals"
+              <QuickActionCard
+                href="/vendors?category=Other"
+                icon="✨"
+                label="Other"
                 color="#CFFAFE"
-              />
-              <QuickActionCard 
-                href="/vendors?category=DJ%2FMusic" 
-                icon="🎧" 
-                label="DJ/Music"
-                color="#F3E8FF"
               />
             </div>
           </div>
