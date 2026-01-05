@@ -16,6 +16,12 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Saturday', short: 'Sat' }
 ];
 
+const DAY_GROUPS = [
+  { value: 'weekdays', label: 'Weekdays (Mon-Fri)', days: [1, 2, 3, 4, 5] },
+  { value: 'weekends', label: 'Weekends (Sat-Sun)', days: [6, 0] },
+  { value: 'all', label: 'Every Day', days: [0, 1, 2, 3, 4, 5, 6] }
+];
+
 export default function AvailabilityPage() {
   return (
     <AuthGate allowedRoles={["vendor"]}>
@@ -34,7 +40,8 @@ function AvailabilityInner() {
   const [successMessage, setSuccessMessage] = useState(null);
 
   const [availabilityForm, setAvailabilityForm] = useState({
-    dayOfWeek: 1,
+    selectedDays: [1], // Array of selected day numbers
+    dayGroup: '', // 'weekdays', 'weekends', 'all', or ''
     startTime: '09:00',
     endTime: '17:00',
     slotDuration: 30,
@@ -64,34 +71,52 @@ function AvailabilityInner() {
     setSaving(true);
 
     try {
-      const payload = {
-        vendor_availability: {
-          day_of_week: availabilityForm.dayOfWeek,
-          start_time: availabilityForm.startTime,
-          end_time: availabilityForm.endTime,
-          slot_duration: parseInt(availabilityForm.slotDuration),
-          employee_count: parseInt(availabilityForm.employeeCount)
-        }
-      };
-
       if (editingAvailability) {
+        // When editing, only update the single availability
+        const payload = {
+          vendor_availability: {
+            day_of_week: availabilityForm.selectedDays[0],
+            start_time: availabilityForm.startTime,
+            end_time: availabilityForm.endTime,
+            slot_duration: parseInt(availabilityForm.slotDuration),
+            employee_count: parseInt(availabilityForm.employeeCount)
+          }
+        };
+
         await api(`/api/vendors/${user.vendorId}/availabilities/${editingAvailability.id}`, {
           method: 'PATCH',
           body: JSON.stringify(payload)
         });
         setSuccessMessage('Availability updated successfully!');
       } else {
-        await api(`/api/vendors/${user.vendorId}/availabilities`, {
-          method: 'POST',
-          body: JSON.stringify(payload)
+        // When creating, create one for each selected day
+        const createPromises = availabilityForm.selectedDays.map(dayOfWeek => {
+          const payload = {
+            vendor_availability: {
+              day_of_week: dayOfWeek,
+              start_time: availabilityForm.startTime,
+              end_time: availabilityForm.endTime,
+              slot_duration: parseInt(availabilityForm.slotDuration),
+              employee_count: parseInt(availabilityForm.employeeCount)
+            }
+          };
+
+          return api(`/api/vendors/${user.vendorId}/availabilities`, {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
         });
-        setSuccessMessage('Availability created successfully!');
+
+        await Promise.all(createPromises);
+        const daysCount = availabilityForm.selectedDays.length;
+        setSuccessMessage(`Availability created for ${daysCount} ${daysCount === 1 ? 'day' : 'days'}!`);
       }
 
       setShowModal(false);
       setEditingAvailability(null);
       setAvailabilityForm({
-        dayOfWeek: 1,
+        selectedDays: [1],
+        dayGroup: '',
         startTime: '09:00',
         endTime: '17:00',
         slotDuration: 30,
@@ -128,7 +153,8 @@ function AvailabilityInner() {
     if (availability) {
       setEditingAvailability(availability);
       setAvailabilityForm({
-        dayOfWeek: availability.dayOfWeek,
+        selectedDays: [availability.dayOfWeek],
+        dayGroup: '',
         startTime: availability.startTime.substring(0, 5), // Extract HH:MM from time
         endTime: availability.endTime.substring(0, 5),
         slotDuration: availability.slotDuration,
@@ -137,7 +163,8 @@ function AvailabilityInner() {
     } else {
       setEditingAvailability(null);
       setAvailabilityForm({
-        dayOfWeek: 1,
+        selectedDays: [1],
+        dayGroup: '',
         startTime: '09:00',
         endTime: '17:00',
         slotDuration: 30,
@@ -221,7 +248,8 @@ function AvailabilityInner() {
           <div className="text-sm text-[var(--violet-700)]">
             <p className="font-semibold mb-1">How it works:</p>
             <ul className="space-y-1 text-[var(--violet-600)]">
-              <li>• Set your operating hours for each day of the week</li>
+              <li>• Use quick select buttons (Weekdays, Weekends, Every Day) or pick individual days</li>
+              <li>• Set your operating hours for selected days</li>
               <li>• Specify how many staff members are working (concurrent booking capacity)</li>
               <li>• Choose time slot duration (e.g., 30 minutes)</li>
               <li>• Example: 2 employees = 2 customers can book the same time slot</li>
@@ -296,7 +324,11 @@ function AvailabilityInner() {
                       <p className="text-sm text-[var(--gray-400)] mb-3">Closed</p>
                       <button
                         onClick={() => {
-                          setAvailabilityForm({ ...availabilityForm, dayOfWeek: day.value });
+                          setAvailabilityForm({
+                            ...availabilityForm,
+                            selectedDays: [day.value],
+                            dayGroup: ''
+                          });
                           openModal();
                         }}
                         className="text-sm text-[var(--violet-600)] font-medium hover:underline"
@@ -356,19 +388,81 @@ function AvailabilityInner() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Day of Week</label>
-                <select
-                  value={availabilityForm.dayOfWeek}
-                  onChange={(e) => setAvailabilityForm({ ...availabilityForm, dayOfWeek: parseInt(e.target.value) })}
-                  className="input"
-                  required
-                >
-                  {DAYS_OF_WEEK.map(day => (
-                    <option key={day.value} value={day.value}>{day.label}</option>
-                  ))}
-                </select>
-              </div>
+              {!editingAvailability && (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-3">Select Days</label>
+
+                  {/* Quick Selection Buttons */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {DAY_GROUPS.map(group => (
+                      <button
+                        key={group.value}
+                        type="button"
+                        onClick={() => {
+                          setAvailabilityForm({
+                            ...availabilityForm,
+                            selectedDays: group.days,
+                            dayGroup: group.value
+                          });
+                        }}
+                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                          availabilityForm.dayGroup === group.value
+                            ? 'bg-[var(--violet-600)] text-white'
+                            : 'bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]'
+                        }`}
+                      >
+                        {group.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Individual Day Selection */}
+                  <div className="grid grid-cols-7 gap-2">
+                    {DAYS_OF_WEEK.map(day => {
+                      const isSelected = availabilityForm.selectedDays.includes(day.value);
+                      return (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => {
+                            const newSelectedDays = isSelected
+                              ? availabilityForm.selectedDays.filter(d => d !== day.value)
+                              : [...availabilityForm.selectedDays, day.value];
+                            setAvailabilityForm({
+                              ...availabilityForm,
+                              selectedDays: newSelectedDays,
+                              dayGroup: '' // Clear group when manually selecting
+                            });
+                          }}
+                          className={`aspect-square rounded-lg text-xs font-medium transition-all ${
+                            isSelected
+                              ? 'bg-[var(--violet-600)] text-white shadow-sm'
+                              : 'bg-white border border-[var(--gray-200)] text-[var(--gray-600)] hover:border-[var(--violet-300)]'
+                          }`}
+                        >
+                          {day.short}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {availabilityForm.selectedDays.length === 0 && (
+                    <p className="text-xs text-[var(--coral-600)] mt-2">Please select at least one day</p>
+                  )}
+                </div>
+              )}
+
+              {editingAvailability && (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Day of Week</label>
+                  <input
+                    type="text"
+                    value={DAYS_OF_WEEK.find(d => d.value === availabilityForm.selectedDays[0])?.label}
+                    className="input bg-[var(--gray-50)]"
+                    disabled
+                  />
+                  <p className="text-xs text-[var(--gray-500)] mt-1">Cannot change day when editing. Delete and create new to change day.</p>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -436,7 +530,7 @@ function AvailabilityInner() {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving}
+                  disabled={saving || availabilityForm.selectedDays.length === 0}
                   className="flex-1 h-11 rounded-[var(--radius-xl)] bg-gradient-primary text-white font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {saving ? 'Saving...' : editingAvailability ? 'Update' : 'Create'}
