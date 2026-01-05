@@ -5,7 +5,7 @@ import BottomNav from "../components/BottomNav";
 import EventBestie from "../components/EventBestie";
 import { CartProvider } from "../contexts/CartContext";
 import { AuthProvider } from "../contexts/AuthContext";
-
+import { Analytics } from "@vercel/analytics/next"
 // Primary body font - Plus Jakarta Sans (clean, modern, highly legible)
 const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700", "800"],
@@ -50,6 +50,7 @@ export default function RootLayout({ children }) {
             <EventBestie />
           </CartProvider>
         </AuthProvider>
+        <Analytics />
       </body>
     </html>
   );
