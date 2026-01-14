@@ -30,6 +30,27 @@ export default function RescheduleModal({ booking, isOpen, onClose, onSuccess })
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [bookingAdvanceMinutes, setBookingAdvanceMinutes] = useState(60);
+
+  // Fetch vendor info when modal opens
+  useEffect(() => {
+    if (isOpen && booking?.vendorId) {
+      const fetchVendorInfo = async () => {
+        try {
+          const response = await fetch(
+            `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vendors/${booking.vendorId}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setBookingAdvanceMinutes(data.bookingAdvanceMinutes || 60);
+          }
+        } catch (error) {
+          console.error('Error fetching vendor info:', error);
+        }
+      };
+      fetchVendorInfo();
+    }
+  }, [isOpen, booking?.vendorId]);
 
   // Fetch available time slots when date is selected
   useEffect(() => {
@@ -155,6 +176,23 @@ export default function RescheduleModal({ booking, isOpen, onClose, onSuccess })
               </span>
             </div>
           </div>
+
+          {/* Buffer Notice */}
+          {bookingAdvanceMinutes > 0 && (
+            <div className="p-4 bg-[var(--amber-50)] rounded-[var(--radius-lg)] flex items-start gap-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber-600)" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <p className="text-sm text-[var(--amber-700)]">
+                This service requires {bookingAdvanceMinutes >= 60
+                  ? `${(bookingAdvanceMinutes / 60).toFixed(1)} hours`
+                  : `${bookingAdvanceMinutes} minutes`} advance notice.
+                Time slots too soon will not be shown.
+              </p>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (

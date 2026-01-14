@@ -8,11 +8,12 @@ import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../../components/PaymentForm';
+import TipSelector from '../../components/TipSelector';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 
 export default function CheckoutPage() {
-  const { vendorCarts, totalItems, allItems, clearVendorCart } = useCart();
+  const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity } = useCart();
   const [loading, setLoading] = useState(false);
   const [activeVendor, setActiveVendor] = useState(null);
   const [error, setError] = useState(null);
@@ -20,6 +21,7 @@ export default function CheckoutPage() {
   const [loadingVendors, setLoadingVendors] = useState(true);
   const [clientSecrets, setClientSecrets] = useState({});
   const [paymentIntents, setPaymentIntents] = useState({});
+  const [vendorTips, setVendorTips] = useState({});
   const router = useRouter();
 
   // Calculate grand total
@@ -53,17 +55,27 @@ export default function CheckoutPage() {
     fetchVendorDetails();
   }, [vendorCarts]);
 
+  const handleTipChange = (vendorId, tipCents) => {
+    setVendorTips(prev => ({
+      ...prev,
+      [vendorId]: tipCents
+    }));
+  };
+
   const handleCheckout = async (vendorId) => {
     setLoading(true);
     setActiveVendor(vendorId);
     setError(null);
 
     try {
+      const tipCents = vendorTips[vendorId] || 0;
+
       // Create PaymentIntent for custom checkout using cart items on server
       const response = await api('/api/checkout/payment_intent', {
         method: 'POST',
         body: {
-          vendorId: vendorId
+          vendorId: vendorId,
+          tipCents: tipCents
         }
       });
 
@@ -87,7 +99,7 @@ export default function CheckoutPage() {
   const handlePaymentSuccess = async (vendorId, paymentIntent) => {
     try {
       // Confirm payment with backend
-      await api('/api/checkout/confirm_payment', {
+      const response = await api('/api/checkout/confirm_payment', {
         method: 'POST',
         body: {
           paymentIntentId: paymentIntent.id
@@ -106,8 +118,9 @@ export default function CheckoutPage() {
         return updated;
       });
 
-      // Redirect to success page
-      router.push(`/checkout/success?vendor_id=${vendorId}`);
+      // Redirect to success page with order ID
+      const orderId = response.orderId;
+      router.push(`/checkout/success?vendor_id=${vendorId}&order_id=${orderId}`);
     } catch (err) {
       setError(err.message || 'Failed to confirm payment');
     }
@@ -123,9 +136,15 @@ export default function CheckoutPage() {
     });
   };
 
-  const calculateVendorTotal = (vendorId) => {
+  const calculateVendorSubtotal = (vendorId) => {
     const items = vendorCarts[vendorId] || [];
     return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  };
+
+  const calculateVendorTotal = (vendorId) => {
+    const subtotal = calculateVendorSubtotal(vendorId);
+    const tip = vendorTips[vendorId] || 0;
+    return subtotal + tip;
   };
 
   const vendorIds = Object.keys(vendorCarts);
@@ -293,11 +312,41 @@ export default function CheckoutPage() {
                             ))}
                           </p>
                         )}
-                        
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="text-xs text-[var(--gray-500)] bg-[var(--gray-100)] px-2 py-0.5 rounded-full">
-                            Qty: {item.quantity}
-                          </span>
+
+                        <div className="flex items-center gap-3 mt-2">
+                          {/* Quantity Controls */}
+                          {!item.options?.timeSlot && (
+                            <div className="flex items-center gap-1 bg-[var(--gray-100)] rounded-full p-0.5">
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                disabled={item.quantity <= 1}
+                                className="w-6 h-6 rounded-full hover:bg-[var(--gray-200)] flex items-center justify-center text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                aria-label="Decrease quantity"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              </button>
+                              <span className="text-sm font-medium text-[var(--gray-900)] min-w-[24px] text-center">
+                                {item.quantity}
+                              </span>
+                              <button
+                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                className="w-6 h-6 rounded-full hover:bg-[var(--gray-200)] flex items-center justify-center text-[var(--gray-600)] transition-colors"
+                                aria-label="Increase quantity"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <line x1="12" y1="5" x2="12" y2="19"/>
+                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                </svg>
+                              </button>
+                            </div>
+                          )}
+                          {item.options?.timeSlot && (
+                            <span className="text-xs text-[var(--gray-500)] bg-[var(--gray-100)] px-2 py-0.5 rounded-full">
+                              Qty: {item.quantity}
+                            </span>
+                          )}
                           <span className="text-xs text-[var(--gray-400)]">
                             ${(item.price / 100).toFixed(2)} each
                           </span>
@@ -314,13 +363,41 @@ export default function CheckoutPage() {
                   ))}
                 </div>
 
+                {/* Tip Selector */}
+                {canCheckout && !clientSecrets[vendorId] && (
+                  <div className="p-4 border-t border-[var(--gray-100)]">
+                    <TipSelector
+                      subtotalCents={calculateVendorSubtotal(vendorId)}
+                      onTipChange={(tipCents) => handleTipChange(vendorId, tipCents)}
+                      disabled={!!clientSecrets[vendorId]}
+                    />
+                  </div>
+                )}
+
                 {/* Vendor Footer */}
                 <div className="p-4 bg-[var(--gray-50)] border-t border-[var(--gray-100)]">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="font-medium text-[var(--gray-700)]">Subtotal</span>
-                    <span className="text-xl font-bold text-[var(--gray-900)]">
-                      ${(total / 100).toFixed(2)}
-                    </span>
+                  {/* Totals Breakdown */}
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-[var(--gray-600)]">Subtotal</span>
+                      <span className="font-medium">
+                        ${(calculateVendorSubtotal(vendorId) / 100).toFixed(2)}
+                      </span>
+                    </div>
+                    {(vendorTips[vendorId] || 0) > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-[var(--gray-600)]">Tip</span>
+                        <span className="font-medium text-[var(--violet-600)]">
+                          ${((vendorTips[vendorId] || 0) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between pt-2 border-t border-[var(--gray-200)]">
+                      <span className="font-medium text-[var(--gray-700)]">Total</span>
+                      <span className="text-xl font-bold text-[var(--gray-900)]">
+                        ${(total / 100).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
 
                   {canCheckout ? (
@@ -343,6 +420,7 @@ export default function CheckoutPage() {
                         <PaymentForm
                           vendorName={vendor?.name || 'Vendor'}
                           totalCents={total}
+                          tipCents={vendorTips[vendorId] || 0}
                           onSuccess={(paymentIntent) => handlePaymentSuccess(vendorId, paymentIntent)}
                           onError={(error) => handlePaymentError(vendorId, error)}
                         />

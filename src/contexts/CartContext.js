@@ -83,6 +83,41 @@ export function CartProvider({ children }) {
     }
   };
 
+  const updateQuantity = async (cartItemId, newQuantity) => {
+    if (newQuantity < 1) return;
+
+    // Optimistically update UI
+    const previousState = vendorCarts;
+    setVendorCarts((prev) => {
+      const updated = { ...prev };
+      for (const vendorId in updated) {
+        updated[vendorId] = updated[vendorId].map((item) =>
+          item.id === cartItemId ? { ...item, quantity: newQuantity } : item
+        );
+      }
+      return updated;
+    });
+
+    // Sync with backend
+    try {
+      const response = await api(`/api/cart/items/${cartItemId}`, {
+        method: 'PATCH',
+        body: {
+          quantity: newQuantity
+        }
+      });
+
+      // Update state with backend response to ensure sync
+      if (response && response.vendorCarts) {
+        setVendorCarts(response.vendorCarts);
+      }
+    } catch (err) {
+      console.error('Failed to update quantity in backend cart:', err);
+      // Revert on error
+      setVendorCarts(previousState);
+    }
+  };
+
   const removeItem = async (vendorId, productId) => {
     // Optimistically update UI
     const previousState = vendorCarts;
@@ -180,6 +215,7 @@ export function CartProvider({ children }) {
     () => ({
       vendorCarts,
       addItem,
+      updateQuantity,
       removeItem,
       clearVendor,
       clearAll,

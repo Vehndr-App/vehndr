@@ -5,6 +5,7 @@ import FavoriteButton from "../components/FavoriteButton";
 import HeroMedia from "../components/HeroMedia";
 import HomeToggle from "../components/HomeToggle";
 import { getVendorPlaceholderImage } from "../utils/placeholderImages";
+import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
 
 // Fetch events function
 async function listEvents(params = {}) {
@@ -70,9 +71,9 @@ export default async function Home({ searchParams }) {
   return (
     <div className="w-full">
       {/* Hero Section with Video/Graphic Support */}
-      <section className="relative overflow-hidden">
+      <section className="relative">
         {/* Background - Video, Image, or Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--violet-600)] via-[var(--magenta-500)] to-[var(--coral-500)]">
+        <div className="absolute inset-0 bg-gradient-to-br from-[var(--violet-600)] via-[var(--magenta-500)] to-[var(--coral-500)] overflow-hidden">
           {/* 
             To add a video, place your video file at /public/hero-video.mp4 
             Supported formats: .mp4, .webm
@@ -99,49 +100,25 @@ export default async function Home({ searchParams }) {
         <section className="bg-white border-b border-[var(--gray-100)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
             <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
-              <QuickActionCard 
-                href="/?mode=events" 
-                icon="🗓️" 
+              <QuickActionCard
+                href="/?mode=events"
+                icon="🗓️"
                 label="Events"
                 color="#EDE9FE"
               />
-              <QuickActionCard 
-                href="/vendors?category=Food%20%26%20Beverage" 
-                icon="🍕" 
-                label="Food & Drink"
-                color="#FEE2E2"
-                badge="Popular"
-              />
-              <QuickActionCard
-                href="/vendors?category=Health%20%26%20Wellness"
-                icon="💆"
-                label="Wellness"
-                color="#D1FAE5"
-              />
-              <QuickActionCard
-                href="/vendors?category=Clothing%20%26%20Accessories"
-                icon="👗"
-                label="Fashion"
-                color="#FCE7F3"
-              />
-              <QuickActionCard
-                href="/vendors?category=Beauty"
-                icon="💄"
-                label="Beauty"
-                color="#FEF3C7"
-              />
-              <QuickActionCard
-                href="/vendors?category=Workshops"
-                icon="🎨"
-                label="Workshops"
-                color="#E0E7FF"
-              />
-              <QuickActionCard
-                href="/vendors?category=Other"
-                icon="✨"
-                label="Other"
-                color="#CFFAFE"
-              />
+              {VENDOR_CATEGORIES.filter(category => allCategories.includes(category)).map((category) => {
+                const display = CATEGORY_DISPLAY[category];
+                return (
+                  <QuickActionCard
+                    key={category}
+                    href={`/vendors?category=${encodeURIComponent(category)}`}
+                    icon={display.icon}
+                    label={display.label}
+                    color={display.color}
+                    badge={category === "Food & Beverage" ? "Popular" : undefined}
+                  />
+                );
+              })}
             </div>
           </div>
         </section>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
-export default function PaymentForm({ vendorName, totalCents, onSuccess, onError }) {
+export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSuccess, onError }) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -128,7 +128,14 @@ export default function PaymentForm({ vendorName, totalCents, onSuccess, onError
             Processing...
           </span>
         ) : (
-          `Pay ${vendorName} $${(totalCents / 100).toFixed(2)}`
+          <>
+            Pay ${vendorName} ${(totalCents / 100).toFixed(2)}
+            {tipCents > 0 && (
+              <span className="text-sm opacity-80 ml-1">
+                (incl. ${(tipCents / 100).toFixed(2)} tip)
+              </span>
+            )}
+          </>
         )}
       </button>
     </form>

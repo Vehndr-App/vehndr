@@ -43,6 +43,7 @@ export default function ProductPage() {
   const [addedToCart, setAddedToCart] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [bookingAdvanceMinutes, setBookingAdvanceMinutes] = useState(60);
 
   useEffect(() => {
     (async () => {
@@ -51,6 +52,7 @@ export default function ProductPage() {
       const p = products.find((prod) => prod.id === productId);
       setVendor(v);
       setProduct(p);
+      setBookingAdvanceMinutes(v.bookingAdvanceMinutes || 60);
     })();
   }, [vendorId, productId]);
 
@@ -357,17 +359,35 @@ export default function ProductPage() {
                   )}
 
                   {selectedDate && (
-                    <div className="mt-3 flex items-center gap-2 p-3 bg-[var(--violet-50)] rounded-[var(--radius-lg)]">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                        <line x1="16" y1="2" x2="16" y2="6"/>
-                        <line x1="8" y1="2" x2="8" y2="6"/>
-                        <line x1="3" y1="10" x2="21" y2="10"/>
-                      </svg>
-                      <span className="text-sm font-medium text-[var(--violet-700)]">
-                        {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                      </span>
-                    </div>
+                    <>
+                      <div className="mt-3 flex items-center gap-2 p-3 bg-[var(--violet-50)] rounded-[var(--radius-lg)]">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                          <line x1="16" y1="2" x2="16" y2="6"/>
+                          <line x1="8" y1="2" x2="8" y2="6"/>
+                          <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        <span className="text-sm font-medium text-[var(--violet-700)]">
+                          {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </div>
+
+                      {bookingAdvanceMinutes > 0 && (
+                        <div className="mt-2 flex items-start gap-2 p-3 bg-[var(--amber-50)] rounded-[var(--radius-lg)]">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--amber-600)" strokeWidth="2" className="flex-shrink-0 mt-0.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                          </svg>
+                          <p className="text-xs text-[var(--amber-700)]">
+                            Bookings require {bookingAdvanceMinutes >= 60
+                              ? `${(bookingAdvanceMinutes / 60).toFixed(1)} hours`
+                              : `${bookingAdvanceMinutes} minutes`} advance notice.
+                            Time slots too soon will not be available.
+                          </p>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
 
@@ -413,7 +433,9 @@ export default function ProductPage() {
                               </div>
                             )}
                             {!slot.available && (
-                              <div className="text-[10px] mt-0.5">Full</div>
+                              <div className="text-[10px] mt-0.5">
+                                {slot.withinBuffer ? 'Too soon' : 'Full'}
+                              </div>
                             )}
                           </button>
                         ))}

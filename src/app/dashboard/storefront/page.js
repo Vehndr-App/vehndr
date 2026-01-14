@@ -34,6 +34,14 @@ function POSSystem() {
   const [keypadValue, setKeypadValue] = useState('0');
   const [customItemName, setCustomItemName] = useState('Custom Amount');
 
+  // Cash payment modal state
+  const [showCashModal, setShowCashModal] = useState(false);
+  const [cashReceived, setCashReceived] = useState('0');
+
+  // Tip screen state
+  const [showTipScreen, setShowTipScreen] = useState(false);
+  const [currentTip, setCurrentTip] = useState(0);
+
   const fetchData = useCallback(async (vendorId) => {
     try {
       const [vendorData, productsData] = await Promise.all([
@@ -83,12 +91,12 @@ function POSSystem() {
   };
 
   const addCustomAmount = () => {
-    const amount = parseFloat(keypadValue);
-    if (amount > 0) {
+    const amountInCents = parseInt(keypadValue);
+    if (amountInCents > 0) {
       setCart([...cart, {
         id: `custom-${Date.now()}`,
         name: customItemName,
-        price: Math.round(amount * 100),
+        price: amountInCents,
         quantity: 1,
         isCustom: true,
         cartId: Date.now()
@@ -118,12 +126,34 @@ function POSSystem() {
     setCart([]);
   };
 
-  // Checkout
+  // Checkout - show tip screen first, then process payment
   const handleCharge = async () => {
     if (cart.length === 0) return;
-    
+
+    // Show tip screen for customer to add tip
+    setShowTipScreen(true);
+  };
+
+  // Called after customer selects tip
+  const handleTipConfirmed = async (tipCents) => {
+    setCurrentTip(tipCents);
+    setShowTipScreen(false);
+
+    // For cash payments, show the cash modal
+    if (paymentMethod === 'cash') {
+      setCashReceived('0');
+      setShowCashModal(true);
+      return;
+    }
+
+    // For other payment methods, process directly with tip
+    await processPayment(tipCents);
+  };
+
+  // Process the actual payment (called directly for non-cash, or after cash modal confirmation)
+  const processPayment = async (tipCents = currentTip) => {
     setProcessing(true);
-    
+
     try {
       const items = cart.filter(item => !item.isCustom).map(item => ({
         product_id: item.id,
@@ -145,15 +175,18 @@ function POSSystem() {
           vendor_id: vendor.id,
           items: items,
           custom_items: customItems,
-          payment_method: paymentMethod
+          payment_method: paymentMethod,
+          tip_cents: tipCents
         })
       });
 
       if (response.success) {
-        setLastOrderTotal(totalWithTax);
+        setLastOrderTotal(totalWithTax + tipCents);
+        setCurrentTip(0);
         setProcessing(false);
+        setShowCashModal(false);
         setShowSuccess(true);
-        
+
         setTimeout(() => {
           setShowSuccess(false);
           clearCart();
@@ -166,6 +199,22 @@ function POSSystem() {
       setProcessing(false);
       alert(`Payment failed: ${error.message}`);
     }
+  };
+
+  // Handle cash modal keypad
+  const handleCashKeypadPress = (key) => {
+    if (key === 'C') {
+      setCashReceived('0');
+    } else if (key === '⌫') {
+      setCashReceived(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
+    } else {
+      setCashReceived(prev => prev === '0' ? key : prev + key);
+    }
+  };
+
+  // Quick cash amount buttons (in cents)
+  const handleQuickCash = (amountCents) => {
+    setCashReceived(amountCents.toString());
   };
 
   // Product Management
@@ -242,17 +291,14 @@ function POSSystem() {
     return matchesSearch && matchesCategory;
   });
 
-  // Keypad functions
+  // Keypad functions (works in cents like banking software)
   const handleKeypadPress = (key) => {
     if (key === 'C') {
       setKeypadValue('0');
     } else if (key === '⌫') {
       setKeypadValue(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
-    } else if (key === '.') {
-      if (!keypadValue.includes('.')) {
-        setKeypadValue(prev => prev + '.');
-      }
     } else {
+      // Only append digits, treating value as cents
       setKeypadValue(prev => prev === '0' ? key : prev + key);
     }
   };
@@ -386,6 +432,30 @@ function POSSystem() {
           product={editingProduct}
           onSave={handleSaveProduct}
           onClose={() => { setShowAddModal(false); setEditingProduct(null); }}
+        />
+      )}
+
+      {/* Cash Payment Modal */}
+      {showCashModal && (
+        <CashPaymentModal
+          totalDue={totalWithTax + currentTip}
+          cashReceived={cashReceived}
+          onKeyPress={handleCashKeypadPress}
+          onQuickCash={handleQuickCash}
+          onConfirm={processPayment}
+          onCancel={() => setShowCashModal(false)}
+          processing={processing}
+          tipCents={currentTip}
+        />
+      )}
+
+      {/* Customer Tip Screen */}
+      {showTipScreen && (
+        <CustomerTipScreen
+          subtotalCents={cartTotal}
+          taxCents={taxAmount}
+          onConfirm={handleTipConfirmed}
+          onSkip={() => handleTipConfirmed(0)}
         />
       )}
     </div>
@@ -598,7 +668,7 @@ function LibraryItem({ product, onAdd, onEdit, onDelete, inCart }) {
 
 // Keypad Panel Component
 function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onAddToCart }) {
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '0', '⌫'];
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫'];
 
   return (
     <div className="flex-1 flex flex-col p-4">
@@ -615,7 +685,7 @@ function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onA
       <div className="bg-white rounded-2xl p-6 mb-4 text-center shadow-sm">
         <p className="text-xs text-[var(--gray-500)] mb-2 font-medium uppercase tracking-wide">Amount</p>
         <p className="text-5xl font-bold text-[var(--foreground)] tracking-tight">
-          ${parseFloat(value || '0').toFixed(2)}
+          ${(parseInt(value || '0') / 100).toFixed(2)}
         </p>
       </div>
 
@@ -646,7 +716,7 @@ function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onA
         </button>
         <button
           onClick={onAddToCart}
-          disabled={parseFloat(value) <= 0}
+          disabled={parseInt(value || '0') <= 0}
           className="flex-1 h-14 rounded-2xl bg-[var(--violet-600)] text-white font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
           Add to Sale
@@ -1100,6 +1170,330 @@ function ProductModal({ product, onSave, onClose }) {
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Customer Tip Screen Component (customer-facing, full screen)
+function CustomerTipScreen({ subtotalCents, taxCents, onConfirm, onSkip }) {
+  const [selectedTip, setSelectedTip] = useState(null);
+  const [customAmount, setCustomAmount] = useState('');
+  const [isCustom, setIsCustom] = useState(false);
+
+  const totalBeforeTip = subtotalCents + taxCents;
+
+  const tipPresets = [
+    { percent: 15, label: '15%' },
+    { percent: 18, label: '18%' },
+    { percent: 20, label: '20%' },
+    { percent: 25, label: '25%' },
+  ];
+
+  const tipCents = isCustom
+    ? Math.round(parseFloat(customAmount || '0') * 100) || 0
+    : selectedTip !== null
+      ? Math.round(subtotalCents * (selectedTip / 100))
+      : 0;
+
+  const handlePreset = (percent) => {
+    setSelectedTip(percent);
+    setCustomAmount('');
+    setIsCustom(false);
+  };
+
+  const handleCustom = (value) => {
+    setCustomAmount(value);
+    setSelectedTip(null);
+    setIsCustom(true);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-white flex flex-col safe-area-top safe-area-bottom">
+      {/* Header */}
+      <div className="bg-gradient-primary text-white p-6 text-center">
+        <p className="text-lg opacity-80 mb-1">Your Total</p>
+        <p className="text-5xl font-bold tracking-tight">${(totalBeforeTip / 100).toFixed(2)}</p>
+      </div>
+
+      {/* Tip Selection */}
+      <div className="flex-1 p-6 flex flex-col overflow-y-auto">
+        <h2 className="text-2xl font-bold text-center text-[var(--foreground)] mb-6">
+          Would you like to add a tip?
+        </h2>
+
+        {/* Preset Buttons */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {tipPresets.map(({ percent, label }) => {
+            const tipAmount = Math.round(subtotalCents * (percent / 100));
+            const isSelected = selectedTip === percent && !isCustom;
+            return (
+              <button
+                key={percent}
+                onClick={() => handlePreset(percent)}
+                className={`p-5 rounded-2xl text-center transition-all ${
+                  isSelected
+                    ? 'bg-[var(--violet-600)] text-white shadow-lg scale-[1.02]'
+                    : 'bg-[var(--gray-100)] text-[var(--gray-800)] hover:bg-[var(--gray-200)]'
+                }`}
+              >
+                <p className="text-3xl font-bold mb-1">{label}</p>
+                <p className={`text-sm ${isSelected ? 'opacity-80' : 'text-[var(--gray-500)]'}`}>
+                  ${(tipAmount / 100).toFixed(2)}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Custom Amount */}
+        <div className="mb-6">
+          <button
+            onClick={() => setIsCustom(true)}
+            className={`w-full p-4 rounded-2xl text-center font-semibold transition-all mb-3 ${
+              isCustom
+                ? 'bg-[var(--violet-600)] text-white'
+                : 'bg-[var(--gray-100)] text-[var(--gray-600)]'
+            }`}
+          >
+            Custom Amount
+          </button>
+          {isCustom && (
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-[var(--gray-500)]">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={customAmount}
+                onChange={(e) => handleCustom(e.target.value)}
+                placeholder="0.00"
+                autoFocus
+                className="w-full h-16 pl-10 pr-4 rounded-2xl bg-[var(--gray-100)] text-2xl font-bold text-center focus:ring-2 focus:ring-[var(--violet-500)] focus:bg-white transition-all"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Total with Tip */}
+        {tipCents > 0 && (
+          <div className="bg-[var(--violet-50)] rounded-2xl p-4 mb-6 text-center">
+            <p className="text-sm text-[var(--violet-600)] mb-1">New Total</p>
+            <p className="text-4xl font-bold text-[var(--violet-700)]">
+              ${((totalBeforeTip + tipCents) / 100).toFixed(2)}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-auto space-y-3">
+          <button
+            onClick={() => onConfirm(tipCents)}
+            className="w-full h-16 rounded-2xl bg-[var(--success)] text-white font-bold text-xl shadow-lg active:scale-[0.98] transition-transform"
+          >
+            {tipCents > 0
+              ? `Add $${(tipCents / 100).toFixed(2)} Tip`
+              : 'Continue Without Tip'
+            }
+          </button>
+          <button
+            onClick={onSkip}
+            className="w-full h-12 rounded-2xl text-[var(--gray-500)] font-medium hover:bg-[var(--gray-100)] transition-colors"
+          >
+            No tip
+          </button>
+        </div>
+
+        <p className="text-xs text-[var(--gray-400)] text-center mt-4">
+          100% of tips go directly to your service provider
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Cash Payment Modal Component
+function CashPaymentModal({
+  totalDue,
+  cashReceived,
+  onKeyPress,
+  onQuickCash,
+  onConfirm,
+  onCancel,
+  processing,
+  tipCents = 0
+}) {
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫'];
+  const cashReceivedCents = parseInt(cashReceived || '0');
+  const changeDue = cashReceivedCents - totalDue;
+  const canComplete = cashReceivedCents >= totalDue;
+
+  // Quick cash buttons - common bill amounts
+  const quickAmounts = [
+    { label: '$5', cents: 500 },
+    { label: '$10', cents: 1000 },
+    { label: '$20', cents: 2000 },
+    { label: '$50', cents: 5000 },
+    { label: '$100', cents: 10000 },
+  ];
+
+  // Calculate next rounded amount above total
+  const getExactAmount = () => {
+    return totalDue;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl max-h-[95vh] overflow-y-auto safe-area-bottom rounded-t-3xl">
+        <div className="p-6">
+          {/* Handle */}
+          <div className="w-10 h-1 bg-[var(--gray-300)] rounded-full mx-auto mb-6 sm:hidden" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold">Cash Payment</h2>
+            <button
+              onClick={onCancel}
+              className="w-10 h-10 rounded-xl bg-[var(--gray-100)] flex items-center justify-center"
+            >
+              <svg className="w-5 h-5 text-[var(--gray-600)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Amount Summary */}
+          <div className="bg-[var(--gray-50)] rounded-2xl p-4 mb-4 space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--gray-600)] font-medium">Subtotal + Tax</span>
+              <span className="font-medium text-[var(--foreground)]">
+                ${((totalDue - tipCents) / 100).toFixed(2)}
+              </span>
+            </div>
+            {tipCents > 0 && (
+              <div className="flex justify-between items-center">
+                <span className="text-[var(--gray-600)] font-medium">Tip</span>
+                <span className="font-medium text-[var(--success)]">
+                  +${(tipCents / 100).toFixed(2)}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-200)]">
+              <span className="text-[var(--gray-700)] font-semibold">Total Due</span>
+              <span className="text-2xl font-bold text-[var(--foreground)]">
+                ${(totalDue / 100).toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-[var(--gray-600)] font-medium">Cash Received</span>
+              <span className="text-2xl font-bold text-[var(--violet-600)]">
+                ${(cashReceivedCents / 100).toFixed(2)}
+              </span>
+            </div>
+            <div className="border-t border-[var(--gray-200)] pt-3">
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-semibold text-[var(--gray-700)]">Change Due</span>
+                <span className={`text-3xl font-bold ${
+                  changeDue >= 0 ? 'text-[var(--success)]' : 'text-[var(--error)]'
+                }`}>
+                  {changeDue >= 0 ? '' : '-'}${(Math.abs(changeDue) / 100).toFixed(2)}
+                </span>
+              </div>
+              {changeDue < 0 && (
+                <p className="text-sm text-[var(--error)] mt-1 text-right">
+                  Need ${(Math.abs(changeDue) / 100).toFixed(2)} more
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Cash Buttons */}
+          <div className="mb-4">
+            <p className="text-xs text-[var(--gray-500)] mb-2 font-medium uppercase tracking-wide">Quick Amount</p>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => onQuickCash(getExactAmount())}
+                className="px-4 py-2 rounded-xl bg-[var(--violet-100)] text-[var(--violet-700)] font-semibold text-sm hover:bg-[var(--violet-200)] transition-colors"
+              >
+                Exact ${(totalDue / 100).toFixed(2)}
+              </button>
+              {quickAmounts.map((amount) => (
+                <button
+                  key={amount.cents}
+                  onClick={() => onQuickCash(amount.cents)}
+                  className={`px-4 py-2 rounded-xl font-semibold text-sm transition-colors ${
+                    amount.cents >= totalDue
+                      ? 'bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]'
+                      : 'bg-[var(--gray-50)] text-[var(--gray-400)]'
+                  }`}
+                >
+                  {amount.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Keypad */}
+          <div className="grid grid-cols-3 gap-2 mb-4">
+            {keys.map((key) => (
+              <button
+                key={key}
+                onClick={() => onKeyPress(key)}
+                className={`h-14 rounded-2xl text-xl font-semibold transition-all active:scale-95 ${
+                  key === '⌫'
+                    ? 'bg-[var(--gray-200)] text-[var(--gray-600)]'
+                    : 'bg-[var(--gray-100)] text-[var(--foreground)] hover:bg-[var(--gray-200)]'
+                }`}
+              >
+                {key}
+              </button>
+            ))}
+          </div>
+
+          {/* Clear Button */}
+          <button
+            onClick={() => onKeyPress('C')}
+            className="w-full h-12 rounded-xl bg-[var(--gray-100)] text-[var(--gray-600)] font-semibold mb-4 hover:bg-[var(--gray-200)] transition-colors"
+          >
+            Clear
+          </button>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={onCancel}
+              className="flex-1 h-14 rounded-xl border-2 border-[var(--gray-200)] text-[var(--foreground)] font-semibold hover:bg-[var(--gray-50)] transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={!canComplete || processing}
+              className={`flex-1 h-14 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all ${
+                canComplete && !processing
+                  ? 'bg-[var(--success)] text-white shadow-lg hover:bg-[var(--success)]/90'
+                  : 'bg-[var(--gray-200)] text-[var(--gray-400)] cursor-not-allowed'
+              }`}
+            >
+              {processing ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Complete Sale
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

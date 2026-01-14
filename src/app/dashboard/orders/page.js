@@ -28,9 +28,39 @@ function OrdersInner() {
   const [refundingOrderId, setRefundingOrderId] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  const fetchOrders = useCallback(async (vendorId) => {
+  // Filter state
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    search: '',
+    startDate: '',
+    endDate: '',
+    paymentStatus: '',
+    refundStatus: '',
+    orderType: '',
+    minTotal: '',
+    maxTotal: '',
+    hasTip: false
+  });
+  const [appliedFilters, setAppliedFilters] = useState({});
+
+  const fetchOrders = useCallback(async (vendorId, filterParams = {}) => {
     try {
-      const vendorOrders = await api(`/api/vendors/${vendorId}/orders`);
+      const queryParams = new URLSearchParams();
+
+      if (filterParams.search) queryParams.append('search', filterParams.search);
+      if (filterParams.startDate) queryParams.append('start_date', filterParams.startDate);
+      if (filterParams.endDate) queryParams.append('end_date', filterParams.endDate);
+      if (filterParams.paymentStatus) queryParams.append('payment_status', filterParams.paymentStatus);
+      if (filterParams.refundStatus) queryParams.append('refund_status', filterParams.refundStatus);
+      if (filterParams.orderType) queryParams.append('order_type', filterParams.orderType);
+      if (filterParams.minTotal) queryParams.append('min_total', filterParams.minTotal);
+      if (filterParams.maxTotal) queryParams.append('max_total', filterParams.maxTotal);
+      if (filterParams.hasTip) queryParams.append('has_tip', 'true');
+
+      const queryString = queryParams.toString();
+      const url = `/api/vendors/${vendorId}/orders${queryString ? `?${queryString}` : ''}`;
+
+      const vendorOrders = await api(url);
       setOrders(vendorOrders);
     } catch (err) {
       console.error("Failed to fetch orders", err);
@@ -43,11 +73,11 @@ function OrdersInner() {
       setUser(u);
 
       if (u?.vendorId) {
-        await fetchOrders(u.vendorId);
+        await fetchOrders(u.vendorId, appliedFilters);
       }
       setLoading(false);
     })();
-  }, [fetchOrders]);
+  }, [fetchOrders, appliedFilters]);
 
   // Real-time order updates
   const handleNewOrder = useCallback((newOrder) => {
@@ -55,6 +85,37 @@ function OrdersInner() {
   }, []);
 
   useVendorOrders(user?.vendorId, handleNewOrder);
+
+  // Filter handlers
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  const applyFilters = () => {
+    setAppliedFilters({ ...filters });
+    setShowFilters(false);
+  };
+
+  const clearFilters = () => {
+    const emptyFilters = {
+      search: '',
+      startDate: '',
+      endDate: '',
+      paymentStatus: '',
+      refundStatus: '',
+      orderType: '',
+      minTotal: '',
+      maxTotal: '',
+      hasTip: false
+    };
+    setFilters(emptyFilters);
+    setAppliedFilters({});
+  };
+
+  const activeFilterCount = Object.entries(appliedFilters).filter(([key, value]) => {
+    if (typeof value === 'boolean') return value;
+    return value !== '';
+  }).length;
 
   // Filter orders by tab
   const activeOrders = orders.filter(o => o.status === 'pending' || o.status === 'confirmed');
@@ -176,7 +237,22 @@ function OrdersInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
-            <h1 className="text-h2">Orders</h1>
+            <h1 className="text-h2 flex-1">Orders</h1>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+                activeFilterCount > 0 ? 'bg-[var(--violet-100)] text-[var(--violet-600)]' : 'bg-[var(--gray-100)] text-[var(--gray-600)]'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--violet-600)] text-white text-xs rounded-full flex items-center justify-center font-medium">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
           </div>
 
           {/* Tabs */}
@@ -202,6 +278,200 @@ function OrdersInner() {
           </div>
         </div>
       </div>
+
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="bg-white border-b border-[var(--gray-200)] px-4 py-4">
+          <div className="max-w-lg mx-auto space-y-4">
+            {/* Search */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">Search</label>
+              <input
+                type="text"
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+                placeholder="Customer name or email..."
+                className="input"
+              />
+            </div>
+
+            {/* Date Range */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">From Date</label>
+                <input
+                  type="date"
+                  value={filters.startDate}
+                  onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">To Date</label>
+                <input
+                  type="date"
+                  value={filters.endDate}
+                  onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                  className="input"
+                />
+              </div>
+            </div>
+
+            {/* Payment & Refund Status */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">Payment Status</label>
+                <select
+                  value={filters.paymentStatus}
+                  onChange={(e) => handleFilterChange('paymentStatus', e.target.value)}
+                  className="input"
+                >
+                  <option value="">All</option>
+                  <option value="pending">Pending</option>
+                  <option value="succeeded">Succeeded</option>
+                  <option value="failed">Failed</option>
+                  <option value="refunded">Refunded</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">Refund Status</label>
+                <select
+                  value={filters.refundStatus}
+                  onChange={(e) => handleFilterChange('refundStatus', e.target.value)}
+                  className="input"
+                >
+                  <option value="">All</option>
+                  <option value="none">No Refund</option>
+                  <option value="pending_refund">Pending</option>
+                  <option value="partial_refund">Partial</option>
+                  <option value="full_refund">Full</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Order Type */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">Order Type</label>
+              <select
+                value={filters.orderType}
+                onChange={(e) => handleFilterChange('orderType', e.target.value)}
+                className="input"
+              >
+                <option value="">All</option>
+                <option value="online">Online</option>
+                <option value="in_person">In-Person</option>
+              </select>
+            </div>
+
+            {/* Price Range */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">Min Total ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={filters.minTotal}
+                  onChange={(e) => handleFilterChange('minTotal', e.target.value)}
+                  placeholder="0.00"
+                  className="input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1.5">Max Total ($)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={filters.maxTotal}
+                  onChange={(e) => handleFilterChange('maxTotal', e.target.value)}
+                  placeholder="1000.00"
+                  className="input"
+                />
+              </div>
+            </div>
+
+            {/* Has Tip Toggle */}
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={filters.hasTip}
+                onChange={(e) => handleFilterChange('hasTip', e.target.checked)}
+                className="w-5 h-5 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+              />
+              <span className="text-sm font-medium text-[var(--gray-700)]">Orders with tips only</span>
+            </label>
+
+            {/* Action Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={clearFilters}
+                className="btn btn-outline flex-1"
+              >
+                Clear All
+              </button>
+              <button
+                onClick={applyFilters}
+                className="btn btn-primary flex-1"
+              >
+                Apply Filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Filters Summary */}
+      {activeFilterCount > 0 && !showFilters && (
+        <div className="bg-[var(--violet-50)] border-b border-[var(--violet-100)] px-4 py-2">
+          <div className="max-w-lg mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-[var(--violet-700)]">{activeFilterCount} filter{activeFilterCount !== 1 ? 's' : ''} active</span>
+              {appliedFilters.search && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  &quot;{appliedFilters.search}&quot;
+                </span>
+              )}
+              {appliedFilters.startDate && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  From {appliedFilters.startDate}
+                </span>
+              )}
+              {appliedFilters.endDate && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  To {appliedFilters.endDate}
+                </span>
+              )}
+              {appliedFilters.paymentStatus && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  Payment: {appliedFilters.paymentStatus}
+                </span>
+              )}
+              {appliedFilters.refundStatus && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  Refund: {appliedFilters.refundStatus}
+                </span>
+              )}
+              {appliedFilters.orderType && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  {appliedFilters.orderType === 'in_person' ? 'In-Person' : 'Online'}
+                </span>
+              )}
+              {appliedFilters.hasTip && (
+                <span className="chip text-xs bg-[var(--violet-100)] text-[var(--violet-700)]">
+                  Has Tip
+                </span>
+              )}
+            </div>
+            <button
+              onClick={clearFilters}
+              className="text-sm text-[var(--violet-600)] hover:text-[var(--violet-800)] font-medium"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Orders List */}
       <div className="px-4 py-4">
@@ -324,7 +594,10 @@ function OrdersInner() {
 function OrderCard({ order, onComplete, onRefund, isCompleting }) {
   const [expanded, setExpanded] = useState(false);
   const date = new Date(order.created_at || order.createdAt);
-  const total = (order.total_cents || order.totalCents) / 100;
+  const totalCents = order.total_cents || order.totalCents || 0;
+  const tipCents = order.tip_cents || order.tipCents || 0;
+  const subtotalCents = (order.subtotal_cents || order.subtotalCents) || (totalCents - tipCents);
+  const total = totalCents / 100;
   const customerName = order.customer?.name || 'Guest';
   const items = order.line_items || [];
   const refundStatus = order.refundStatus || order.refund_status;
@@ -409,9 +682,9 @@ function OrderCard({ order, onComplete, onRefund, isCompleting }) {
                 <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-lg">
                   {item.product?.images?.[0] && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img 
-                      src={item.product.images[0]} 
-                      alt={item.product?.name} 
+                    <img
+                      src={item.product.images[0]}
+                      alt={item.product?.name}
                       className="w-12 h-12 rounded-lg object-cover"
                     />
                   )}
@@ -424,6 +697,27 @@ function OrderCard({ order, onComplete, onRefund, isCompleting }) {
                   </p>
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="mb-4 bg-white rounded-lg p-3">
+            <p className="text-sm font-medium text-[var(--gray-700)] mb-2">Order Summary</p>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-[var(--gray-600)]">Subtotal</span>
+                <span>${(subtotalCents / 100).toFixed(2)}</span>
+              </div>
+              {tipCents > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-[var(--gray-600)]">Tip</span>
+                  <span className="text-[var(--success)] font-medium">+${(tipCents / 100).toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold pt-2 border-t border-[var(--gray-100)]">
+                <span>Total</span>
+                <span>${total.toFixed(2)}</span>
+              </div>
             </div>
           </div>
 

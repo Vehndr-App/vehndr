@@ -7,7 +7,7 @@ import { getVendorProfile } from "../../services/vendors";
 import { useRouter } from "next/navigation";
 
 export default function CartPage() {
-  const { vendorCarts, removeItem, clearVendor, getVendorTotal, totalItems, allItems } = useCart();
+  const { vendorCarts, removeItem, clearVendor, getVendorTotal, totalItems, allItems, updateQuantity } = useCart();
   const [vendorInfo, setVendorInfo] = useState({});
   const router = useRouter();
 
@@ -160,7 +160,33 @@ export default function CartPage() {
                         {/* Quantity & Price */}
                         <div className="flex items-center justify-between mt-2">
                           <div className="flex items-center gap-2">
-                            {!item.options?.timeSlot && (
+                            {!item.options?.timeSlot ? (
+                              <div className="flex items-center gap-1 bg-[var(--gray-100)] rounded-full p-0.5">
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                  disabled={item.quantity <= 1}
+                                  className="w-6 h-6 rounded-full hover:bg-[var(--gray-200)] flex items-center justify-center text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  aria-label="Decrease quantity"
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                </button>
+                                <span className="text-sm font-medium text-[var(--gray-900)] min-w-[24px] text-center">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                  className="w-6 h-6 rounded-full hover:bg-[var(--gray-200)] flex items-center justify-center text-[var(--gray-600)] transition-colors"
+                                  aria-label="Increase quantity"
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <line x1="12" y1="5" x2="12" y2="19"/>
+                                    <line x1="5" y1="12" x2="19" y2="12"/>
+                                  </svg>
+                                </button>
+                              </div>
+                            ) : (
                               <span className="text-xs text-[var(--gray-500)] bg-[var(--gray-100)] px-2 py-0.5 rounded-full">
                                 Qty: {item.quantity}
                               </span>

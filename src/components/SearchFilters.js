@@ -14,8 +14,14 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [userLocation, setUserLocation] = useState(null);
   const [locationLoading, setLocationLoading] = useState(false);
+
+  // Initialize selected categories from URL params (supports multiple categories)
+  const initialCategories = searchParams.get("category")
+    ? searchParams.get("category").split(',').filter(Boolean)
+    : [];
+
   const [filters, setFilters] = useState({
-    category: searchParams.get("category") || "",
+    categories: initialCategories,
     minPrice: searchParams.get("minPrice") || "",
     maxPrice: searchParams.get("maxPrice") || "",
     distance: searchParams.get("distance") || "",
@@ -72,7 +78,9 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
   const applyFilters = () => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("search", searchQuery);
-    if (filters.category) params.set("category", filters.category);
+    if (filters.categories && filters.categories.length > 0) {
+      params.set("category", filters.categories.join(','));
+    }
     if (filters.minPrice) params.set("minPrice", filters.minPrice);
     if (filters.maxPrice) params.set("maxPrice", filters.maxPrice);
     if (filters.distance) params.set("distance", filters.distance);
@@ -82,7 +90,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
       params.set("lat", userLocation.lat.toString());
       params.set("lng", userLocation.lng.toString());
     }
-    
+
     router.push(`/?${params.toString()}`);
     setIsFiltersOpen(false);
     setIsDateOpen(false);
@@ -91,7 +99,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
   const clearFilters = () => {
     setSearchQuery("");
     setFilters({
-      category: "",
+      categories: [],
       minPrice: "",
       maxPrice: "",
       distance: "",
@@ -103,7 +111,16 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
     router.push("/");
   };
 
-  const activeFilterCount = Object.values(filters).filter(Boolean).length + (selectedDate ? 1 : 0) + (userLocation ? 1 : 0);
+  // Count active filters (categories array counts as 1 if not empty)
+  const activeFilterCount =
+    (filters.categories.length > 0 ? 1 : 0) +
+    (filters.minPrice ? 1 : 0) +
+    (filters.maxPrice ? 1 : 0) +
+    (filters.distance ? 1 : 0) +
+    (filters.rating ? 1 : 0) +
+    (filters.availability ? 1 : 0) +
+    (selectedDate ? 1 : 0) +
+    (userLocation ? 1 : 0);
 
   // Generate calendar days
   const generateCalendarDays = () => {
@@ -223,7 +240,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
 
             {/* Calendar Dropdown - Opens upward on mobile */}
             {isDateOpen && (
-              <div className="absolute bottom-full sm:bottom-auto sm:top-full left-0 sm:left-auto sm:right-0 mb-2 sm:mb-0 sm:mt-2 w-[300px] bg-white rounded-[var(--radius-xl)] shadow-[var(--shadow-xl)] border border-[var(--gray-100)] p-4 z-[100]">
+              <div className="absolute bottom-full sm:bottom-auto sm:top-full left-0 sm:left-auto sm:right-0 mb-2 sm:mb-0 sm:mt-2 w-[300px] bg-white rounded-[var(--radius-xl)] shadow-[var(--shadow-xl)] border border-[var(--gray-100)] p-4 z-[9999]">
                 {/* Month Navigation */}
                 <div className="flex items-center justify-between mb-4">
                   <button 
@@ -484,24 +501,38 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
 
               {/* Category */}
               <div>
-                <label className="block text-sm font-semibold text-[var(--gray-900)] mb-3">
+                <label className="block text-sm font-semibold text-[var(--gray-900)] mb-2">
                   Category
                 </label>
+                <p className="text-xs text-[var(--gray-500)] mb-3">
+                  Select one or more categories
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  <FilterChip 
-                    label="All" 
-                    active={!filters.category}
-                    onClick={() => setFilters({ ...filters, category: "" })}
+                  <FilterChip
+                    label="All"
+                    active={filters.categories.length === 0}
+                    onClick={() => setFilters({ ...filters, categories: [] })}
                   />
                   {categories.map(cat => (
-                    <FilterChip 
+                    <FilterChip
                       key={cat}
-                      label={cat} 
-                      active={filters.category === cat}
-                      onClick={() => setFilters({ ...filters, category: cat })}
+                      label={cat}
+                      active={filters.categories.includes(cat)}
+                      onClick={() => {
+                        const isSelected = filters.categories.includes(cat);
+                        const newCategories = isSelected
+                          ? filters.categories.filter(c => c !== cat)
+                          : [...filters.categories, cat];
+                        setFilters({ ...filters, categories: newCategories });
+                      }}
                     />
                   ))}
                 </div>
+                {filters.categories.length > 0 && (
+                  <p className="text-xs text-[var(--violet-600)] font-medium mt-2">
+                    {filters.categories.length} {filters.categories.length === 1 ? 'category' : 'categories'} selected
+                  </p>
+                )}
               </div>
 
               {/* Price Range */}
