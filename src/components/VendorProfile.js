@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { api } from "../services/api";
 import SmartImage from "./SmartImage";
-import { VENDOR_CATEGORIES } from "../constants/categories";
+import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
 
 export default function VendorProfile({ user, onSuccess }) {
   const [vendor, setVendor] = useState(null);
@@ -561,7 +561,7 @@ export default function VendorProfile({ user, onSuccess }) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 )}
-                {category}
+                {CATEGORY_DISPLAY[category]?.label || category}
               </button>
             ))}
           </div>

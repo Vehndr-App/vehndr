@@ -238,25 +238,10 @@ function OrdersInner() {
               </svg>
             </Link>
             <h1 className="text-h2 flex-1">Orders</h1>
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`relative w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
-                activeFilterCount > 0 ? 'bg-[var(--violet-100)] text-[var(--violet-600)]' : 'bg-[var(--gray-100)] text-[var(--gray-600)]'
-              }`}
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-              {activeFilterCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-[var(--violet-600)] text-white text-xs rounded-full flex items-center justify-center font-medium">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-3">
             <button
               onClick={() => setActiveTab('active')}
               className={`chip ${activeTab === 'active' ? 'chip-active' : 'chip-filled'}`}
@@ -276,6 +261,24 @@ function OrdersInner() {
               Cancelled ({cancelledOrders.length})
             </button>
           </div>
+
+          {/* Filter Button */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-colors ${
+              activeFilterCount > 0 ? 'bg-[var(--violet-100)] text-[var(--violet-600)]' : 'bg-[var(--gray-100)] text-[var(--gray-600)]'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="w-5 h-5 bg-[var(--violet-600)] text-white text-xs rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -749,6 +752,17 @@ function OrderCard({ order, onComplete, onRefund, isCompleting }) {
                   Refund
                 </button>
               )}
+            </div>
+          )}
+          {/* Refund action for completed orders */}
+          {order.status === 'completed' && paymentStatus === 'succeeded' && (!refundStatus || refundStatus === 'none') && (
+            <div className="pt-2">
+              <button
+                onClick={() => onRefund(order)}
+                className="btn btn-outline h-11 px-4 w-full"
+              >
+                Refund
+              </button>
             </div>
           )}
         </div>

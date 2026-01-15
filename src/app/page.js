@@ -187,7 +187,7 @@ export default async function Home({ searchParams }) {
                 <FilterBadge label={`"${search}"`} href="/" />
               )}
               {category && (
-                <FilterBadge label={category} href={search ? `/?search=${encodeURIComponent(search)}` : "/"} />
+                <FilterBadge label={CATEGORY_DISPLAY[category]?.label || category} href={search ? `/?search=${encodeURIComponent(search)}` : "/"} />
               )}
               {(minPrice || maxPrice) && (
                 <FilterBadge 

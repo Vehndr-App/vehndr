@@ -3,6 +3,7 @@ import { listVendors } from "../../services/vendors";
 import SearchFilters from "../../components/SearchFilters";
 import FavoriteButton from "../../components/FavoriteButton";
 import { getVendorPlaceholderImage } from "../../utils/placeholderImages";
+import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../../constants/categories";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
@@ -56,6 +57,34 @@ export default async function VendorsSelectPage({ searchParams }) {
         </div>
       </div>
 
+      {/* Quick Actions - Category Icons */}
+      <section className="bg-white border-b border-[var(--gray-100)]">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
+          <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
+            <QuickActionCard
+              href="/?mode=events"
+              icon="🗓️"
+              label="Events"
+              color="#EDE9FE"
+            />
+            {VENDOR_CATEGORIES.filter(cat => allCategories.includes(cat)).map((cat) => {
+              const display = CATEGORY_DISPLAY[cat];
+              return (
+                <QuickActionCard
+                  key={cat}
+                  href={`/vendors?category=${encodeURIComponent(cat)}`}
+                  icon={display.icon}
+                  label={display.label}
+                  color={display.color}
+                  badge={cat === "Food & Beverage" ? "Popular" : undefined}
+                  isActive={category === cat}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
       {/* Active Filters */}
       {(category || minPrice || maxPrice) && (
         <div className="bg-white border-b border-[var(--gray-100)]">
@@ -63,7 +92,7 @@ export default async function VendorsSelectPage({ searchParams }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-[var(--gray-500)]">Filters:</span>
               {category && (
-                <FilterBadge label={category} href="/vendors" />
+                <FilterBadge label={CATEGORY_DISPLAY[category]?.label || category} href="/vendors" />
               )}
               {(minPrice || maxPrice) && (
                 <FilterBadge 
@@ -115,6 +144,28 @@ function FilterBadge({ label, href }) {
         <line x1="18" y1="6" x2="6" y2="18"/>
         <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
+    </Link>
+  );
+}
+
+function QuickActionCard({ href, icon, label, color, badge, isActive }) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col items-center gap-2 min-w-[72px] pt-2"
+    >
+      <div
+        className={`relative w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-sm transition-transform hover:scale-105 active:scale-95 ${isActive ? 'ring-2 ring-[var(--violet-500)] ring-offset-2' : ''}`}
+        style={{ backgroundColor: color }}
+      >
+        {icon}
+        {badge && (
+          <span className="absolute -top-2 -right-2 px-2 py-0.5 bg-[var(--coral-500)] text-white text-[9px] font-bold rounded-full shadow-sm">
+            {badge}
+          </span>
+        )}
+      </div>
+      <span className={`text-xs font-medium text-center ${isActive ? 'text-[var(--violet-600)]' : 'text-[var(--gray-700)]'}`}>{label}</span>
     </Link>
   );
 }

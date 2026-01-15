@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { CATEGORY_DISPLAY } from "../constants/categories";
 
 export default function SearchFilters({ categories = [], variant = "full" }) {
   const router = useRouter();
@@ -516,7 +517,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
                   {categories.map(cat => (
                     <FilterChip
                       key={cat}
-                      label={cat}
+                      label={CATEGORY_DISPLAY[cat]?.label || cat}
                       active={filters.categories.includes(cat)}
                       onClick={() => {
                         const isSelected = filters.categories.includes(cat);
