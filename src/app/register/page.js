@@ -12,6 +12,7 @@ export default function RegisterPage() {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
   const [selectedRole, setSelectedRole] = useState("vendor");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -75,10 +76,9 @@ export default function RegisterPage() {
         recaptchaToken
       });
 
-      // Refresh the user in AuthContext
-      await refreshUser();
-
-      // Router will redirect based on user role via useEffect
+      // Show success message - user needs to verify email
+      setSuccess(true);
+      setLoading(false);
     } catch (err) {
       console.error("Registration error:", err);
       // Reset reCAPTCHA on error
@@ -132,19 +132,41 @@ export default function RegisterPage() {
             <p className="mt-1 text-sm text-[var(--gray-500)]">Join the marketplace and start connecting</p>
           </div>
 
-          {/* Error Message */}
-          {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-100 text-[var(--error)] text-sm rounded-[var(--radius-lg)] text-center flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              {error}
+          {/* Success Message - Email Verification Required */}
+          {success ? (
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-green-100 flex items-center justify-center">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-green-600">
+                  <path d="M22 2L11 13"/>
+                  <path d="M22 2L15 22l-4-9-9-4 20-7z"/>
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-[var(--gray-900)]">Check your email!</h2>
+              <p className="mt-3 text-sm text-[var(--gray-600)]">
+                We&apos;ve sent a verification link to your email address. Please click the link to verify your account.
+              </p>
+              <p className="mt-2 text-xs text-[var(--gray-500)]">
+                The link will expire in 24 hours.
+              </p>
+              <Link href="/login" className="btn btn-primary w-full mt-6">
+                Go to Login
+              </Link>
             </div>
-          )}
+          ) : (
+            <>
+              {/* Error Message */}
+              {error && (
+                <div className="mb-6 p-3 bg-red-50 border border-red-100 text-[var(--error)] text-sm rounded-[var(--radius-lg)] text-center flex items-center justify-center gap-2">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  {error}
+                </div>
+              )}
 
-          {/* Register Form */}
+              {/* Register Form */}
           <form onSubmit={handleRegister} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
@@ -320,17 +342,19 @@ export default function RegisterPage() {
           </form>
 
           {/* Sign In Link */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-[var(--gray-600)]">
-              Already have an account?{" "}
-              <Link 
-                href="/login" 
-                className="text-[var(--violet-600)] hover:text-[var(--violet-700)] font-semibold transition-colors"
-              >
-                Sign In
-              </Link>
-            </p>
-          </div>
+              <div className="mt-8 text-center">
+                <p className="text-sm text-[var(--gray-600)]">
+                  Already have an account?{" "}
+                  <Link
+                    href="/login"
+                    className="text-[var(--violet-600)] hover:text-[var(--violet-700)] font-semibold transition-colors"
+                  >
+                    Sign In
+                  </Link>
+                </p>
+              </div>
+            </>
+          )}
         </div>
         
         {/* Footer */}

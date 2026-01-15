@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { login } from "../../services/auth";
+import { login, resendVerification } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ReCAPTCHA from "react-google-recaptcha";
@@ -12,6 +12,10 @@ export default function LoginPage() {
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [emailNotVerified, setEmailNotVerified] = useState(false);
+  const [unverifiedEmail, setUnverifiedEmail] = useState("");
+  const [resendSuccess, setResendSuccess] = useState(false);
+  const [resending, setResending] = useState(false);
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
@@ -31,6 +35,8 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setEmailNotVerified(false);
+    setResendSuccess(false);
 
     const formData = new FormData(e.target);
     const email = formData.get("email");
@@ -57,8 +63,31 @@ export default function LoginPage() {
       console.error("Login error:", err);
       // Reset reCAPTCHA on error
       recaptchaRef.current?.reset();
-      setError("Invalid email or password");
+
+      // Check if email not verified
+      if (err?.details?.email_not_verified) {
+        setEmailNotVerified(true);
+        setUnverifiedEmail(email);
+        setError(err.details.error || "Please verify your email before logging in");
+      } else {
+        setError("Invalid email or password");
+      }
       setLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    if (!unverifiedEmail) return;
+
+    setResending(true);
+    try {
+      await resendVerification(unverifiedEmail);
+      setResendSuccess(true);
+      setEmailNotVerified(false);
+    } catch (err) {
+      setError("Failed to send verification email. Please try again.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -109,15 +138,37 @@ export default function LoginPage() {
             <p className="mt-1 text-sm text-[var(--gray-500)]">Sign in to your account to continue</p>
           </div>
 
+          {/* Success Message - Verification Email Sent */}
+          {resendSuccess && (
+            <div className="mb-6 p-3 bg-green-50 border border-green-100 text-green-700 text-sm rounded-[var(--radius-lg)] text-center flex items-center justify-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Verification email sent! Please check your inbox.
+            </div>
+          )}
+
           {/* Error Message */}
           {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-100 text-[var(--error)] text-sm rounded-[var(--radius-lg)] text-center flex items-center justify-center gap-2">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"/>
-                <line x1="12" y1="8" x2="12" y2="12"/>
-                <line x1="12" y1="16" x2="12.01" y2="16"/>
-              </svg>
-              {error}
+            <div className="mb-6 p-3 bg-red-50 border border-red-100 text-[var(--error)] text-sm rounded-[var(--radius-lg)] text-center">
+              <div className="flex items-center justify-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                {error}
+              </div>
+              {emailNotVerified && (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  disabled={resending}
+                  className="mt-2 text-[var(--violet-600)] hover:text-[var(--violet-700)] font-medium underline disabled:opacity-50"
+                >
+                  {resending ? "Sending..." : "Resend verification email"}
+                </button>
+              )}
             </div>
           )}
 

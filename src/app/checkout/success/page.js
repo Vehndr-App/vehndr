@@ -18,26 +18,43 @@ function SuccessContent() {
     const vendorId = searchParams.get('vendor_id');
     const orderId = searchParams.get('order_id');
 
+    // Debug logging
+    console.log('Success page params:', { vendorId, orderId });
+
     // Clear the vendor's items from cart
     if (vendorId && clearVendor) {
       clearVendor(vendorId);
     }
 
     // Fetch order details if we have an order ID
-    if (orderId) {
+    if (orderId && orderId !== 'undefined' && orderId !== 'null') {
       fetchOrderDetails(orderId);
     } else {
+      console.warn('No valid order_id in URL params');
       setLoading(false);
     }
   }, [searchParams, clearVendor]);
 
   const fetchOrderDetails = async (orderId) => {
+    // Guard against invalid order IDs
+    if (!orderId || orderId === 'undefined' || orderId === 'null') {
+      console.error('Invalid order ID:', orderId);
+      setLoading(false);
+      return;
+    }
+
     try {
-      const orderData = await api(`/api/orders/${orderId}`);
+      const response = await api(`/api/orders/${orderId}`);
+      // AMS JSON adapter wraps the response in a root key
+      const orderData = response.order || response;
       setOrder(orderData);
     } catch (err) {
       console.error('Failed to fetch order details:', err);
-      // Don't show error to user - just continue without order details
+      // Log additional details for debugging
+      console.error('Error status:', err.status);
+      console.error('Error details:', err.details);
+      // Still show the success page, but without order details
+      // This can happen if there's an auth mismatch or the order hasn't been fully created yet
     } finally {
       setLoading(false);
     }
@@ -164,7 +181,7 @@ function SuccessContent() {
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
-            onClick={() => router.push('/store')}
+            onClick={() => router.push('/vendors')}
             className="px-6 py-3 bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white rounded-lg font-semibold hover:opacity-90 transition"
           >
             Continue Shopping

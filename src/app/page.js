@@ -4,6 +4,7 @@ import { api } from "../services/api";
 import FavoriteButton from "../components/FavoriteButton";
 import HeroMedia from "../components/HeroMedia";
 import HomeToggle from "../components/HomeToggle";
+import UserTypePopup from "../components/UserTypePopup";
 import { getVendorPlaceholderImage } from "../utils/placeholderImages";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
 
@@ -70,6 +71,8 @@ export default async function Home({ searchParams }) {
 
   return (
     <div className="w-full">
+      <UserTypePopup />
+
       {/* Hero Section with Video/Graphic Support */}
       <section className="relative">
         {/* Background - Video, Image, or Gradient */}

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCart } from '../../contexts/CartContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useRouter } from 'next/navigation';
@@ -14,6 +15,7 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
 
 export default function CheckoutPage() {
   const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity } = useCart();
+  const { refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [activeVendor, setActiveVendor] = useState(null);
   const [error, setError] = useState(null);
@@ -96,15 +98,37 @@ export default function CheckoutPage() {
     }
   };
 
-  const handlePaymentSuccess = async (vendorId, paymentIntent) => {
+  const handlePaymentSuccess = async (vendorId, paymentIntent, accountData = {}) => {
     try {
+      // Build request body
+      const requestBody = {
+        paymentIntentId: paymentIntent.id
+      };
+
+      // Add account creation data if present
+      if (accountData.createAccount && accountData.password) {
+        requestBody.createAccount = true;
+        requestBody.password = accountData.password;
+        requestBody.email = accountData.email;
+      }
+
+      console.log('=== Checkout Debug ===');
+      console.log('accountData received:', accountData);
+      console.log('requestBody being sent:', { ...requestBody, password: requestBody.password ? '[REDACTED]' : undefined });
+
       // Confirm payment with backend
       const response = await api('/api/checkout/confirm_payment', {
         method: 'POST',
-        body: {
-          paymentIntentId: paymentIntent.id
-        }
+        body: requestBody
       });
+
+      console.log('Response from confirm_payment:', response);
+
+      // Handle account creation - store token and refresh auth state
+      if (response.token && response.accountCreated) {
+        localStorage.setItem('vehndr_token', response.token);
+        await refreshUser();
+      }
 
       // Clear vendor cart from local state
       if (clearVendorCart) {
@@ -421,7 +445,7 @@ export default function CheckoutPage() {
                           vendorName={vendor?.name || 'Vendor'}
                           totalCents={total}
                           tipCents={vendorTips[vendorId] || 0}
-                          onSuccess={(paymentIntent) => handlePaymentSuccess(vendorId, paymentIntent)}
+                          onSuccess={(paymentIntent, accountData) => handlePaymentSuccess(vendorId, paymentIntent, accountData)}
                           onError={(error) => handlePaymentError(vendorId, error)}
                         />
                       </Elements>

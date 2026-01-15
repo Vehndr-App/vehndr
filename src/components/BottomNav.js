@@ -70,7 +70,7 @@ export default function BottomNav() {
     // Default: customer/attendee
     return [
       { href: '/', label: 'Explore', icon: ExploreIcon },
-      { href: '/appointments', label: 'Bookings', icon: AppointmentsIcon },
+      { href: '/appointments', label: user ? 'Bookings & Orders' : 'Bookings', icon: AppointmentsIcon },
       { href: '/cart', label: 'Cart', icon: CartIcon, badge: totalItems > 0 ? totalItems : null },
       { href: '/favorites', label: 'Saved', icon: FavoritesIcon, badge: favoritesCount > 0 ? favoritesCount : null },
       { href: user ? '/profile' : '/login', label: user ? 'Profile' : 'Login', icon: ProfileIcon },

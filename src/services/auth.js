@@ -52,6 +52,24 @@ export async function logout() {
   }
 }
 
+export async function verifyEmail(token) {
+  const result = await api("/api/auth/verify_email", {
+    method: "POST",
+    body: { token },
+  });
+  if (typeof window !== "undefined" && result?.token) {
+    window.localStorage.setItem("vehndr_token", result.token);
+  }
+  return result;
+}
+
+export async function resendVerification(email) {
+  return api("/api/auth/resend_verification", {
+    method: "POST",
+    body: { email },
+  });
+}
+
 
 
 
