@@ -4,9 +4,11 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../../../services/vendors";
 import { useCart } from "../../../../../contexts/CartContext";
+import { useAuth } from "../../../../../contexts/AuthContext";
+import { api } from "../../../../../services/api";
 import Link from "next/link";
 import { getVendorPlaceholderImage } from "../../../../../utils/placeholderImages";
-import { saveBooking } from "../../../../appointments/page";
+import { generateCalendarLinks, downloadIcsFile } from "../../../../../utils/calendarLinks";
 
 // Calendar helper functions
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -31,7 +33,8 @@ export default function ProductPage() {
   const { vendorId, productId } = useParams();
   const router = useRouter();
   const { addItem } = useCart();
-  
+  const { user } = useAuth();
+
   const [vendor, setVendor] = useState(null);
   const [product, setProduct] = useState(null);
   const [quantity, setQuantity] = useState(1);
@@ -44,6 +47,17 @@ export default function ProductPage() {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [bookingAdvanceMinutes, setBookingAdvanceMinutes] = useState(60);
+
+  // Booking modal state
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [bookingInProgress, setBookingInProgress] = useState(false);
+  const [bookingError, setBookingError] = useState(null);
+  const [customerName, setCustomerName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
+  const [calendarLinks, setCalendarLinks] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -111,26 +125,77 @@ export default function ProductPage() {
   const hasImages = product.images && product.images.length > 0;
   const calendarDays = generateCalendarDays(currentMonth);
 
+  // Handle booking for services
+  const handleBookService = () => {
+    if (user) {
+      // User is logged in, book directly with their info
+      submitBooking(user.name, user.email, '');
+    } else {
+      // User not logged in, show modal to collect info
+      setShowBookingModal(true);
+    }
+  };
+
+  // Submit booking to API
+  const submitBooking = async (name, email, phone) => {
+    setBookingInProgress(true);
+    setBookingError(null);
+
+    try {
+      const response = await api('/api/bookings', {
+        method: 'POST',
+        body: {
+          productId: product.id,
+          date: selectedDate.toISOString().split('T')[0],
+          timeSlot: selectedTimeSlot,
+          customerName: name,
+          customerEmail: email,
+          customerPhone: phone || undefined
+        }
+      });
+
+      // Generate calendar links for the frontend
+      const links = generateCalendarLinks({
+        title: `${product.name} at ${vendor.name}`,
+        bookingDate: selectedDate.toISOString().split('T')[0],
+        startTime: response.booking.startTime,
+        endTime: response.booking.endTime,
+        description: `Service booking with ${vendor.name}`,
+        location: vendor.location || ''
+      });
+
+      setConfirmedBooking(response.booking);
+      setCalendarLinks(links);
+      setShowBookingModal(false);
+      setShowSuccessModal(true);
+
+      // Reset form
+      setSelectedDate(null);
+      setSelectedTimeSlot(null);
+      setCustomerName('');
+      setCustomerEmail('');
+      setCustomerPhone('');
+    } catch (error) {
+      console.error('Booking error:', error);
+      setBookingError(error.message || 'Failed to create booking. Please try again.');
+    } finally {
+      setBookingInProgress(false);
+    }
+  };
+
+  // Handle form submission from modal
+  const handleBookingFormSubmit = (e) => {
+    e.preventDefault();
+    if (!customerName.trim() || !customerEmail.trim()) {
+      setBookingError('Please enter your name and email');
+      return;
+    }
+    submitBooking(customerName, customerEmail, customerPhone);
+  };
+
+  // Handle add to cart for products (non-services)
   const handleAddToCart = () => {
     const cartOptions = { ...selected };
-    if (isService && selectedTimeSlot && selectedDate) {
-      cartOptions.date = selectedDate.toISOString().split('T')[0];
-      cartOptions.timeSlot = selectedTimeSlot;
-      cartOptions.duration = product.duration;
-      
-      // Save booking for appointments page
-      saveBooking({
-        vendorId: vendor.id,
-        vendorName: vendor.name,
-        serviceId: product.id,
-        serviceName: product.name,
-        date: selectedDate.toISOString().split('T')[0],
-        timeSlot: selectedTimeSlot,
-        duration: product.duration,
-        price: product.price,
-        options: cartOptions
-      });
-    }
     addItem(product, quantity, cartOptions);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 3000);
@@ -534,17 +599,22 @@ export default function ProductPage() {
                 </div>
               )}
 
-              {/* Add to Cart Button */}
+              {/* Book/Add to Cart Button */}
               <button
                 className={`w-full h-14 rounded-[var(--radius-xl)] font-semibold text-lg transition-all flex items-center justify-center gap-2 ${
-                  isValid
+                  isValid && !bookingInProgress
                     ? "bg-gradient-primary text-white hover:shadow-lg hover:shadow-[var(--violet-500)]/25"
                     : "bg-[var(--gray-200)] text-[var(--gray-400)] cursor-not-allowed"
                 }`}
-                disabled={!isValid}
-                onClick={handleAddToCart}
+                disabled={!isValid || bookingInProgress}
+                onClick={isService ? handleBookService : handleAddToCart}
               >
-                {isService ? (
+                {bookingInProgress ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Booking...
+                  </>
+                ) : isService ? (
                   <>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
@@ -552,7 +622,7 @@ export default function ProductPage() {
                       <line x1="8" y1="2" x2="8" y2="6"/>
                       <line x1="3" y1="10" x2="21" y2="10"/>
                     </svg>
-                    Book Service
+                    Book Now
                   </>
                 ) : (
                   <>
@@ -585,6 +655,181 @@ export default function ProductPage() {
           </div>
         </div>
       </div>
+
+      {/* Booking Modal - For collecting guest info */}
+      {showBookingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[var(--radius-2xl)] shadow-xl max-w-md w-full">
+            <div className="p-6 border-b border-[var(--gray-100)]">
+              <div className="flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-[var(--gray-900)]">Complete Your Booking</h2>
+                <button
+                  onClick={() => setShowBookingModal(false)}
+                  className="w-8 h-8 rounded-full hover:bg-[var(--gray-100)] flex items-center justify-center"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/>
+                    <line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleBookingFormSubmit} className="p-6 space-y-4">
+              {/* Booking Summary */}
+              <div className="bg-[var(--violet-50)] rounded-[var(--radius-lg)] p-4">
+                <p className="font-semibold text-[var(--violet-900)]">{product?.name}</p>
+                <p className="text-sm text-[var(--violet-700)]">
+                  {selectedDate?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} at {selectedTimeSlot}
+                </p>
+                <p className="text-sm text-[var(--violet-600)]">{product?.duration} min - ${(product?.price / 100).toFixed(2)}</p>
+              </div>
+
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                  Your Name <span className="text-[var(--coral-500)]">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="John Smith"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] border border-[var(--gray-200)] focus:border-[var(--violet-500)] focus:ring-2 focus:ring-[var(--violet-500)]/20 outline-none"
+                  required
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                  Email Address <span className="text-[var(--coral-500)]">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={customerEmail}
+                  onChange={(e) => setCustomerEmail(e.target.value)}
+                  placeholder="john@example.com"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] border border-[var(--gray-200)] focus:border-[var(--violet-500)] focus:ring-2 focus:ring-[var(--violet-500)]/20 outline-none"
+                  required
+                />
+                <p className="text-xs text-[var(--gray-500)] mt-1">We&apos;ll send your booking confirmation here</p>
+              </div>
+
+              {/* Phone (optional) */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                  Phone Number <span className="text-[var(--gray-400)]">(optional)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="(555) 123-4567"
+                  className="w-full px-4 py-3 rounded-[var(--radius-lg)] border border-[var(--gray-200)] focus:border-[var(--violet-500)] focus:ring-2 focus:ring-[var(--violet-500)]/20 outline-none"
+                />
+              </div>
+
+              {/* Error */}
+              {bookingError && (
+                <div className="p-3 bg-[var(--coral-50)] text-[var(--coral-700)] rounded-[var(--radius-lg)] text-sm">
+                  {bookingError}
+                </div>
+              )}
+
+              {/* Submit */}
+              <button
+                type="submit"
+                disabled={bookingInProgress}
+                className="w-full h-12 bg-gradient-primary text-white rounded-[var(--radius-xl)] font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {bookingInProgress ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Confirming...
+                  </>
+                ) : (
+                  'Confirm Booking'
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal - Shows after booking is confirmed */}
+      {showSuccessModal && confirmedBooking && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-[var(--radius-2xl)] shadow-xl max-w-md w-full">
+            <div className="p-6 text-center">
+              {/* Success Icon */}
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--mint-100)] flex items-center justify-center">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--mint-600)" strokeWidth="3">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+
+              <h2 className="text-2xl font-bold text-[var(--gray-900)] mb-2">Booking Confirmed!</h2>
+              <p className="text-[var(--gray-600)] mb-6">
+                A confirmation email has been sent to your inbox.
+              </p>
+
+              {/* Booking Details */}
+              <div className="bg-[var(--gray-50)] rounded-[var(--radius-xl)] p-4 text-left mb-6">
+                <p className="font-semibold text-[var(--gray-900)]">{product?.name}</p>
+                <p className="text-sm text-[var(--gray-600)]">with {vendor?.name}</p>
+                <div className="mt-3 pt-3 border-t border-[var(--gray-200)]">
+                  <p className="text-sm text-[var(--gray-700)]">
+                    <strong>Date:</strong> {confirmedBooking.bookingDate && new Date(confirmedBooking.bookingDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                  <p className="text-sm text-[var(--gray-700)]">
+                    <strong>Time:</strong> {confirmedBooking.startTime} - {confirmedBooking.endTime}
+                  </p>
+                </div>
+              </div>
+
+              {/* Calendar Links */}
+              <p className="text-sm font-medium text-[var(--gray-700)] mb-3">Add to your calendar:</p>
+              <div className="flex gap-3 justify-center mb-6">
+                <a
+                  href={calendarLinks?.google}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2 bg-[#4285f4] text-white rounded-[var(--radius-lg)] text-sm font-medium hover:bg-[#3367d6] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm-9 15h-3v-9h3v9zm6 0h-3V9h3v9z"/>
+                  </svg>
+                  Google
+                </a>
+                <button
+                  onClick={() => downloadIcsFile(calendarLinks?.ics, `booking-${confirmedBooking.id}.ics`)}
+                  className="flex items-center gap-2 px-4 py-2 bg-[var(--gray-600)] text-white rounded-[var(--radius-lg)] text-sm font-medium hover:bg-[var(--gray-700)] transition-colors"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  .ics File
+                </button>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                  setConfirmedBooking(null);
+                  setCalendarLinks(null);
+                }}
+                className="w-full h-12 border-2 border-[var(--violet-200)] text-[var(--violet-600)] rounded-[var(--radius-xl)] font-semibold hover:bg-[var(--violet-50)] transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
