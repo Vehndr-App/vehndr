@@ -11,6 +11,7 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
   const [errorMessage, setErrorMessage] = useState(null);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [paymentElementReady, setPaymentElementReady] = useState(false);
 
   // Account creation state
   const [emailExists, setEmailExists] = useState(null); // null = not checked, true/false = result
@@ -69,7 +70,8 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!stripe || !elements) {
+    if (!stripe || !elements || !paymentElementReady) {
+      setErrorMessage('Payment form is still loading. Please wait a moment and try again.');
       return;
     }
 
@@ -235,6 +237,7 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
 
       {/* Payment Element */}
       <PaymentElement
+        onReady={() => setPaymentElementReady(true)}
         options={{
           wallets: {
             applePay: 'auto',
@@ -258,10 +261,18 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
 
       <button
         type="submit"
-        disabled={!stripe || isProcessing}
+        disabled={!stripe || !paymentElementReady || isProcessing}
         className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {isProcessing ? (
+        {!paymentElementReady ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+            </svg>
+            Loading payment form...
+          </span>
+        ) : isProcessing ? (
           <span className="flex items-center justify-center gap-2">
             <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
