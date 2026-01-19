@@ -331,6 +331,8 @@ function DashboardInner() {
           <h2 className="text-h3 mb-4">Manage</h2>
           <div className="card bg-white p-0 overflow-hidden">
             <MenuLink href="/dashboard/products" icon={<ItemsIcon />} label="Items & Services" />
+            <MenuLink href="/dashboard/offerings" icon={<OfferingsMenuIcon />} label="Event Offerings" />
+            <MenuLink href="/dashboard/requests" icon={<RequestsMenuIcon />} label="Event Requests" />
             <MenuLink href="/dashboard/orders" icon={<OrdersMenuIcon />} label="Orders" badge={pendingOrders.length > 0 ? pendingOrders.length : null} />
             <MenuLink href="/dashboard/transactions" icon={<TransactionsMenuIcon />} label="Transactions" />
             <MenuLink href="/dashboard/reports" icon={<ReportsMenuIcon />} label="Reports" />
@@ -481,6 +483,22 @@ function ItemsIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+    </svg>
+  );
+}
+
+function OfferingsMenuIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7h16M4 12h16M4 17h10" />
+    </svg>
+  );
+}
+
+function RequestsMenuIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 13l4 4L19 7" />
     </svg>
   );
 }
