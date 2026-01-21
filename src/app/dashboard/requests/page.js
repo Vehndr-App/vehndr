@@ -6,6 +6,30 @@ import AuthGate from "../../../components/AuthGate";
 import { api } from "../../../services/api";
 import { getCurrentUser } from "../../../services/auth";
 
+const getOfferingTypeLabel = (type) => {
+  switch (type) {
+    case "hourly":
+      return "Hourly (Book Vendor)";
+    case "flat_booth":
+      return "Flat Booth";
+    case "trade":
+      return "Trade for Exposure";
+    case "free_with_sales":
+      return "Free + Sales Allowed";
+    case "package":
+      return "Package";
+    default:
+      return "Offering";
+  }
+};
+
+const getOfferingPriceLabel = (offering) => {
+  if (!offering) return "";
+  if (offering.offeringType === "trade") return "Trade";
+  if (offering.offeringType === "free_with_sales") return "Free";
+  return `$${(offering.priceCents / 100).toFixed(2)}`;
+};
+
 export default function RequestsPage() {
   return (
     <AuthGate>
@@ -115,7 +139,10 @@ function RequestsInner() {
                   </div>
 
                   <div className="text-sm text-[var(--gray-600)]">
-                    {request.offering.title} • {request.offering.offeringType === "hourly" ? `${request.hours || 0} hrs` : "Flat booth"} • ${(request.offering.priceCents / 100).toFixed(2)}
+                    {request.offering.title} • {getOfferingTypeLabel(request.offering.offeringType)}
+                    {request.offering.offeringType === "hourly" ? ` • ${request.hours || 0} hrs` : ""}
+                    {" • "}
+                    {getOfferingPriceLabel(request.offering)}
                   </div>
 
                   {request.notes && (

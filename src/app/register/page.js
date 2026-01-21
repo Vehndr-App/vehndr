@@ -296,7 +296,7 @@ export default function RegisterPage() {
                   </div>
                 </label>
 
-                {/* Event Coordinator Option */}
+                {/* Event Organizer Option */}
                 <label 
                   className={`flex items-center justify-between p-4 rounded-[var(--radius-xl)] border-2 cursor-pointer transition-all duration-200 ${
                     selectedRole === "coordinator" 
@@ -314,7 +314,7 @@ export default function RegisterPage() {
                       className="w-4 h-4 text-[var(--magenta-600)] focus:ring-[var(--magenta-500)] border-[var(--gray-300)]"
                     />
                     <div className="ml-3">
-                      <span className="block font-semibold text-[var(--gray-900)]">Event Coordinator</span>
+                      <span className="block font-semibold text-[var(--gray-900)]">Event Organizer</span>
                       <span className="block text-xs text-[var(--gray-500)] mt-0.5">Organize and manage events</span>
                     </div>
                   </div>

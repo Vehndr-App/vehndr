@@ -3,6 +3,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../services/api";
 
+const getRoleLabel = (role) => {
+  if (role === "coordinator") return "Event Organizer";
+  return role;
+};
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, total: 0 });
@@ -148,7 +153,7 @@ export default function AdminUsersPage() {
             <option value="">All Roles</option>
             <option value="customer">Customer</option>
             <option value="vendor">Vendor</option>
-            <option value="coordinator">Coordinator</option>
+            <option value="coordinator">Event Organizer</option>
             <option value="admin">Admin</option>
           </select>
           <select
@@ -249,7 +254,7 @@ export default function AdminUsersPage() {
                               : "bg-gray-100 text-gray-700"
                           }`}
                         >
-                          {user.role}
+                          {getRoleLabel(user.role)}
                         </span>
                       </td>
                       <td className="px-4 py-3">
@@ -325,7 +330,7 @@ export default function AdminUsersPage() {
                           : "bg-gray-100 text-gray-700"
                       }`}
                     >
-                      {user.role}
+                      {getRoleLabel(user.role)}
                     </span>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-sm">
@@ -438,7 +443,7 @@ export default function AdminUsersPage() {
                 >
                   <option value="customer">Customer</option>
                   <option value="vendor">Vendor</option>
-                  <option value="coordinator">Coordinator</option>
+                  <option value="coordinator">Event Organizer</option>
                   <option value="admin">Admin</option>
                 </select>
               </div>

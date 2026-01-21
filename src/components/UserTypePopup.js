@@ -33,7 +33,18 @@ export default function UserTypePopup() {
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
 
       {/* Modal */}
-      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6 animate-scale-in">
+      <div className="relative bg-white rounded-2xl shadow-xl max-w-md w-full mx-4 p-6 animate-scale-in border-2 border-black">
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(false);
+            router.push("/");
+          }}
+          className="absolute right-4 top-4 text-lg font-bold text-black hover:opacity-70 transition-opacity"
+          aria-label="Close"
+        >
+          ×
+        </button>
         <h2 className="text-2xl font-bold text-[var(--gray-900)] text-center mb-2">
           Welcome to Vehndr
         </h2>
@@ -43,44 +54,55 @@ export default function UserTypePopup() {
 
         <div className="space-y-3">
           <button
-            onClick={() => handleSelection("customer")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-[var(--gray-200)] hover:border-[var(--violet-500)] hover:bg-[var(--violet-50)] transition-all group"
-          >
-            <div className="w-12 h-12 rounded-full bg-[var(--violet-100)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
-              🛍️
-            </div>
-            <div className="text-left">
-              <div className="font-semibold text-[var(--gray-900)]">Customer</div>
-              <div className="text-sm text-[var(--gray-500)]">Browse vendors and shop for products</div>
-            </div>
-          </button>
-
-          <button
             onClick={() => handleSelection("vendor")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-[var(--gray-200)] hover:border-[var(--magenta-500)] hover:bg-[var(--magenta-50)] transition-all group"
+            className="w-full flex items-center gap-4 p-4 rounded-[var(--radius-xl)] bg-gradient-vendor text-black border-2 border-black shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-cardHover)] transition-all group"
           >
-            <div className="w-12 h-12 rounded-full bg-[var(--magenta-100)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-full bg-white/40 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               🏪
             </div>
             <div className="text-left">
-              <div className="font-semibold text-[var(--gray-900)]">Vendor</div>
-              <div className="text-sm text-[var(--gray-500)]">Sell products and manage your store</div>
+              <div className="font-bold text-black">Vendor</div>
+              <div className="text-sm font-bold text-white">Sell Products / Services &amp; Get Booked for Events!</div>
             </div>
           </button>
 
           <button
             onClick={() => handleSelection("coordinator")}
-            className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-[var(--gray-200)] hover:border-[var(--coral-500)] hover:bg-[var(--coral-50)] transition-all group"
+            className="w-full flex items-center gap-4 p-4 rounded-[var(--radius-xl)] bg-gradient-organizer text-black border-2 border-black shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-cardHover)] transition-all group"
           >
-            <div className="w-12 h-12 rounded-full bg-[var(--coral-100)] flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+            <div className="w-12 h-12 rounded-full bg-white/40 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
               📋
             </div>
             <div className="text-left">
-              <div className="font-semibold text-[var(--gray-900)]">Coordinator</div>
-              <div className="text-sm text-[var(--gray-500)]">Plan and manage events</div>
+              <div className="font-bold text-black">Event Organizer</div>
+              <div className="text-sm font-bold text-white">Plan / Manage Events / Book Vendors!</div>
+            </div>
+          </button>
+
+          <button
+            onClick={() => handleSelection("customer")}
+            className="w-full flex items-center gap-4 p-4 rounded-[var(--radius-xl)] bg-gradient-customer text-black border-2 border-black shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-cardHover)] transition-all group"
+          >
+            <div className="w-12 h-12 rounded-full bg-white/40 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+              🛍️
+            </div>
+            <div className="text-left">
+              <div className="font-bold text-black">Customer</div>
+              <div className="text-sm font-bold text-white">Browse Vendors / Shop for Products / Services IRL!</div>
             </div>
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsOpen(false);
+            router.push("/");
+          }}
+          className="mt-6 w-full h-12 rounded-full bg-gradient-browse text-[var(--gray-700)] font-semibold border-2 border-black shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-card)] transition-all"
+        >
+          Just browsing
+        </button>
       </div>
     </div>
   );

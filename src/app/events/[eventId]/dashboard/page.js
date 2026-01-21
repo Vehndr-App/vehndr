@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../../contexts/AuthContext";
 import AuthGate from "../../../../components/AuthGate";
 import { api } from "../../../../services/api";
 import Link from "next/link";
+import { getVendorPlaceholderImage } from "../../../../utils/placeholderImages";
 
 export default function EventDashboardPage() {
   return (
@@ -25,8 +26,8 @@ function EventDashboardInner() {
   const [recommendedVendors, setRecommendedVendors] = useState([]);
   const [vendorRequests, setVendorRequests] = useState([]);
   const [availableVendors, setAvailableVendors] = useState([]);
-  const [offerings, setOfferings] = useState([]);
-  const [selectedVendorId, setSelectedVendorId] = useState("");
+  const [offeringsByVendor, setOfferingsByVendor] = useState({});
+  const [activeVendorId, setActiveVendorId] = useState("");
   const [selectedOfferingId, setSelectedOfferingId] = useState("");
   const [requestHours, setRequestHours] = useState("");
   const [requestNote, setRequestNote] = useState("");
@@ -34,6 +35,8 @@ function EventDashboardInner() {
   const [requestLoading, setRequestLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const vendorScrollRef = useRef(null);
+  const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   useEffect(() => {
     if (user && user.role === 'coordinator') {
@@ -91,17 +94,14 @@ function EventDashboardInner() {
   };
 
   const fetchVendorOfferings = async (vendorId) => {
-    if (!vendorId) {
-      setOfferings([]);
-      return;
-    }
-
+    if (!vendorId) return;
     try {
       const data = await api(`/api/vendors/${vendorId}/offerings`);
-      setOfferings(Array.isArray(data) ? data : data?.offerings || []);
+      const vendorOfferings = Array.isArray(data) ? data : data?.offerings || [];
+      setOfferingsByVendor((prev) => ({ ...prev, [vendorId]: vendorOfferings }));
     } catch (err) {
       console.error("Failed to fetch vendor offerings", err);
-      setOfferings([]);
+      setOfferingsByVendor((prev) => ({ ...prev, [vendorId]: [] }));
     }
   };
 
@@ -134,9 +134,14 @@ function EventDashboardInner() {
 
   const getRequestStatusColor = (status) => {
     switch (status) {
+      case 'approved':
       case 'accepted':
         return 'bg-[var(--mint-500)]/10 text-[var(--mint-600)]';
+      case 'pending':
+      case 'requested':
+        return 'bg-[var(--amber-500)]/10 text-[var(--amber-600)]';
       case 'declined':
+      case 'rejected':
         return 'bg-red-100 text-red-700';
       case 'cancelled':
         return 'bg-[var(--gray-100)] text-[var(--gray-700)]';
@@ -145,11 +150,73 @@ function EventDashboardInner() {
     }
   };
 
-  const selectedOffering = offerings.find((offering) => offering.id === selectedOfferingId);
+  const getRequestStatusLabel = (status) => {
+    switch (status) {
+      case 'approved':
+      case 'accepted':
+        return 'Approved';
+      case 'pending':
+        return 'Pending';
+      case 'requested':
+        return 'Requested';
+      case 'declined':
+      case 'rejected':
+        return 'Declined';
+      case 'cancelled':
+        return 'Cancelled';
+      default:
+        return status || 'Pending';
+    }
+  };
 
-  const handleRequestVendor = async (event) => {
-    event.preventDefault();
-    if (!selectedVendorId || !selectedOfferingId) return;
+  const getOfferingTypeLabel = (type) => {
+    switch (type) {
+      case "hourly":
+        return "Hourly (Book Vendor)";
+      case "flat_booth":
+        return "Flat Booth";
+      case "trade":
+        return "Trade for Exposure";
+      case "free_with_sales":
+        return "Free + Sales Allowed";
+      case "package":
+        return "Package";
+      default:
+        return "Offering";
+    }
+  };
+
+  const getOfferingPriceLabel = (offering) => {
+    if (!offering) return "";
+    if (offering.offeringType === "trade") return "Trade";
+    if (offering.offeringType === "free_with_sales") return "Free";
+    return formatCurrency(offering.priceCents);
+  };
+
+  const activeVendor = availableVendors.find((vendor) => vendor.id === activeVendorId);
+  const activeOfferings = offeringsByVendor[activeVendorId] || [];
+  const activeOffering = activeOfferings.find((offering) => offering.id === selectedOfferingId);
+  const isSelectionIncomplete = !activeVendorId
+    || !selectedOfferingId
+    || (activeOffering?.offeringType === "hourly" && !requestHours);
+  const handleVendorScroll = (direction) => {
+    const container = vendorScrollRef.current;
+    if (!container) return;
+    const scrollAmount = container.clientWidth * 0.8;
+    container.scrollBy({ left: scrollAmount * direction, behavior: "smooth" });
+  };
+
+  const closeRequestModal = () => {
+    setIsRequestModalOpen(false);
+    setActiveVendorId("");
+    setSelectedOfferingId("");
+    setRequestHours("");
+    setRequestNote("");
+    setRequestError(null);
+  };
+
+  const handleRequestVendor = async () => {
+    if (isSelectionIncomplete) return;
 
     setRequestLoading(true);
     setRequestError(null);
@@ -159,19 +226,19 @@ function EventDashboardInner() {
         method: "POST",
         body: {
           event_id: params.eventId,
-          vendor_id: selectedVendorId,
+          vendor_id: activeVendorId,
           vendor_offering_id: selectedOfferingId,
-          hours: selectedOffering?.offeringType === "hourly" ? Number(requestHours) || null : null,
+          hours: activeOffering?.offeringType === "hourly" ? Number(requestHours) || null : null,
           notes: requestNote || null
         }
       });
 
-      setSelectedVendorId("");
+      await fetchVendorRequests();
+      setIsRequestModalOpen(false);
+      setActiveVendorId("");
       setSelectedOfferingId("");
       setRequestHours("");
       setRequestNote("");
-      setOfferings([]);
-      await fetchVendorRequests();
     } catch (err) {
       console.error("Failed to request vendor", err);
       setRequestError(err?.details?.error || err?.details?.errors?.join(", ") || "Failed to send request.");
@@ -314,13 +381,70 @@ function EventDashboardInner() {
               </div>
 
               {vendors.length === 0 ? (
-                <div className="card text-center">
-                  <svg className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-[var(--gray-300)] mb-3 sm:mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                  </svg>
-                  <h3 className="text-h4 text-[var(--foreground)] mb-2">No Vendors Yet</h3>
-                  <p className="text-sm sm:text-base text-[var(--gray-500)]">Add vendors to this event to start tracking sales</p>
-                </div>
+                vendorRequests.length === 0 ? (
+                  <div className="card text-center">
+                    <svg className="mx-auto h-12 w-12 sm:h-16 sm:w-16 text-[var(--gray-300)] mb-3 sm:mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    <h3 className="text-h4 text-[var(--foreground)] mb-2">No Vendors Yet</h3>
+                    <p className="text-sm sm:text-base text-[var(--gray-500)]">Add vendors to this event to start tracking sales</p>
+                  </div>
+                ) : (
+                  <div className="card p-0 divide-y divide-[var(--gray-100)] overflow-hidden">
+                    {vendorRequests.map((request) => {
+                      const vendor = request.vendor || {};
+                      const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
+                      const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id || request.id);
+                      const offeringType = request.offering?.offeringType;
+                      const offeringTitle = request.offering?.title;
+                      const offeringPrice = request.offering?.priceCents;
+                      const offeringTypeLabel = getOfferingTypeLabel(offeringType);
+
+                      return (
+                        <div key={request.id} className="p-4 sm:p-6 relative">
+                          <span className={`chip absolute top-4 right-4 ${getRequestStatusColor(request.status)}`}>
+                            {getRequestStatusLabel(request.status)}
+                          </span>
+                          <div className="flex items-start gap-3 sm:gap-4">
+                            <div className="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-[var(--gray-100)] flex-shrink-0">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={hasImage ? vendor.heroImage : placeholderImage}
+                                alt={vendor.name || "Vendor"}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {vendor.id ? (
+                                <Link
+                                  href={`/vendors/${vendor.id}`}
+                                  className="text-base sm:text-lg font-semibold text-[var(--foreground)] hover:text-[var(--violet-600)] transition-colors inline-flex items-center min-h-[44px]"
+                                >
+                                  {vendor.name}
+                                </Link>
+                              ) : (
+                                <div className="text-base sm:text-lg font-semibold text-[var(--foreground)]">
+                                  {vendor.name || "Vendor"}
+                                </div>
+                              )}
+                              {offeringTitle && (
+                                <div className="text-sm text-[var(--gray-500)]">
+                                  {offeringTitle} • {offeringTypeLabel}
+                                  {offeringType === "hourly" ? ` • ${request.hours || 0} hrs` : ""}
+                                </div>
+                              )}
+                              {typeof offeringPrice === "number" && (
+                                <div className="text-sm text-[var(--gray-500)]">
+                                  {getOfferingPriceLabel({ offeringType, priceCents: offeringPrice })}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )
               ) : (
                 <div className="card p-0 divide-y divide-[var(--gray-100)] overflow-hidden">
                   {vendors.map((vendor, index) => (
@@ -392,84 +516,108 @@ function EventDashboardInner() {
               </div>
 
               <div className="card mb-4">
-                <form onSubmit={handleRequestVendor} className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Vendor</label>
-                      <select
-                        value={selectedVendorId}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setSelectedVendorId(value);
-                          setSelectedOfferingId("");
-                          setRequestHours("");
-                          fetchVendorOfferings(value);
-                        }}
-                        className="input mt-2"
-                      >
-                        <option value="">Select vendor</option>
-                        {availableVendors.map((vendor) => (
-                          <option key={vendor.id} value={vendor.id}>
-                            {vendor.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Offering</label>
-                      <select
-                        value={selectedOfferingId}
-                        onChange={(e) => setSelectedOfferingId(e.target.value)}
-                        className="input mt-2"
-                        disabled={!selectedVendorId || offerings.length === 0}
-                      >
-                        <option value="">Select offering</option>
-                        {offerings.map((offering) => (
-                          <option key={offering.id} value={offering.id}>
-                            {offering.title} • {offering.offeringType === "hourly" ? "Hourly" : "Flat Booth"} ({formatCurrency(offering.priceCents)})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {selectedOffering?.offeringType === "hourly" && (
-                    <div>
-                      <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Estimated Hours</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={requestHours}
-                        onChange={(e) => setRequestHours(e.target.value)}
-                        className="input mt-2"
-                        placeholder="e.g. 4"
-                      />
-                    </div>
-                  )}
-
+                <div className="space-y-4">
                   <div>
-                    <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Notes</label>
-                    <textarea
-                      value={requestNote}
-                      onChange={(e) => setRequestNote(e.target.value)}
-                      className="input mt-2 min-h-[120px] py-3"
-                      rows={3}
-                      placeholder="Share details about load-in, booth size, or schedule."
-                    />
+                    <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Vendor</label>
+                    <div className="mt-2">
+                      {availableVendors.length === 0 ? (
+                        <div className="card text-center text-sm text-[var(--gray-500)]">
+                          No vendors available yet.
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            aria-label="Scroll vendors left"
+                            onClick={() => handleVendorScroll(-1)}
+                            className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-2 z-10 h-9 w-9 flex items-center justify-center rounded-full bg-white shadow-[var(--shadow-card)] ring-1 ring-[var(--gray-200)] text-[var(--gray-600)] hover:text-[var(--violet-600)] hover:ring-[var(--violet-300)] transition"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="15 18 9 12 15 6" />
+                            </svg>
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Scroll vendors right"
+                            onClick={() => handleVendorScroll(1)}
+                            className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 z-10 h-9 w-9 flex items-center justify-center rounded-full bg-white shadow-[var(--shadow-card)] ring-1 ring-[var(--gray-200)] text-[var(--gray-600)] hover:text-[var(--violet-600)] hover:ring-[var(--violet-300)] transition"
+                          >
+                            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="9 18 15 12 9 6" />
+                            </svg>
+                          </button>
+                          <div ref={vendorScrollRef} className="flex gap-4 overflow-x-auto scrollbar-hide pb-2 px-2">
+                            {availableVendors.map((vendor) => {
+                              const isSelected = vendor.id === activeVendorId;
+                              const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
+                              const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id);
+
+                              return (
+                                <button
+                                  key={vendor.id}
+                                  type="button"
+                                  aria-pressed={isSelected}
+                                  aria-label={`Request vendor ${vendor.name}`}
+                                  onClick={() => {
+                                    const value = vendor.id;
+                                    setActiveVendorId(value);
+                                    setSelectedOfferingId("");
+                                    setRequestHours("");
+                                    setRequestNote("");
+                                    setRequestError(null);
+                                    fetchVendorOfferings(value);
+                                    setIsRequestModalOpen(true);
+                                  }}
+                                  className="group flex-shrink-0 w-[190px] sm:w-[210px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--violet-500)] rounded-[var(--radius-xl)]"
+                                >
+                                  <div
+                                    className={`rounded-[var(--radius-xl)] overflow-hidden bg-white transition-all ${
+                                      isSelected
+                                        ? "ring-2 ring-[var(--violet-500)] shadow-[var(--shadow-card-hover)]"
+                                        : "ring-1 ring-[var(--gray-200)] shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] hover:ring-[var(--violet-300)]"
+                                    }`}
+                                  >
+                                    <div className="relative aspect-[4/3]">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={hasImage ? vendor.heroImage : placeholderImage}
+                                        alt={vendor.name}
+                                        className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                                      />
+                                    </div>
+                                    <div className="p-3">
+                                      <div className="font-semibold text-sm text-[var(--gray-900)] line-clamp-1 group-hover:text-[var(--violet-600)] transition-colors">
+                                        {vendor.name}
+                                      </div>
+                                      {vendor.description && (
+                                        <div className="text-xs text-[var(--gray-500)] line-clamp-1 mt-1">
+                                          {vendor.description}
+                                        </div>
+                                      )}
+                                      {vendor.location && (
+                                        <div className="flex items-center gap-1 mt-1 text-[11px] text-[var(--gray-400)]">
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                                            <circle cx="12" cy="10" r="3"/>
+                                          </svg>
+                                          {vendor.location}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {requestError && (
                     <div className="text-sm text-red-600">{requestError}</div>
                   )}
-
-                  <button
-                    type="submit"
-                    disabled={!selectedOfferingId || requestLoading || (selectedOffering?.offeringType === "hourly" && !requestHours)}
-                    className="btn btn-gradient w-full sm:w-auto px-6 disabled:opacity-50"
-                  >
-                    {requestLoading ? "Sending..." : "Send Request"}
-                  </button>
-                </form>
+                </div>
               </div>
 
               <div className="card p-0 divide-y divide-[var(--gray-100)] overflow-hidden">
@@ -488,14 +636,15 @@ function EventDashboardInner() {
                           {request.vendor.name}
                         </Link>
                         <div className="text-sm text-[var(--gray-500)]">
-                          {request.offering.title} • {request.offering.offeringType === "hourly" ? `${request.hours || 0} hrs` : "Flat booth"}
+                          {request.offering.title} • {getOfferingTypeLabel(request.offering.offeringType)}
+                          {request.offering.offeringType === "hourly" ? ` • ${request.hours || 0} hrs` : ""}
                         </div>
                         <div className="text-sm text-[var(--gray-500)]">
-                          {formatCurrency(request.offering.priceCents)}
+                          {getOfferingPriceLabel(request.offering)}
                         </div>
                       </div>
                       <span className={`chip ${getRequestStatusColor(request.status)}`}>
-                        {request.status}
+                        {getRequestStatusLabel(request.status)}
                       </span>
                     </div>
                   ))
@@ -568,6 +717,128 @@ function EventDashboardInner() {
           </div>
         </div>
       </div>
+
+      {isRequestModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            type="button"
+            aria-label="Close vendor request modal"
+            onClick={closeRequestModal}
+            className="absolute inset-0 bg-black/40"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="relative w-full max-w-lg rounded-2xl bg-white shadow-xl"
+          >
+            <div className="p-5 sm:p-6 border-b border-[var(--gray-100)] flex items-center justify-between">
+              <div>
+                <div className="text-xs text-[var(--gray-500)] uppercase tracking-wide font-semibold">Request Vendor</div>
+                <div className="text-lg sm:text-xl font-semibold text-[var(--foreground)]">
+                  {activeVendor?.name || "Vendor"}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={closeRequestModal}
+                className="h-9 w-9 rounded-full flex items-center justify-center text-[var(--gray-500)] hover:text-[var(--gray-700)] hover:bg-[var(--gray-100)] transition"
+                aria-label="Close"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <div className="p-5 sm:p-6 space-y-4">
+              {activeVendor && (
+                <div className="flex items-center gap-3">
+                  <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-[var(--gray-100)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={activeVendor.heroImage || getVendorPlaceholderImage(activeVendor.categories, activeVendor.id)}
+                      alt={activeVendor.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-[var(--foreground)]">{activeVendor.name}</div>
+                    {activeVendor.location && (
+                      <div className="text-xs text-[var(--gray-500)]">{activeVendor.location}</div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Booking Option</label>
+                <select
+                  value={selectedOfferingId}
+                  onChange={(e) => setSelectedOfferingId(e.target.value)}
+                  className="input mt-2"
+                  disabled={activeOfferings.length === 0}
+                >
+                  <option value="">Select offering</option>
+                  {activeOfferings.map((offering) => (
+                    <option key={offering.id} value={offering.id}>
+                      {offering.title} • {getOfferingTypeLabel(offering.offeringType)} ({getOfferingPriceLabel(offering)})
+                    </option>
+                  ))}
+                </select>
+                {activeOfferings.length === 0 && (
+                  <div className="text-xs text-[var(--gray-500)] mt-2">No offerings available for this vendor.</div>
+                )}
+              </div>
+
+              {activeOffering?.offeringType === "hourly" && (
+                <div>
+                  <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Estimated Hours</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={requestHours}
+                    onChange={(e) => setRequestHours(e.target.value)}
+                    className="input mt-2"
+                    placeholder="e.g. 4"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="text-xs text-[var(--gray-500)] font-semibold uppercase tracking-wide">Notes</label>
+                <textarea
+                  value={requestNote}
+                  onChange={(e) => setRequestNote(e.target.value)}
+                  className="input mt-2 min-h-[120px] py-3"
+                  rows={3}
+                  placeholder="Share details about load-in, booth size, or schedule."
+                />
+              </div>
+
+              {requestError && (
+                <div className="text-sm text-red-600">{requestError}</div>
+              )}
+            </div>
+            <div className="p-5 sm:p-6 border-t border-[var(--gray-100)] flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <button
+                type="button"
+                onClick={closeRequestModal}
+                className="btn btn-ghost"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleRequestVendor}
+                disabled={requestLoading || isSelectionIncomplete}
+                className="btn btn-gradient px-6 disabled:opacity-50"
+              >
+                {requestLoading ? "Sending..." : "Send Request"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

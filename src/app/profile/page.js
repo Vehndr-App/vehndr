@@ -35,6 +35,11 @@ export default function ProfilePage() {
     "Education", "Networking", "Outdoor Activities", "Nightlife"
   ];
 
+  const getRoleLabel = (role) => {
+    if (role === "coordinator") return "event organizer";
+    return role;
+  };
+
   useEffect(() => {
     if (!user) {
       router.push("/login");
@@ -167,7 +172,9 @@ export default function ProfilePage() {
           </div>
 
           <h1 className="text-2xl font-bold text-white mb-1">{user.name || "Your Profile"}</h1>
-          <p className="text-white/80 text-sm capitalize">{user.role}</p>
+          <p className="text-white/80 text-sm capitalize">
+            {getRoleLabel(user.role)}
+          </p>
         </div>
       </div>
 

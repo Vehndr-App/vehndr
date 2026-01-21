@@ -7,6 +7,11 @@ import { useState, useEffect, useRef } from "react";
 import { logout } from "../services/auth";
 import { useRouter, usePathname } from "next/navigation";
 
+const getRoleLabel = (role) => {
+  if (role === "coordinator") return "event organizer";
+  return role;
+};
+
 export default function Navbar() {
   const { user, clearUser } = useAuth();
   const { totalItems } = useCart();
@@ -144,7 +149,9 @@ export default function Navbar() {
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-[var(--gray-900)] truncate">{user.name || user.email}</p>
-                      <p className="text-xs text-[var(--gray-500)] capitalize">{user.role}</p>
+                      <p className="text-xs text-[var(--gray-500)] capitalize">
+                        {getRoleLabel(user.role)}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -223,7 +230,7 @@ export default function Navbar() {
                       icon={<DashboardIcon />}
                       active={pathname === '/coordinator-dashboard'}
                     >
-                      Coordinator Dashboard
+                      Event Organizer Dashboard
                     </MenuLink>
                   )}
                   

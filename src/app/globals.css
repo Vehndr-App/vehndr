@@ -64,6 +64,10 @@
   --gradient-secondary: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
   --gradient-warm: linear-gradient(180deg, #FFF9F0 0%, #FFE4E1 100%);
   --gradient-sunset: linear-gradient(135deg, #F472B6 0%, #FB923C 100%);
+  --gradient-vendor: linear-gradient(135deg, #8B5CF6 0%, #D946EF 55%, #F472B6 100%);
+  --gradient-organizer: linear-gradient(135deg, #0EA5E9 0%, #14B8A6 55%, #22C55E 100%);
+  --gradient-customer: linear-gradient(135deg, #F59E0B 0%, #FB7185 60%, #A855F7 100%);
+  --gradient-browse: linear-gradient(135deg, #F5F3FF 0%, #FAE8FF 100%);
   
   /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
@@ -83,6 +87,7 @@
   --radius-2xl: 20px;
   --radius-3xl: 24px;
   --radius-full: 9999px;
+
   
   /* Spacing */
   --space-1: 4px;
@@ -184,6 +189,22 @@ body {
 
 .bg-gradient-warm {
   background: var(--gradient-warm);
+}
+
+.bg-gradient-vendor {
+  background: var(--gradient-vendor);
+}
+
+.bg-gradient-organizer {
+  background: var(--gradient-organizer);
+}
+
+.bg-gradient-customer {
+  background: var(--gradient-customer);
+}
+
+.bg-gradient-browse {
+  background: var(--gradient-browse);
 }
 
 .text-gradient-primary {

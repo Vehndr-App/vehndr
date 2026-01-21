@@ -18,7 +18,7 @@ export default function CoordinatorProfilePage() {
   if (!coord) {
     return (
       <div className="mx-auto max-w-4xl p-6 text-sm text-black/60">
-        Loading coordinator…
+        Loading event organizer…
       </div>
     );
   }

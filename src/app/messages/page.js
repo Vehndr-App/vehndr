@@ -51,6 +51,11 @@ const MOCK_CONVERSATIONS = [
   },
 ];
 
+const getRoleLabel = (role) => {
+  if (role === "coordinator") return "event organizer";
+  return role;
+};
+
 export default function MessagesPage() {
   const router = useRouter();
   const { user } = useAuth();
@@ -171,7 +176,7 @@ export default function MessagesPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--gray-100)] text-[var(--gray-500)] capitalize">
-                      {conversation.participant.role}
+                      {getRoleLabel(conversation.participant.role)}
                     </span>
                     <p className={`text-sm truncate ${conversation.lastMessage.unread ? "text-[var(--gray-900)] font-medium" : "text-[var(--gray-500)]"}`}>
                       {conversation.lastMessage.text}
@@ -232,7 +237,7 @@ function EmptyState({ searchQuery }) {
             No messages yet
           </h2>
           <p className="text-[var(--gray-500)] mb-8 max-w-sm mx-auto">
-            Start a conversation with vendors or coordinators to plan your perfect event!
+            Start a conversation with vendors or event organizers to plan your perfect event!
           </p>
           <Link href="/vendors" className="btn btn-gradient inline-flex items-center gap-2">
             Browse Vendors

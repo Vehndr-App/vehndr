@@ -8,7 +8,10 @@ import { getCurrentUser } from "../../../services/auth";
 
 const OFFERING_TYPES = [
   { value: "flat_booth", label: "Flat Booth" },
-  { value: "hourly", label: "Hourly" }
+  { value: "hourly", label: "Hourly (Book Vendor)" },
+  { value: "trade", label: "Trade for Exposure" },
+  { value: "free_with_sales", label: "Free + Sales Allowed" },
+  { value: "package", label: "Package" }
 ];
 
 export default function OfferingsPage() {
@@ -64,7 +67,17 @@ function OfferingsInner() {
   };
 
   const handleChange = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      if (field === "offeringType") {
+        const isFreeType = value === "trade" || value === "free_with_sales";
+        return {
+          ...prev,
+          offeringType: value,
+          price: isFreeType ? "0" : prev.price
+        };
+      }
+      return { ...prev, [field]: value };
+    });
   };
 
   const handleSubmit = async (event) => {
@@ -75,13 +88,14 @@ function OfferingsInner() {
     setError(null);
 
     try {
+      const isFreeType = formData.offeringType === "trade" || formData.offeringType === "free_with_sales";
       await api(`/api/vendors/${vendorId}/offerings`, {
         method: "POST",
         body: {
           vendor_offering: {
             title: formData.title,
             offering_type: formData.offeringType,
-            price_cents: Math.round(Number(formData.price || 0) * 100),
+            price_cents: isFreeType ? 0 : Math.round(Number(formData.price || 0) * 100),
             description: formData.description,
             active: formData.active
           }
@@ -111,9 +125,9 @@ function OfferingsInner() {
           <Link href="/dashboard" className="text-sm text-[var(--gray-500)] hover:text-[var(--gray-700)]">
             ← Back to Dashboard
           </Link>
-          <h1 className="text-h2 text-[var(--foreground)] mt-3">Event Offerings</h1>
+          <h1 className="text-h2 text-[var(--foreground)] mt-3">Event Offerings & Packages</h1>
           <p className="text-sm text-[var(--gray-500)] mt-1">
-            Add booth or hourly offerings for event hosts.
+            Add booth, hourly, trade, free, or package offerings for event hosts.
           </p>
         </div>
       </div>
@@ -166,10 +180,19 @@ function OfferingsInner() {
                 onChange={(e) => handleChange("price", e.target.value)}
                 className="input mt-2"
                 placeholder="0.00"
-                required
+                disabled={formData.offeringType === "trade" || formData.offeringType === "free_with_sales"}
+                required={formData.offeringType !== "trade" && formData.offeringType !== "free_with_sales"}
               />
               <p className="text-xs text-[var(--gray-400)] mt-1">
-                {formData.offeringType === "hourly" ? "Hourly rate" : "Flat booth price"}
+                {formData.offeringType === "hourly"
+                  ? "Hourly rate"
+                  : formData.offeringType === "package"
+                  ? "Package price"
+                  : formData.offeringType === "trade"
+                  ? "Trade for event exposure (no fee)"
+                  : formData.offeringType === "free_with_sales"
+                  ? "Free to book, vendor can sell on-site"
+                  : "Flat booth price"}
               </p>
             </div>
             <div>
@@ -181,7 +204,7 @@ function OfferingsInner() {
                   onChange={(e) => handleChange("active", e.target.checked)}
                   className="h-4 w-4 rounded border-[var(--gray-300)] text-[var(--violet-600)]"
                 />
-                <span className="text-sm text-[var(--gray-600)]">Show to coordinators</span>
+                <span className="text-sm text-[var(--gray-600)]">Show to event organizers</span>
               </div>
             </div>
           </div>
@@ -192,7 +215,11 @@ function OfferingsInner() {
               value={formData.description}
               onChange={(e) => handleChange("description", e.target.value)}
               className="input mt-2 min-h-[120px] py-3"
-              placeholder="Share what's included in this offering."
+              placeholder={
+                formData.offeringType === "package"
+                  ? "List what is included in the package."
+                  : "Share what's included in this offering."
+              }
             />
           </div>
 
@@ -225,22 +252,26 @@ function OfferingsInner() {
             <div className="text-sm text-[var(--gray-500)]">No offerings yet.</div>
           ) : (
             <div className="divide-y divide-[var(--gray-100)]">
-              {offerings.map((offering) => (
-                <div key={offering.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <p className="font-semibold text-[var(--foreground)]">{offering.title}</p>
-                    <p className="text-sm text-[var(--gray-500)]">
-                      {offering.offeringType === "hourly" ? "Hourly" : "Flat booth"} • ${(offering.priceCents / 100).toFixed(2)}
-                    </p>
-                    {offering.description && (
-                      <p className="text-sm text-[var(--gray-400)] mt-1">{offering.description}</p>
-                    )}
+              {offerings.map((offering) => {
+                const typeLabel = OFFERING_TYPES.find((type) => type.value === offering.offeringType)?.label || "Offering";
+                const isFreeType = offering.offeringType === "trade" || offering.offeringType === "free_with_sales";
+                return (
+                  <div key={offering.id} className="py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-[var(--foreground)]">{offering.title}</p>
+                      <p className="text-sm text-[var(--gray-500)]">
+                        {typeLabel} • {isFreeType ? "No fee" : `$${(offering.priceCents / 100).toFixed(2)}`}
+                      </p>
+                      {offering.description && (
+                        <p className="text-sm text-[var(--gray-400)] mt-1">{offering.description}</p>
+                      )}
+                    </div>
+                    <span className={`chip ${offering.active ? "bg-[var(--mint-100)] text-[var(--mint-600)]" : "chip-filled"}`}>
+                      {offering.active ? "Active" : "Hidden"}
+                    </span>
                   </div>
-                  <span className={`chip ${offering.active ? "bg-[var(--mint-100)] text-[var(--mint-600)]" : "chip-filled"}`}>
-                    {offering.active ? "Active" : "Hidden"}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
