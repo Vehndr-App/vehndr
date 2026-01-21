@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "../services/api";
 import SmartImage from "./SmartImage";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
+import { resizeImage, resizeImages, formatFileSize } from "../utils/imageResize";
 
 export default function VendorProfile({ user, onSuccess }) {
   const [vendor, setVendor] = useState(null);
@@ -16,11 +17,14 @@ export default function VendorProfile({ user, onSuccess }) {
     location: '',
     heroImage: null,
     heroImageUrl: '',
-    galleryImages: [],
-    galleryImageUrls: [],
+    galleryImages: [],           // New files to upload (File objects)
+    existingGalleryImages: [],   // Existing images from server [{id, url}]
     categories: []
   });
   const [loadingLocation, setLoadingLocation] = useState(false);
+  const [processingImages, setProcessingImages] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
 
   const fetchVendor = useCallback(async () => {
     if (!user?.vendorId) {
@@ -42,7 +46,9 @@ export default function VendorProfile({ user, onSuccess }) {
         heroImage: null,
         heroImageUrl: vendorData.heroImage || '',
         galleryImages: [],
-        galleryImageUrls: vendorData.galleryImages || [],
+        // Use galleryImagesData if available (has id+url), fallback to galleryImages URLs
+        existingGalleryImages: vendorData.galleryImagesData ||
+          (vendorData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url })),
         categories: vendorData.categories || []
       };
       setFormData(newFormData);
@@ -81,6 +87,9 @@ export default function VendorProfile({ user, onSuccess }) {
       // Add hero image if a new file was selected
       if (formData.heroImage) {
         formDataToSend.append('vendor[hero_image]', formData.heroImage);
+      } else if (vendor && vendor.heroImage && !formData.heroImageUrl) {
+        // Hero image was removed (had one before, now empty, no new one selected)
+        formDataToSend.append('remove_hero_image', 'true');
       }
 
       // Add gallery images if new files were selected
@@ -88,6 +97,26 @@ export default function VendorProfile({ user, onSuccess }) {
         formData.galleryImages.forEach(image => {
           formDataToSend.append('vendor[gallery_images][]', image);
         });
+      }
+
+      // When editing, send the list of existing gallery images to keep and their order
+      // This allows the backend to delete images that were removed and maintain order
+      if (vendor) {
+        const existingImages = formData.existingGalleryImages || [];
+        if (existingImages.length > 0) {
+          existingImages.forEach(img => {
+            formDataToSend.append('keep_gallery_images[]', img.url);
+          });
+          // Send the order of image IDs (existing images in their current order)
+          existingImages.forEach(img => {
+            if (img.id && !img.id.startsWith('legacy_')) {
+              formDataToSend.append('vendor[gallery_image_order][]', img.id);
+            }
+          });
+        } else if (vendor.galleryImages && vendor.galleryImages.length > 0) {
+          // Had images before but now empty - signal to clear all
+          formDataToSend.append('clear_gallery_images', 'true');
+        }
       }
 
       let result;
@@ -102,14 +131,15 @@ export default function VendorProfile({ user, onSuccess }) {
       // Handle wrapped response
       const resultData = result.vendor || result;
       setVendor(resultData);
-      
+
       // Update form data with new URLs
       setFormData(prev => ({
         ...prev,
         heroImage: null,
         heroImageUrl: resultData.heroImage || prev.heroImageUrl,
         galleryImages: [],
-        galleryImageUrls: resultData.galleryImages || prev.galleryImageUrls
+        existingGalleryImages: resultData.galleryImagesData ||
+          (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
       }));
 
       if (onSuccess) {
@@ -141,9 +171,65 @@ export default function VendorProfile({ user, onSuccess }) {
     } else {
       setFormData(prev => ({
         ...prev,
-        galleryImageUrls: (prev.galleryImageUrls || []).filter((_, i) => i !== index)
+        existingGalleryImages: (prev.existingGalleryImages || []).filter((_, i) => i !== index)
       }));
     }
+  };
+
+  // Drag and drop handlers for reordering gallery images
+  const handleDragStart = (e, index, isNew) => {
+    setDraggedIndex({ index, isNew });
+    e.dataTransfer.effectAllowed = 'move';
+    e.target.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1';
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragOver = (e, index, isNew) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex({ index, isNew });
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e, dropIndex, dropIsNew) => {
+    e.preventDefault();
+    if (!draggedIndex) return;
+
+    const { index: dragIndex, isNew: dragIsNew } = draggedIndex;
+
+    // Only allow reordering within the same category (existing or new)
+    if (dragIsNew !== dropIsNew) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    setFormData(prev => {
+      if (dragIsNew) {
+        // Reorder new gallery images
+        const newImages = [...(prev.galleryImages || [])];
+        const [removed] = newImages.splice(dragIndex, 1);
+        newImages.splice(dropIndex, 0, removed);
+        return { ...prev, galleryImages: newImages };
+      } else {
+        // Reorder existing gallery images
+        const existingImages = [...(prev.existingGalleryImages || [])];
+        const [removed] = existingImages.splice(dragIndex, 1);
+        existingImages.splice(dropIndex, 0, removed);
+        return { ...prev, existingGalleryImages: existingImages };
+      }
+    });
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   const handleUseMyLocation = async () => {
@@ -234,12 +320,12 @@ export default function VendorProfile({ user, onSuccess }) {
 
   // Preview of how the storefront will look
   const PreviewSection = () => {
-    const heroUrl = formData.heroImage 
-      ? URL.createObjectURL(formData.heroImage) 
+    const heroUrl = formData.heroImage
+      ? URL.createObjectURL(formData.heroImage)
       : formData.heroImageUrl;
-    
+
     // Filter out any null/undefined URLs
-    const existingGalleryUrls = (formData.galleryImageUrls || []).filter(url => url && url.length > 0);
+    const existingGalleryUrls = (formData.existingGalleryImages || []).map(img => img.url).filter(url => url);
     const newGalleryUrls = (formData.galleryImages || []).map(f => URL.createObjectURL(f));
     const allGalleryImages = [...existingGalleryUrls, ...newGalleryUrls];
 
@@ -445,10 +531,24 @@ export default function VendorProfile({ user, onSuccess }) {
             <input
               type="file"
               accept="image/*"
-              onChange={(e) => {
+              onChange={async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  setFormData({ ...formData, heroImage: file });
+                  setProcessingImages(true);
+                  try {
+                    const originalSize = file.size;
+                    const resizedFile = await resizeImage(file, { maxWidth: 2400, maxHeight: 800 });
+                    const newSize = resizedFile.size;
+                    if (newSize < originalSize) {
+                      console.log(`Hero image resized: ${formatFileSize(originalSize)} → ${formatFileSize(newSize)}`);
+                    }
+                    setFormData(prev => ({ ...prev, heroImage: resizedFile }));
+                  } catch (err) {
+                    console.error('Failed to resize image:', err);
+                    setFormData(prev => ({ ...prev, heroImage: file }));
+                  } finally {
+                    setProcessingImages(false);
+                  }
                 }
               }}
               className="hidden"
@@ -460,23 +560,40 @@ export default function VendorProfile({ user, onSuccess }) {
         <div className="card bg-white p-5">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-h4">Gallery Photos</h3>
-            {((formData.galleryImageUrls || []).length + (formData.galleryImages || []).length) > 0 && (
+            {((formData.existingGalleryImages || []).length + (formData.galleryImages || []).length) > 0 && (
               <span className="chip chip-filled text-xs">
-                {(formData.galleryImageUrls || []).length + (formData.galleryImages || []).length} photo{((formData.galleryImageUrls || []).length + (formData.galleryImages || []).length) !== 1 ? 's' : ''}
+                {(formData.existingGalleryImages || []).length + (formData.galleryImages || []).length} photo{((formData.existingGalleryImages || []).length + (formData.galleryImages || []).length) !== 1 ? 's' : ''}
               </span>
             )}
           </div>
           <p className="text-sm text-[var(--gray-500)] mb-4">
-            Add photos to showcase your products, services, and workspace
+            Add photos to showcase your products, services, and workspace. Drag to reorder.
           </p>
 
           {/* Existing & New Gallery Images */}
-          {((formData.galleryImageUrls || []).length > 0 || (formData.galleryImages || []).length > 0) && (
+          {((formData.existingGalleryImages || []).length > 0 || (formData.galleryImages || []).length > 0) && (
             <div className="grid grid-cols-3 gap-2 mb-4">
               {/* Existing images from server */}
-              {(formData.galleryImageUrls || []).filter(url => url).map((url, index) => (
-                <div key={`existing-${index}`} className="relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)]">
-                  <SmartImage src={url} alt={`Gallery ${index + 1}`} className="w-full h-full object-cover" />
+              {(formData.existingGalleryImages || []).map((img, index) => (
+                <div
+                  key={`existing-${img.id}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index, false)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, index, false)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index, false)}
+                  className={`relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)] cursor-grab active:cursor-grabbing transition-all ${
+                    dragOverIndex?.index === index && !dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-105' : ''
+                  }`}
+                >
+                  <SmartImage src={img.url} alt={`Gallery ${index + 1}`} className="w-full h-full object-cover pointer-events-none" />
+                  {/* Drag handle indicator */}
+                  <div className="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeGalleryImage(index, false)}
@@ -490,11 +607,28 @@ export default function VendorProfile({ user, onSuccess }) {
               ))}
               {/* New images to upload */}
               {(formData.galleryImages || []).map((file, index) => (
-                <div key={`new-${index}`} className="relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)]">
+                <div
+                  key={`new-${index}`}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, index, true)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => handleDragOver(e, index, true)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, index, true)}
+                  className={`relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)] cursor-grab active:cursor-grabbing transition-all ${
+                    dragOverIndex?.index === index && dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-105' : ''
+                  }`}
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={URL.createObjectURL(file)} alt={`New ${index + 1}`} className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-[var(--violet-600)]/10" />
+                  <img src={URL.createObjectURL(file)} alt={`New ${index + 1}`} className="w-full h-full object-cover pointer-events-none" />
+                  <div className="absolute inset-0 bg-[var(--violet-600)]/10 pointer-events-none" />
                   <span className="absolute top-1 left-1 badge bg-[var(--violet-600)] text-white text-[10px]">New</span>
+                  {/* Drag handle indicator */}
+                  <div className="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                    </svg>
+                  </div>
                   <button
                     type="button"
                     onClick={() => removeGalleryImage(index, true)}
@@ -523,13 +657,30 @@ export default function VendorProfile({ user, onSuccess }) {
               type="file"
               accept="image/*"
               multiple
-              onChange={(e) => {
+              onChange={async (e) => {
                 const files = Array.from(e.target.files);
                 if (files.length > 0) {
-                  setFormData(prev => ({
-                    ...prev,
-                    galleryImages: [...(prev.galleryImages || []), ...files]
-                  }));
+                  setProcessingImages(true);
+                  try {
+                    const totalOriginal = files.reduce((sum, f) => sum + f.size, 0);
+                    const resizedFiles = await resizeImages(files);
+                    const totalResized = resizedFiles.reduce((sum, f) => sum + f.size, 0);
+                    if (totalResized < totalOriginal) {
+                      console.log(`Gallery images resized: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalResized)}`);
+                    }
+                    setFormData(prev => ({
+                      ...prev,
+                      galleryImages: [...(prev.galleryImages || []), ...resizedFiles]
+                    }));
+                  } catch (err) {
+                    console.error('Failed to resize images:', err);
+                    setFormData(prev => ({
+                      ...prev,
+                      galleryImages: [...(prev.galleryImages || []), ...files]
+                    }));
+                  } finally {
+                    setProcessingImages(false);
+                  }
                 }
               }}
               className="hidden"
@@ -576,10 +727,23 @@ export default function VendorProfile({ user, onSuccess }) {
           )}
         </div>
 
+        {/* Processing indicator */}
+        {processingImages && (
+          <div className="card bg-[var(--violet-50)] border border-[var(--violet-200)] p-4">
+            <div className="flex items-center gap-3">
+              <svg className="animate-spin h-5 w-5 text-[var(--violet-600)]" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-sm text-[var(--violet-700)]">Optimizing images for upload...</p>
+            </div>
+          </div>
+        )}
+
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={saving || formData.categories.length === 0}
+          disabled={saving || processingImages || formData.categories.length === 0}
           className="w-full btn btn-gradient flex items-center justify-center gap-2"
         >
           {saving && (

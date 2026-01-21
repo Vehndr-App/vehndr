@@ -5,6 +5,7 @@ import { getCurrentUser } from "../../../services/auth";
 import { api } from "../../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { resizeImages, formatFileSize } from "../../../utils/imageResize";
 
 export default function ProductsPage() {
   return (
@@ -22,6 +23,7 @@ function ProductsInner() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [processingImages, setProcessingImages] = useState(false);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
@@ -389,16 +391,45 @@ function ProductsInner() {
                     type="file"
                     accept="image/*"
                     multiple
-                    onChange={(e) => setProductForm({ ...productForm, images: Array.from(e.target.files) })}
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files);
+                      if (files.length > 0) {
+                        setProcessingImages(true);
+                        try {
+                          const totalOriginal = files.reduce((sum, f) => sum + f.size, 0);
+                          const resizedFiles = await resizeImages(files);
+                          const totalResized = resizedFiles.reduce((sum, f) => sum + f.size, 0);
+                          if (totalResized < totalOriginal) {
+                            console.log(`Product images resized: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalResized)}`);
+                          }
+                          setProductForm({ ...productForm, images: resizedFiles });
+                        } catch (err) {
+                          console.error('Failed to resize images:', err);
+                          setProductForm({ ...productForm, images: files });
+                        } finally {
+                          setProcessingImages(false);
+                        }
+                      }
+                    }}
                     className="w-full text-sm text-[var(--gray-500)] file:mr-3 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-medium file:bg-[var(--violet-50)] file:text-[var(--violet-600)]"
                   />
                 </div>
+
+                {processingImages && (
+                  <div className="flex items-center gap-2 text-sm text-[var(--violet-600)]">
+                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Optimizing images...</span>
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={closeModal} className="btn btn-outline flex-1">
                     Cancel
                   </button>
-                  <button type="submit" disabled={saving} className="btn btn-gradient flex-1">
+                  <button type="submit" disabled={saving || processingImages} className="btn btn-gradient flex-1">
                     {saving ? 'Saving...' : (editingProduct ? 'Update' : 'Create')}
                   </button>
                 </div>
