@@ -6,6 +6,7 @@ import { login, resendVerification } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ReCAPTCHA from "react-google-recaptcha";
+import ConfettiBurst from "../../components/ConfettiBurst";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,11 +17,13 @@ export default function LoginPage() {
   const [unverifiedEmail, setUnverifiedEmail] = useState("");
   const [resendSuccess, setResendSuccess] = useState(false);
   const [resending, setResending] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [allowRedirect, setAllowRedirect] = useState(true);
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
     // Redirect if already logged in
-    if (user) {
+    if (user && allowRedirect) {
       if (user.role === 'vendor') {
         router.push('/dashboard');
       } else if (user.role === 'coordinator') {
@@ -29,7 +32,7 @@ export default function LoginPage() {
         router.push('/');
       }
     }
-  }, [user, router]);
+  }, [user, router, allowRedirect]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -37,6 +40,8 @@ export default function LoginPage() {
     setError(null);
     setEmailNotVerified(false);
     setResendSuccess(false);
+    setShowConfetti(false);
+    setAllowRedirect(false);
 
     const formData = new FormData(e.target);
     const email = formData.get("email");
@@ -58,7 +63,8 @@ export default function LoginPage() {
       // Refresh the user in AuthContext
       await refreshUser();
 
-      // Router will redirect based on user role via useEffect
+      setShowConfetti(true);
+      setTimeout(() => setAllowRedirect(true), 900);
     } catch (err) {
       console.error("Login error:", err);
       // Reset reCAPTCHA on error
@@ -94,6 +100,8 @@ export default function LoginPage() {
   const handleDemoLogin = async () => {
     setLoading(true);
     setError(null);
+    setShowConfetti(false);
+    setAllowRedirect(false);
 
     // Get reCAPTCHA token
     const recaptchaToken = recaptchaRef.current?.getValue();
@@ -106,7 +114,8 @@ export default function LoginPage() {
     try {
       await login({ email: "vendor@example.com", password: "password123", recaptchaToken });
       await refreshUser();
-      // Router will redirect based on user role via useEffect
+      setShowConfetti(true);
+      setTimeout(() => setAllowRedirect(true), 900);
     } catch (err) {
       console.error(err);
       // Reset reCAPTCHA on error
@@ -126,7 +135,8 @@ export default function LoginPage() {
       
       <div className="relative max-w-md w-full">
         {/* Card */}
-        <div className="bg-white rounded-[var(--radius-3xl)] shadow-[var(--shadow-xl)] p-8 border border-[var(--gray-100)]">
+        <div className="bg-white rounded-[var(--radius-3xl)] shadow-[var(--shadow-xl)] p-8 border border-[var(--gray-100)] relative">
+          <ConfettiBurst active={showConfetti} />
           {/* Logo */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-block">
@@ -136,6 +146,12 @@ export default function LoginPage() {
             </Link>
             <h2 className="mt-3 text-xl font-semibold text-[var(--gray-900)]">Welcome back</h2>
             <p className="mt-1 text-sm text-[var(--gray-500)]">Sign in to your account to continue</p>
+          </div>
+
+          <div className="mb-6">
+            <Link href="/register" className="btn btn-gradient w-full">
+              Create Account
+            </Link>
           </div>
 
           {/* Success Message - Verification Email Sent */}
@@ -258,18 +274,6 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Sign Up Link */}
-          <div className="mt-8 text-center">
-            <p className="text-sm text-[var(--gray-600)]">
-              Don&apos;t have an account?{" "}
-              <Link 
-                href="/register" 
-                className="text-[var(--violet-600)] hover:text-[var(--violet-700)] font-semibold transition-colors"
-              >
-                Create Account
-              </Link>
-            </p>
-          </div>
         </div>
         
         {/* Footer */}

@@ -218,7 +218,7 @@ function VendorCard({ vendor, index }) {
         />
         
         {/* Favorite button */}
-        <FavoriteButton vendorId={vendor.id} className="absolute top-2 right-2 z-10" />
+        <FavoriteButton vendorId={vendor.id} className="absolute top-3 left-3 z-10" />
 
         {/* Rating Badge */}
         {vendor.rating && (

@@ -6,6 +6,7 @@ import { register } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ReCAPTCHA from "react-google-recaptcha";
+import ConfettiBurst from "../../components/ConfettiBurst";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -16,6 +17,7 @@ export default function RegisterPage() {
   const [selectedRole, setSelectedRole] = useState("vendor");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
@@ -78,6 +80,7 @@ export default function RegisterPage() {
 
       // Show success message - user needs to verify email
       setSuccess(true);
+      setShowConfetti(true);
       setLoading(false);
     } catch (err) {
       console.error("Registration error:", err);
@@ -120,7 +123,8 @@ export default function RegisterPage() {
       
       <div className="relative max-w-md w-full">
         {/* Card */}
-        <div className="bg-white rounded-[var(--radius-3xl)] shadow-[var(--shadow-xl)] p-8 border border-[var(--gray-100)]">
+        <div className="bg-white rounded-[var(--radius-3xl)] shadow-[var(--shadow-xl)] p-8 border border-[var(--gray-100)] relative">
+          <ConfettiBurst active={showConfetti} />
           {/* Logo */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-block">
@@ -165,6 +169,12 @@ export default function RegisterPage() {
                   {error}
                 </div>
               )}
+
+              <div className="mb-6">
+                <Link href="/login" className="btn btn-gradient w-full">
+                  Sign In Instead
+                </Link>
+              </div>
 
               {/* Register Form */}
           <form onSubmit={handleRegister} className="space-y-5">
@@ -341,18 +351,6 @@ export default function RegisterPage() {
             </button>
           </form>
 
-          {/* Sign In Link */}
-              <div className="mt-8 text-center">
-                <p className="text-sm text-[var(--gray-600)]">
-                  Already have an account?{" "}
-                  <Link
-                    href="/login"
-                    className="text-[var(--violet-600)] hover:text-[var(--violet-700)] font-semibold transition-colors"
-                  >
-                    Sign In
-                  </Link>
-                </p>
-              </div>
             </>
           )}
         </div>

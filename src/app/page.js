@@ -409,7 +409,7 @@ function VendorCard({ vendor, index }) {
         />
         
         {/* Favorite button - Airbnb style */}
-        <FavoriteButton vendorId={vendor.id} className="absolute top-2 right-2" />
+        <FavoriteButton vendorId={vendor.id} className="absolute top-3 left-3 z-10" />
 
         {/* Rating Badge */}
         {vendor.rating && (
