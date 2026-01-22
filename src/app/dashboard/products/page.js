@@ -24,6 +24,8 @@ function ProductsInner() {
   const [successMessage, setSuccessMessage] = useState(null);
   const [saving, setSaving] = useState(false);
   const [processingImages, setProcessingImages] = useState(false);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
@@ -31,7 +33,7 @@ function ProductsInner() {
     isService: false,
     duration: '',
     images: [],
-    existingImages: []
+    existingImages: []  // Array of {id, url} objects for reordering support
   });
 
   const fetchProducts = useCallback(async (vendorId) => {
@@ -65,6 +67,9 @@ function ProductsInner() {
   const openModal = (product = null) => {
     if (product) {
       setEditingProduct(product);
+      // Use imagesData if available (has id+url), fallback to images URLs
+      const existingImgs = product.imagesData ||
+        (product.images || []).map((url, i) => ({ id: `legacy_${i}`, url }));
       setProductForm({
         name: product.name || '',
         description: product.description || '',
@@ -72,7 +77,7 @@ function ProductsInner() {
         isService: product.isService || false,
         duration: product.duration?.toString() || '',
         images: [],
-        existingImages: product.images || []
+        existingImages: existingImgs
       });
     } else {
       setEditingProduct(null);
@@ -86,6 +91,8 @@ function ProductsInner() {
         existingImages: []
       });
     }
+    setDraggedIndex(null);
+    setDragOverIndex(null);
     setShowModal(true);
   };
 
@@ -115,10 +122,17 @@ function ProductsInner() {
         });
       }
 
-      // When editing, send the list of existing images to keep
+      // When editing, send the list of existing images to keep and their order
       if (editingProduct) {
-        productForm.existingImages.forEach((imageUrl) => {
-          formData.append('keep_images[]', imageUrl);
+        const existingImages = productForm.existingImages || [];
+        existingImages.forEach((img) => {
+          formData.append('keep_images[]', img.url);
+        });
+        // Send the order of image IDs (existing images in their current order)
+        existingImages.forEach((img) => {
+          if (img.id && !img.id.startsWith('legacy_')) {
+            formData.append('image_order[]', img.id);
+          }
         });
       }
 
@@ -158,6 +172,62 @@ function ProductsInner() {
       console.error('Failed to delete product', err);
       alert('Failed to delete product');
     }
+  };
+
+  // Drag and drop handlers for reordering images
+  const handleDragStart = (e, index, isNew) => {
+    setDraggedIndex({ index, isNew });
+    e.dataTransfer.effectAllowed = 'move';
+    e.target.style.opacity = '0.5';
+  };
+
+  const handleDragEnd = (e) => {
+    e.target.style.opacity = '1';
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragOver = (e, index, isNew) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex({ index, isNew });
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e, dropIndex, dropIsNew) => {
+    e.preventDefault();
+    if (!draggedIndex) return;
+
+    const { index: dragIndex, isNew: dragIsNew } = draggedIndex;
+
+    // Only allow reordering within the same category (existing or new)
+    if (dragIsNew !== dropIsNew) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    setProductForm(prev => {
+      if (dragIsNew) {
+        // Reorder new images
+        const newImages = [...(prev.images || [])];
+        const [removed] = newImages.splice(dragIndex, 1);
+        newImages.splice(dropIndex, 0, removed);
+        return { ...prev, images: newImages };
+      } else {
+        // Reorder existing images
+        const existingImages = [...(prev.existingImages || [])];
+        const [removed] = existingImages.splice(dragIndex, 1);
+        existingImages.splice(dropIndex, 0, removed);
+        return { ...prev, existingImages: existingImages };
+      }
+    });
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
   if (loading) {
@@ -335,16 +405,31 @@ function ProductsInner() {
 
                 <div>
                   <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Images</label>
+                  <p className="text-xs text-[var(--gray-500)] mb-3">Drag to reorder. First image is the primary photo.</p>
 
                   {/* Existing images */}
                   {productForm.existingImages.length > 0 && (
                     <div className="mb-3">
                       <p className="text-xs text-[var(--gray-500)] mb-2">Current images</p>
                       <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                        {productForm.existingImages.map((imageUrl, i) => (
-                          <div key={i} className="relative flex-shrink-0">
+                        {productForm.existingImages.map((img, i) => (
+                          <div
+                            key={`existing-${img.id || i}`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, i, false)}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={(e) => handleDragOver(e, i, false)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, i, false)}
+                            className={`relative flex-shrink-0 cursor-grab active:cursor-grabbing transition-all ${
+                              dragOverIndex?.index === i && !dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-110' : ''
+                            }`}
+                          >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                            <img src={img.url} alt="" className="w-16 h-16 rounded-lg object-cover pointer-events-none" />
+                            {i === 0 && (
+                              <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] text-center py-0.5 rounded-b-lg">Primary</span>
+                            )}
                             <button
                               type="button"
                               onClick={() => setProductForm({
@@ -369,9 +454,22 @@ function ProductsInner() {
                       <p className="text-xs text-[var(--gray-500)] mb-2">New images to add</p>
                       <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
                         {Array.from(productForm.images).map((file, i) => (
-                          <div key={i} className="relative flex-shrink-0">
+                          <div
+                            key={`new-${i}`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, i, true)}
+                            onDragEnd={handleDragEnd}
+                            onDragOver={(e) => handleDragOver(e, i, true)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, i, true)}
+                            className={`relative flex-shrink-0 cursor-grab active:cursor-grabbing transition-all ${
+                              dragOverIndex?.index === i && dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-110' : ''
+                            }`}
+                          >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover" />
+                            <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover pointer-events-none" />
+                            <div className="absolute inset-0 bg-[var(--violet-600)]/10 rounded-lg pointer-events-none" />
+                            <span className="absolute top-0 left-0 bg-[var(--violet-600)] text-white text-[8px] px-1 py-0.5 rounded-tl-lg rounded-br-lg">New</span>
                             <button
                               type="button"
                               onClick={() => setProductForm({ ...productForm, images: Array.from(productForm.images).filter((_, idx) => idx !== i) })}
@@ -402,10 +500,16 @@ function ProductsInner() {
                           if (totalResized < totalOriginal) {
                             console.log(`Product images resized: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalResized)}`);
                           }
-                          setProductForm({ ...productForm, images: resizedFiles });
+                          setProductForm(prev => ({
+                            ...prev,
+                            images: [...(prev.images || []), ...resizedFiles]
+                          }));
                         } catch (err) {
                           console.error('Failed to resize images:', err);
-                          setProductForm({ ...productForm, images: files });
+                          setProductForm(prev => ({
+                            ...prev,
+                            images: [...(prev.images || []), ...files]
+                          }));
                         } finally {
                           setProcessingImages(false);
                         }
