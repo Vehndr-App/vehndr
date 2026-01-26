@@ -4,11 +4,13 @@
  */
 
 const DEFAULT_OPTIONS = {
-  maxWidth: 1920,
-  maxHeight: 1920,
-  quality: 0.85,
-  maxFileSizeMB: 5,
+  maxWidth: 2000,
+  maxHeight: 2000,
+  quality: 0.8,
+  maxFileSizeMB: 10,
 };
+
+const DEFAULT_ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 /**
  * Resize an image file if it exceeds maximum dimensions.
@@ -144,6 +146,22 @@ export function validateFileSize(file, maxSizeMB = 10) {
     return {
       valid: false,
       message: `File "${file.name}" is ${formatFileSize(file.size)}, which exceeds the ${maxSizeMB}MB limit.`,
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * Validate file type before upload.
+ * @param {File} file - The file to check
+ * @param {string[]} allowedTypes - Allowed MIME types
+ * @returns {{ valid: boolean, message?: string }}
+ */
+export function validateFileType(file, allowedTypes = DEFAULT_ALLOWED_TYPES) {
+  if (!allowedTypes.includes(file.type)) {
+    return {
+      valid: false,
+      message: `File "${file.name}" must be a JPG, PNG, or WebP image.`,
     };
   }
   return { valid: true };

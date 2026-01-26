@@ -433,7 +433,7 @@ export default function CheckoutPage() {
                           appearance: {
                             theme: 'stripe',
                             variables: {
-                              colorPrimary: '#8b5cf6',
+                              colorPrimary: '#7C3AED',
                               borderRadius: '8px',
                             }
                           },

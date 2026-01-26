@@ -65,7 +65,7 @@ function ParticleBurst({ active, onComplete }) {
 
     const ctx = canvas.getContext("2d");
     const particles = [];
-    const colors = ["#F43F5E", "#EC4899", "#F97316", "#FBBF24", "#A855F7", "#8B5CF6"];
+    const colors = ["#FF6B6B", "#D946EF", "#F59E0B", "#8B5CF6", "#10B981"];
 
     // Create particles
     for (let i = 0; i < 12; i++) {
@@ -209,7 +209,7 @@ export default function FavoriteButton({ vendorId, className = "", size = "defau
         strokeLinejoin="round"
         className={`relative z-20 transition-all ${isAnimating ? "scale-110" : ""}`}
         style={{
-          filter: isFavorited ? "drop-shadow(0 0 4px var(--coral-400))" : "none",
+          filter: isFavorited ? "drop-shadow(0 0 4px var(--coral-500))" : "none",
         }}
       >
         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />

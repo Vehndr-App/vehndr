@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../../contexts/AuthContext";
 import AuthGate from "../../../components/AuthGate";
 import { api } from "../../../services/api";
+import ImageEditorModal from "../../../components/ImageEditorModal";
 
 const EVENT_THEMES = [
   { id: "party", emoji: "🎉", label: "Party", gradient: "from-pink-500 to-purple-600" },
@@ -63,6 +64,11 @@ function NewEventInner() {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [editorState, setEditorState] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "event-cover.jpg"
+  });
   
   // Form state
   const [eventData, setEventData] = useState({
@@ -106,14 +112,14 @@ function NewEventInner() {
     fetchVendors();
   }, [step]);
 
+  const openEditor = (imageSrc, fileName = "event-cover.jpg") => {
+    setEditorState({ isOpen: true, imageSrc, fileName });
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      setEventData(prev => ({
-        ...prev,
-        coverImage: file,
-        coverPreview: URL.createObjectURL(file)
-      }));
+      openEditor(URL.createObjectURL(file), file.name);
     }
   };
 
@@ -164,7 +170,8 @@ function NewEventInner() {
   const progress = (step / totalSteps) * 100;
 
   return (
-    <div className="min-h-screen bg-[var(--gray-50)] pb-24">
+    <>
+      <div className="min-h-screen bg-[var(--gray-50)] pb-24">
       {/* Progress Bar */}
       <div className="fixed top-14 left-0 right-0 z-40 bg-white border-b border-[var(--gray-100)]">
         <div className="h-1 bg-[var(--gray-100)]">
@@ -249,7 +256,13 @@ function NewEventInner() {
                   Cover Image
                 </label>
                 <div
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (eventData.coverPreview) {
+                      openEditor(eventData.coverPreview, "event-cover.jpg");
+                    } else {
+                      fileInputRef.current?.click();
+                    }
+                  }}
                   className={`relative aspect-[16/9] rounded-[var(--radius-2xl)] border-2 border-dashed cursor-pointer overflow-hidden transition-all ${
                     eventData.coverPreview
                       ? "border-transparent"
@@ -789,7 +802,21 @@ function NewEventInner() {
           </div>
         )}
       </div>
-    </div>
+      <ImageEditorModal
+        isOpen={editorState.isOpen}
+        imageSrc={editorState.imageSrc}
+        fileName={editorState.fileName}
+        initialAspect={16 / 9}
+        onClose={() => setEditorState({ isOpen: false, imageSrc: null, fileName: "event-cover.jpg" })}
+        onSave={(editedFile) => {
+          setEventData(prev => ({
+            ...prev,
+            coverImage: editedFile,
+            coverPreview: URL.createObjectURL(editedFile)
+          }));
+        }}
+      />
+    </>
   );
 }
 

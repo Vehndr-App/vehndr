@@ -51,7 +51,7 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
   const getStatusBadge = () => {
     if (!accountStatus || !accountStatus.connected) {
       return (
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-200 text-gray-700">
+        <span className="badge bg-[var(--gray-100)] text-[var(--gray-700)]">
           Not Connected
         </span>
       );
@@ -59,7 +59,7 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
 
     if (accountStatus.chargesEnabled) {
       return (
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+        <span className="badge bg-[var(--mint-100)] text-[var(--mint-700)]">
           Active
         </span>
       );
@@ -67,14 +67,14 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
 
     if (accountStatus.detailsSubmitted) {
       return (
-        <span className="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+        <span className="badge bg-[var(--amber-100)] text-[var(--amber-700)]">
           Under Review
         </span>
       );
     }
 
     return (
-      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+      <span className="badge bg-[var(--info-50)] text-[var(--info)]">
         Onboarding Incomplete
       </span>
     );
@@ -86,7 +86,7 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
         <button
           onClick={handleConnect}
           disabled={loading}
-          className="px-6 py-3 bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className="btn btn-gradient disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? 'Loading...' : accountStatus?.connected ? 'Complete Onboarding' : 'Connect Stripe Account'}
         </button>
@@ -97,7 +97,7 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
       <button
         onClick={handleRefreshStatus}
         disabled={loading}
-        className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed transition"
+        className="btn btn-secondary h-10 px-4 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading ? 'Refreshing...' : 'Refresh Status'}
       </button>
@@ -105,14 +105,14 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+    <div className="card p-6">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Stripe Payment Account</h3>
+        <h3 className="text-lg font-semibold text-[var(--gray-900)]">Stripe Payment Account</h3>
         {getStatusBadge()}
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+        <div className="mb-4 p-3 bg-[var(--error-50)] border border-[var(--error-100)] rounded-[var(--radius-lg)] text-[var(--error)] text-sm">
           {error}
         </div>
       )}
@@ -120,31 +120,31 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
       {accountStatus?.connected && (
         <div className="mb-4 space-y-2 text-sm">
           <div className="flex justify-between">
-            <span className="text-gray-600">Charges Enabled:</span>
-            <span className={accountStatus.chargesEnabled ? 'text-green-600 font-medium' : 'text-red-600'}>
+            <span className="text-[var(--gray-600)]">Charges Enabled:</span>
+            <span className={accountStatus.chargesEnabled ? 'text-[var(--mint-600)] font-medium' : 'text-[var(--error)]'}>
               {accountStatus.chargesEnabled ? 'Yes' : 'No'}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Payouts Enabled:</span>
-            <span className={accountStatus.payoutsEnabled ? 'text-green-600 font-medium' : 'text-red-600'}>
+            <span className="text-[var(--gray-600)]">Payouts Enabled:</span>
+            <span className={accountStatus.payoutsEnabled ? 'text-[var(--mint-600)] font-medium' : 'text-[var(--error)]'}>
               {accountStatus.payoutsEnabled ? 'Yes' : 'No'}
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-gray-600">Details Submitted:</span>
-            <span className={accountStatus.detailsSubmitted ? 'text-green-600 font-medium' : 'text-yellow-600'}>
+            <span className="text-[var(--gray-600)]">Details Submitted:</span>
+            <span className={accountStatus.detailsSubmitted ? 'text-[var(--mint-600)] font-medium' : 'text-[var(--amber-600)]'}>
               {accountStatus.detailsSubmitted ? 'Yes' : 'Incomplete'}
             </span>
           </div>
         </div>
       )}
 
-      <div className="pt-4 border-t border-gray-200">
+      <div className="pt-4 border-t border-[var(--gray-200)]">
         {getActionButton()}
       </div>
 
-      <p className="mt-4 text-xs text-gray-500">
+      <p className="mt-4 text-xs text-[var(--gray-500)]">
         {accountStatus?.chargesEnabled
           ? 'Your Stripe account is active and can accept payments.'
           : 'Connect your Stripe account to start accepting payments from customers.'}

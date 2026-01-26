@@ -6,6 +6,7 @@ import { api } from "../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import { useVendorOrders } from "../../hooks/useVendorOrders";
 import Link from "next/link";
+import OnboardingChecklist from "../../components/OnboardingChecklist";
 
 export default function DashboardPage() {
   return (
@@ -209,6 +210,12 @@ function DashboardInner() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div className="px-4 -mt-6">
+        <div className="max-w-lg mx-auto">
+          <OnboardingChecklist role="vendor" />
         </div>
       </div>
 

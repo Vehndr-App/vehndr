@@ -11,9 +11,23 @@ export default async function VendorsSelectPage({ searchParams }) {
   const category = typeof params?.category === "string" ? params.category : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
   const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:14',message:'Parsed vendor search params',data:{searchQuery,category,minPrice,maxPrice},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H2'})}).catch(()=>{});
+  // #endregion
 
   // Fetch filtered vendors for display
   const vendors = await listVendors({ search: searchQuery, category, minPrice, maxPrice });
+  const vendorIdSet = new Set(vendors.map((vendor) => vendor?.id ?? null));
+  const uniqueVendorCount = vendorIdSet.size;
+  const vendorsMissingId = vendors.filter((vendor) => !vendor?.id).length;
+  const vendorsWithMissingCategories = vendors.filter((vendor) => vendor?.categories == null).length;
+  const vendorsWithEmptyCategories = vendors.filter((vendor) => Array.isArray(vendor?.categories) && vendor.categories.length === 0).length;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:20',message:'Fetched vendors for display',data:{vendorsCount:vendors.length,uniqueVendorCount,vendorsMissingId},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H1'})}).catch(()=>{});
+  // #endregion
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:25',message:'Checked vendor category presence',data:{vendorsWithMissingCategories,vendorsWithEmptyCategories},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H4'})}).catch(()=>{});
+  // #endregion
 
   // Fetch all vendors to get all categories for the filter
   const allVendors = await listVendors();
@@ -32,6 +46,22 @@ export default async function VendorsSelectPage({ searchParams }) {
     });
     return acc;
   }, {});
+  const displayedVendors = category
+    ? (vendorsByCategory[category] || [])
+    : Object.values(vendorsByCategory).flat();
+  const displayedVendorCount = new Set(
+    displayedVendors.map((vendor) => vendor?.id).filter(Boolean)
+  ).size;
+  const categoryCounts = Object.fromEntries(
+    Object.entries(vendorsByCategory).map(([cat, list]) => [cat, list.length])
+  );
+  const selectedCategoryCount = category ? (vendorsByCategory[category] || []).length : null;
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:40',message:'Built vendor category buckets',data:{category,categoryCounts,selectedCategoryCount},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H3'})}).catch(()=>{});
+  // #endregion
+  // #region agent log
+  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:46',message:'Calculated displayed vendor count',data:{category,displayedVendorCount,displayedVendorSampleSize:displayedVendors.length},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'H5'})}).catch(()=>{});
+  // #endregion
 
   // If a category is selected, only show that category
   const sortedCategories = category
@@ -48,7 +78,7 @@ export default async function VendorsSelectPage({ searchParams }) {
               Find Vendors
             </h1>
             <p className="text-[var(--gray-500)] text-sm mt-1">
-              {vendors.length} vendor{vendors.length !== 1 ? 's' : ''} available
+              {displayedVendorCount} vendor{displayedVendorCount !== 1 ? 's' : ''} available
             </p>
           </div>
           
@@ -65,7 +95,7 @@ export default async function VendorsSelectPage({ searchParams }) {
               href="/?mode=events"
               icon="🗓️"
               label="Events"
-              color="#EDE9FE"
+              color="var(--violet-100)"
             />
             {VENDOR_CATEGORIES.filter(cat => allCategories.includes(cat)).map((cat) => {
               const display = CATEGORY_DISPLAY[cat];

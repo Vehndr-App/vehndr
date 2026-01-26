@@ -202,13 +202,13 @@ function EventCard({ event, index }) {
   const getCategoryGradient = (category) => {
     const gradients = {
       'Market': 'from-[var(--violet-500)] to-[var(--magenta-500)]',
-      'Expo': 'from-[#6366F1] to-[var(--violet-500)]',
-      'Wellness': 'from-[var(--mint-500)] to-[#14B8A6]',
+      'Expo': 'from-[var(--violet-600)] to-[var(--violet-400)]',
+      'Wellness': 'from-[var(--mint-500)] to-[var(--mint-600)]',
       'Food': 'from-[var(--coral-500)] to-[var(--amber-500)]',
       'Festival': 'from-[var(--magenta-500)] to-[var(--coral-500)]',
-      'Party': 'from-[#EC4899] to-[#F97316]',
-      'Music': 'from-[#8B5CF6] to-[#EC4899]',
-      'Educational': 'from-[#3B82F6] to-[#6366F1]',
+      'Party': 'from-[var(--magenta-500)] to-[var(--amber-500)]',
+      'Music': 'from-[var(--violet-600)] to-[var(--magenta-500)]',
+      'Educational': 'from-[var(--info)] to-[var(--violet-500)]',
     };
     return gradients[category] || 'from-[var(--violet-500)] to-[var(--magenta-500)]';
   };

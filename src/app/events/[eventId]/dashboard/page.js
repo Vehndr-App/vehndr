@@ -251,7 +251,7 @@ function EventDashboardInner() {
     return (
       <div className="flex items-center justify-center min-h-screen px-4">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-4 border-gray-200 border-t-[#01DBE0] mb-3 sm:mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-4 border-[var(--gray-200)] border-t-[var(--violet-600)] mb-3 sm:mb-4"></div>
           <p className="text-sm sm:text-base text-gray-600 font-medium">Loading event dashboard...</p>
         </div>
       </div>
@@ -267,7 +267,7 @@ function EventDashboardInner() {
           <p className="text-sm sm:text-base text-gray-600 mb-6">{error}</p>
           <Link
             href="/coordinator-dashboard"
-            className="inline-flex items-center justify-center min-h-[44px] px-6 py-3 bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white text-sm sm:text-base font-semibold rounded-lg hover:opacity-90 active:opacity-80 transition-opacity"
+            className="btn btn-gradient min-h-[44px] px-6 py-3 text-sm sm:text-base"
           >
             Back to My Events
           </Link>

@@ -67,8 +67,8 @@ function SuccessContent() {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12 text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
-        <p className="mt-4 text-gray-600">Processing your order...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--violet-600)] mx-auto"></div>
+        <p className="mt-4 text-[var(--gray-600)]">Processing your order...</p>
       </div>
     );
   }
@@ -76,10 +76,10 @@ function SuccessContent() {
   if (error) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <div className="text-4xl mb-4">X</div>
-          <h1 className="text-2xl font-bold text-red-900 mb-2">Error</h1>
-          <p className="text-red-700">{error}</p>
+        <div className="bg-[var(--error-50)] border border-[var(--error-100)] rounded-[var(--radius-xl)] p-6 text-center">
+          <div className="text-4xl mb-4">×</div>
+          <h1 className="text-2xl font-bold text-[var(--error)] mb-2">Error</h1>
+          <p className="text-[var(--error)]">{error}</p>
         </div>
       </div>
     );
@@ -87,22 +87,22 @@ function SuccessContent() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-12">
-      <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-8 text-center">
+      <div className="card p-8 text-center">
         <div className="text-6xl mb-4">
-          <svg className="w-16 h-16 mx-auto text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg className="w-16 h-16 mx-auto text-[var(--mint-500)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="10" />
             <path d="M9 12l2 2 4-4" />
           </svg>
         </div>
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Payment Successful!</h1>
-        <p className="text-lg text-gray-600 mb-8">
+        <h1 className="text-3xl font-bold text-[var(--gray-900)] mb-4">Payment Successful!</h1>
+        <p className="text-lg text-[var(--gray-600)] mb-8">
           Thank you for your order. Your payment has been processed successfully.
         </p>
 
         {/* Booking Details with Add to Calendar */}
         {hasBookings && (
-          <div className="bg-violet-50 border border-violet-200 rounded-lg p-6 mb-8 text-left">
-            <h2 className="font-semibold text-violet-900 mb-4 flex items-center gap-2">
+          <div className="bg-[var(--violet-50)] border border-[var(--violet-100)] rounded-[var(--radius-xl)] p-6 mb-8 text-left">
+            <h2 className="font-semibold text-[var(--violet-700)] mb-4 flex items-center gap-2">
               <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                 <line x1="16" y1="2" x2="16" y2="6" />
@@ -113,11 +113,11 @@ function SuccessContent() {
             </h2>
             <div className="space-y-4">
               {itemsWithBookings.map((item) => (
-                <div key={item.id} className="bg-white rounded-lg p-4 border border-violet-100">
+                <div key={item.id} className="bg-white rounded-[var(--radius-lg)] p-4 border border-[var(--violet-100)]">
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
                     <div>
-                      <h3 className="font-semibold text-gray-900">{item.productName}</h3>
-                      <div className="mt-2 text-sm text-gray-600 space-y-1">
+                      <h3 className="font-semibold text-[var(--gray-900)]">{item.productName}</h3>
+                      <div className="mt-2 text-sm text-[var(--gray-600)] space-y-1">
                         <p className="flex items-center gap-2">
                           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -155,9 +155,9 @@ function SuccessContent() {
           </div>
         )}
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
-          <h2 className="font-semibold text-blue-900 mb-2">What&apos;s Next?</h2>
-          <ul className="text-sm text-blue-800 space-y-2 text-left">
+        <div className="bg-[var(--info-50)] border border-[var(--info-100)] rounded-[var(--radius-xl)] p-6 mb-8">
+          <h2 className="font-semibold text-[var(--info)] mb-2">What&apos;s Next?</h2>
+          <ul className="text-sm text-[var(--info)] space-y-2 text-left">
             <li className="flex items-start">
               <span className="mr-2">-</span>
               <span>You&apos;ll receive an order confirmation email shortly</span>
@@ -182,22 +182,22 @@ function SuccessContent() {
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={() => router.push('/vendors')}
-            className="px-6 py-3 bg-gradient-to-r from-[#01DBE0] to-[#FD237A] text-white rounded-lg font-semibold hover:opacity-90 transition"
+            className="btn btn-gradient"
           >
             Continue Shopping
           </button>
           <button
             onClick={() => router.push('/')}
-            className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition"
+            className="btn btn-secondary"
           >
             Go to Home
           </button>
         </div>
 
         {order && (
-          <div className="mt-8 pt-8 border-t border-gray-200">
-            <h3 className="font-semibold text-gray-900 mb-4">Order Summary</h3>
-            <div className="text-sm text-gray-600 space-y-2">
+          <div className="mt-8 pt-8 border-t border-[var(--gray-200)]">
+            <h3 className="font-semibold text-[var(--gray-900)] mb-4">Order Summary</h3>
+            <div className="text-sm text-[var(--gray-600)] space-y-2">
               <div className="flex justify-between">
                 <span>Order ID:</span>
                 <span className="font-mono text-xs">{order.id}</span>

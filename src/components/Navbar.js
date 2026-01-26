@@ -86,9 +86,14 @@ export default function Navbar() {
             ) : (
               <Link 
                 href="/" 
-                className="font-display text-xl tracking-tight text-gradient-primary"
+                className="flex items-center gap-2"
+                aria-label="Vehndr home"
               >
-                vehndr
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <span className="font-display text-xl tracking-tight text-gradient-primary">
+                  vehndr
+                </span>
+                <span className="sr-only">Vehndr</span>
               </Link>
             )}
           </div>

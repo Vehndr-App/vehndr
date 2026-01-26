@@ -1,10 +1,26 @@
 "use client";
 
-import AuthGate from "../../../components/AuthGate";
-import { getCurrentUser } from "../../../services/auth";
-import { api } from "../../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import AuthGate from "../../../components/AuthGate";
+import ImageEditorModal from "../../../components/ImageEditorModal";
+import { getCurrentUser } from "../../../services/auth";
+import { api } from "../../../services/api";
 import { resizeImages, formatFileSize } from "../../../utils/imageResize";
 
 export default function ProductsPage() {
@@ -30,9 +46,18 @@ function ProductsInner() {
     price: '',
     isService: false,
     duration: '',
-    images: [],
-    existingImages: []
+    imageItems: []
   });
+  const [imageEditor, setImageEditor] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "product-photo.jpg",
+    targetId: null
+  });
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   const fetchProducts = useCallback(async (vendorId) => {
     try {
@@ -65,14 +90,21 @@ function ProductsInner() {
   const openModal = (product = null) => {
     if (product) {
       setEditingProduct(product);
+      const existingItems = (product.images_data ||
+        (product.images || []).map((url, i) => ({ id: `legacy_${i}`, url }))
+      ).map((img) => ({
+        id: img.id,
+        url: img.url,
+        isExisting: true,
+        file: null
+      }));
       setProductForm({
         name: product.name || '',
         description: product.description || '',
         price: product.price ? (product.price / 100).toString() : '',
         isService: product.isService || false,
         duration: product.duration?.toString() || '',
-        images: [],
-        existingImages: product.images || []
+        imageItems: existingItems
       });
     } else {
       setEditingProduct(null);
@@ -82,8 +114,7 @@ function ProductsInner() {
         price: '',
         isService: false,
         duration: '',
-        images: [],
-        existingImages: []
+        imageItems: []
       });
     }
     setShowModal(true);
@@ -92,6 +123,37 @@ function ProductsInner() {
   const closeModal = () => {
     setShowModal(false);
     setEditingProduct(null);
+  };
+
+  const createImageItem = (file) => ({
+    id: `new_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    url: URL.createObjectURL(file),
+    file,
+    isExisting: false
+  });
+
+  const openImageEditor = (item) => {
+    setImageEditor({
+      isOpen: true,
+      imageSrc: item.url,
+      fileName: item.file?.name || "product-photo.jpg",
+      targetId: item.id
+    });
+  };
+
+  const handleImageDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const current = productForm.imageItems;
+    const oldIndex = current.findIndex((img) => img.id === active.id);
+    const newIndex = current.findIndex((img) => img.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    setProductForm((prev) => ({
+      ...prev,
+      imageItems: arrayMove(current, oldIndex, newIndex)
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -109,16 +171,26 @@ function ProductsInner() {
       }
 
       // Add new images
-      if (productForm.images && productForm.images.length > 0) {
-        productForm.images.forEach((image) => {
-          formData.append('images[]', image);
+      const existingItems = productForm.imageItems.filter((item) => item.isExisting);
+      const newItems = productForm.imageItems.filter((item) => !item.isExisting);
+      if (newItems.length > 0) {
+        newItems.forEach((item) => {
+          if (item.file) {
+            formData.append('images[]', item.file);
+          }
         });
       }
 
       // When editing, send the list of existing images to keep
       if (editingProduct) {
-        productForm.existingImages.forEach((imageUrl) => {
+        existingItems.forEach((item) => {
+          const imageUrl = item.url;
           formData.append('keep_images[]', imageUrl);
+        });
+        existingItems.forEach((item) => {
+          if (item.id && !item.id.startsWith("legacy_")) {
+            formData.append("image_order[]", item.id);
+          }
         });
       }
 
@@ -335,55 +407,33 @@ function ProductsInner() {
 
                 <div>
                   <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Images</label>
-
-                  {/* Existing images */}
-                  {productForm.existingImages.length > 0 && (
+                  {productForm.imageItems.length > 0 && (
                     <div className="mb-3">
-                      <p className="text-xs text-[var(--gray-500)] mb-2">Current images</p>
-                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                        {productForm.existingImages.map((imageUrl, i) => (
-                          <div key={i} className="relative flex-shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={imageUrl} alt="" className="w-16 h-16 rounded-lg object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => setProductForm({
-                                ...productForm,
-                                existingImages: productForm.existingImages.filter((_, idx) => idx !== i)
-                              })}
-                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                      <p className="text-xs text-[var(--gray-500)] mb-2">Drag to reorder</p>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleImageDragEnd}
+                      >
+                        <SortableContext items={productForm.imageItems.map((item) => item.id)} strategy={rectSortingStrategy}>
+                          <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                            {productForm.imageItems.map((item) => (
+                              <SortableProductImage
+                                key={item.id}
+                                id={item.id}
+                                item={item}
+                                onEdit={() => openImageEditor(item)}
+                                onRemove={() =>
+                                  setProductForm((prev) => ({
+                                    ...prev,
+                                    imageItems: prev.imageItems.filter((img) => img.id !== item.id)
+                                  }))
+                                }
+                              />
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* New images preview */}
-                  {productForm.images.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-xs text-[var(--gray-500)] mb-2">New images to add</p>
-                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                        {Array.from(productForm.images).map((file, i) => (
-                          <div key={i} className="relative flex-shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => setProductForm({ ...productForm, images: Array.from(productForm.images).filter((_, idx) => idx !== i) })}
-                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                        </SortableContext>
+                      </DndContext>
                     </div>
                   )}
 
@@ -402,10 +452,16 @@ function ProductsInner() {
                           if (totalResized < totalOriginal) {
                             console.log(`Product images resized: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalResized)}`);
                           }
-                          setProductForm({ ...productForm, images: resizedFiles });
+                          setProductForm((prev) => ({
+                            ...prev,
+                            imageItems: [...prev.imageItems, ...resizedFiles.map(createImageItem)]
+                          }));
                         } catch (err) {
                           console.error('Failed to resize images:', err);
-                          setProductForm({ ...productForm, images: files });
+                          setProductForm((prev) => ({
+                            ...prev,
+                            imageItems: [...prev.imageItems, ...files.map(createImageItem)]
+                          }));
                         } finally {
                           setProcessingImages(false);
                         }
@@ -438,6 +494,27 @@ function ProductsInner() {
           </div>
         </div>
       )}
+      <ImageEditorModal
+        isOpen={imageEditor.isOpen}
+        imageSrc={imageEditor.imageSrc}
+        fileName={imageEditor.fileName}
+        initialAspect={1}
+        onClose={() => setImageEditor({ isOpen: false, imageSrc: null, fileName: "product-photo.jpg", targetId: null })}
+        onSave={(editedFile) => {
+          setProductForm((prev) => ({
+            ...prev,
+            imageItems: prev.imageItems.map((item) => {
+              if (item.id !== imageEditor.targetId) return item;
+              return {
+                ...item,
+                url: URL.createObjectURL(editedFile),
+                file: editedFile,
+                isExisting: false
+              };
+            })
+          }));
+        }}
+      />
     </div>
   );
 }
@@ -494,6 +571,54 @@ function ProductCard({ product, onEdit, onDelete }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SortableProductImage({ id, item, onEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative flex-shrink-0 cursor-grab active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={item.url} alt="" className="w-16 h-16 rounded-lg object-cover" />
+      {!item.isExisting && (
+        <span className="absolute top-1 left-1 badge bg-[var(--violet-600)] text-white text-[10px]">New</span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit?.();
+        }}
+        className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6-6m2.828 2.828l-6 6M7 17l-2 2 2-2z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove?.();
+        }}
+        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }

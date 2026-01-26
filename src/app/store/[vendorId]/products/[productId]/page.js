@@ -795,7 +795,7 @@ export default function ProductPage() {
                   href={calendarLinks?.google}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-[#4285f4] text-white rounded-[var(--radius-lg)] text-sm font-medium hover:bg-[#3367d6] transition-colors"
+                  className="btn btn-gradient h-10 px-4 text-sm"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M19.5 3h-15A1.5 1.5 0 003 4.5v15A1.5 1.5 0 004.5 21h15a1.5 1.5 0 001.5-1.5v-15A1.5 1.5 0 0019.5 3zm-9 15h-3v-9h3v9zm6 0h-3V9h3v9z"/>
@@ -804,7 +804,7 @@ export default function ProductPage() {
                 </a>
                 <button
                   onClick={() => downloadIcsFile(calendarLinks?.ics, `booking-${confirmedBooking.id}.ics`)}
-                  className="flex items-center gap-2 px-4 py-2 bg-[var(--gray-600)] text-white rounded-[var(--radius-lg)] text-sm font-medium hover:bg-[var(--gray-700)] transition-colors"
+                  className="btn btn-outline h-10 px-4 text-sm"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>

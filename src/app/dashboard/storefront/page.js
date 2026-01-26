@@ -4,7 +4,23 @@ import AuthGate from "../../../components/AuthGate";
 import { getCurrentUser } from "../../../services/auth";
 import { api } from "../../../services/api";
 import { useEffect, useState, useCallback, useRef } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import SmartImage from "../../../components/SmartImage";
+import ImageEditorModal from "../../../components/ImageEditorModal";
 
 export default function StorefrontPage() {
   return (
@@ -230,16 +246,25 @@ function POSSystem() {
       }
 
       // Add new images
-      if (productData.images && productData.images.length > 0) {
-        productData.images.forEach((image) => {
-          formData.append('images[]', image);
+      const existingItems = productData.imageItems?.filter((item) => item.isExisting) || [];
+      const newItems = productData.imageItems?.filter((item) => !item.isExisting) || [];
+      if (newItems.length > 0) {
+        newItems.forEach((item) => {
+          if (item.file) {
+            formData.append('images[]', item.file);
+          }
         });
       }
 
       // When editing, send the list of existing images to keep
-      if (editingProduct && productData.existingImages) {
-        productData.existingImages.forEach((imageUrl) => {
-          formData.append('keep_images[]', imageUrl);
+      if (editingProduct && existingItems.length > 0) {
+        existingItems.forEach((item) => {
+          formData.append('keep_images[]', item.url);
+        });
+        existingItems.forEach((item) => {
+          if (item.id && !item.id.startsWith("legacy_")) {
+            formData.append("image_order[]", item.id);
+          }
         });
       }
 
@@ -968,10 +993,57 @@ function ProductModal({ product, onSave, onClose }) {
     price: product ? (product.price / 100).toString() : '',
     isService: product?.isService || false,
     duration: product?.duration?.toString() || '',
-    images: [],
-    existingImages: product?.images || []
+    imageItems: (product?.images_data || (product?.images || []).map((url, i) => ({ id: `legacy_${i}`, url }))).map(
+      (img) => ({
+        id: img.id,
+        url: img.url,
+        isExisting: true,
+        file: null
+      })
+    )
   });
   const [saving, setSaving] = useState(false);
+  const [imageEditor, setImageEditor] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "product-photo.jpg",
+    targetId: null
+  });
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const createImageItem = (file) => ({
+    id: `new_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    url: URL.createObjectURL(file),
+    file,
+    isExisting: false
+  });
+
+  const openImageEditor = (item) => {
+    setImageEditor({
+      isOpen: true,
+      imageSrc: item.url,
+      fileName: item.file?.name || "product-photo.jpg",
+      targetId: item.id
+    });
+  };
+
+  const handleImageDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const current = form.imageItems;
+    const oldIndex = current.findIndex((img) => img.id === active.id);
+    const newIndex = current.findIndex((img) => img.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    setForm((prev) => ({
+      ...prev,
+      imageItems: arrayMove(current, oldIndex, newIndex)
+    }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -981,10 +1053,11 @@ function ProductModal({ product, onSave, onClose }) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl max-h-[90vh] overflow-y-auto safe-area-bottom rounded-t-3xl">
-        <div className="p-6">
+    <>
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+        <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl max-h-[90vh] overflow-y-auto safe-area-bottom rounded-t-3xl">
+          <div className="p-6">
           {/* Handle */}
           <div className="w-10 h-1 bg-[var(--gray-300)] rounded-full mx-auto mb-6 sm:hidden" />
           
@@ -1086,54 +1159,33 @@ function ProductModal({ product, onSave, onClose }) {
             <div>
               <label className="block text-sm font-semibold text-[var(--gray-700)] mb-2">Photos</label>
 
-              {/* Existing images */}
-              {form.existingImages.length > 0 && (
+              {form.imageItems.length > 0 && (
                 <div className="mb-3">
-                  <p className="text-xs text-[var(--gray-500)] mb-2">Current images</p>
-                  <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                    {form.existingImages.map((imageUrl, i) => (
-                      <div key={i} className="relative flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={imageUrl} alt="" className="w-20 h-20 rounded-xl object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setForm({
-                            ...form,
-                            existingImages: form.existingImages.filter((_, idx) => idx !== i)
-                          })}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--error)] text-white flex items-center justify-center shadow-md"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                  <p className="text-xs text-[var(--gray-500)] mb-2">Drag to reorder</p>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={handleImageDragEnd}
+                  >
+                    <SortableContext items={form.imageItems.map((item) => item.id)} strategy={rectSortingStrategy}>
+                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                        {form.imageItems.map((item) => (
+                          <SortableProductImage
+                            key={item.id}
+                            id={item.id}
+                            item={item}
+                            onEdit={() => openImageEditor(item)}
+                            onRemove={() =>
+                              setForm((prev) => ({
+                                ...prev,
+                                imageItems: prev.imageItems.filter((img) => img.id !== item.id)
+                              }))
+                            }
+                          />
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* New images preview */}
-              {form.images.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs text-[var(--gray-500)] mb-2">New images to add</p>
-                  <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                    {Array.from(form.images).map((file, i) => (
-                      <div key={i} className="relative flex-shrink-0">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={URL.createObjectURL(file)} alt="" className="w-20 h-20 rounded-xl object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, images: Array.from(form.images).filter((_, idx) => idx !== i) })}
-                          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--error)] text-white flex items-center justify-center shadow-md"
-                        >
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                    </SortableContext>
+                  </DndContext>
                 </div>
               )}
 
@@ -1146,7 +1198,12 @@ function ProductModal({ product, onSave, onClose }) {
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => setForm({ ...form, images: Array.from(e.target.files) })}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      imageItems: [...prev.imageItems, ...Array.from(e.target.files).map(createImageItem)]
+                    }))
+                  }
                   className="hidden"
                 />
               </label>
@@ -1170,8 +1227,78 @@ function ProductModal({ product, onSave, onClose }) {
               </button>
             </div>
           </form>
+          </div>
         </div>
       </div>
+      <ImageEditorModal
+        isOpen={imageEditor.isOpen}
+        imageSrc={imageEditor.imageSrc}
+        fileName={imageEditor.fileName}
+        initialAspect={1}
+        onClose={() => setImageEditor({ isOpen: false, imageSrc: null, fileName: "product-photo.jpg", targetId: null })}
+        onSave={(editedFile) => {
+          setForm((prev) => ({
+            ...prev,
+            imageItems: prev.imageItems.map((item) => {
+              if (item.id !== imageEditor.targetId) return item;
+              return {
+                ...item,
+                url: URL.createObjectURL(editedFile),
+                file: editedFile,
+                isExisting: false
+              };
+            })
+          }));
+        }}
+      />
+    </>
+  );
+}
+
+function SortableProductImage({ id, item, onEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative flex-shrink-0 cursor-grab active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={item.url} alt="" className="w-20 h-20 rounded-xl object-cover" />
+      {!item.isExisting && (
+        <span className="absolute top-1 left-1 badge bg-[var(--violet-600)] text-white text-[10px]">New</span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit?.();
+        }}
+        className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6-6m2.828 2.828l-6 6M7 17l-2 2 2-2z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove?.();
+        }}
+        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[var(--error)] text-white flex items-center justify-center shadow-md"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }

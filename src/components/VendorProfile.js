@@ -1,10 +1,32 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { api } from "../services/api";
 import SmartImage from "./SmartImage";
+import ImageEditorModal from "./ImageEditorModal";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
-import { resizeImage, resizeImages, formatFileSize } from "../utils/imageResize";
+import {
+  resizeImage,
+  resizeImages,
+  formatFileSize,
+  validateFileSize,
+  validateFileType
+} from "../utils/imageResize";
 
 export default function VendorProfile({ user, onSuccess }) {
   const [vendor, setVendor] = useState(null);
@@ -23,8 +45,21 @@ export default function VendorProfile({ user, onSuccess }) {
   });
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [processingImages, setProcessingImages] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(null);
+  const [savingOrder, setSavingOrder] = useState(false);
+  const [galleryItems, setGalleryItems] = useState([]);
+  const [heroEditor, setHeroEditor] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "cover-photo.jpg"
+  });
+  const [galleryEditor, setGalleryEditor] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "gallery-photo.jpg",
+    targetId: null,
+    isExisting: false
+  });
 
   const fetchVendor = useCallback(async () => {
     if (!user?.vendorId) {
@@ -52,6 +87,15 @@ export default function VendorProfile({ user, onSuccess }) {
         categories: vendorData.categories || []
       };
       setFormData(newFormData);
+      const existingItems = (vendorData.galleryImagesData ||
+        (vendorData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
+      ).map((img) => ({
+        id: img.id,
+        url: img.url,
+        isExisting: true,
+        file: null
+      }));
+      setGalleryItems(existingItems);
     } catch (err) {
       console.error("Failed to fetch vendor", err);
       setError(`Failed to load vendor profile: ${err.message}`);
@@ -92,23 +136,26 @@ export default function VendorProfile({ user, onSuccess }) {
         formDataToSend.append('remove_hero_image', 'true');
       }
 
+      const newGalleryItems = galleryItems.filter((item) => !item.isExisting);
+      const existingGalleryItems = galleryItems.filter((item) => item.isExisting);
+
       // Add gallery images if new files were selected
-      if (formData.galleryImages && formData.galleryImages.length > 0) {
-        formData.galleryImages.forEach(image => {
-          formDataToSend.append('vendor[gallery_images][]', image);
+      if (newGalleryItems.length > 0) {
+        newGalleryItems.forEach(item => {
+          if (!item.file) return;
+          formDataToSend.append('vendor[gallery_images][]', item.file);
         });
       }
 
       // When editing, send the list of existing gallery images to keep and their order
       // This allows the backend to delete images that were removed and maintain order
       if (vendor) {
-        const existingImages = formData.existingGalleryImages || [];
-        if (existingImages.length > 0) {
-          existingImages.forEach(img => {
+        if (existingGalleryItems.length > 0) {
+          existingGalleryItems.forEach(img => {
             formDataToSend.append('keep_gallery_images[]', img.url);
           });
           // Send the order of image IDs (existing images in their current order)
-          existingImages.forEach(img => {
+          existingGalleryItems.forEach(img => {
             if (img.id && !img.id.startsWith('legacy_')) {
               formDataToSend.append('vendor[gallery_image_order][]', img.id);
             }
@@ -141,6 +188,15 @@ export default function VendorProfile({ user, onSuccess }) {
         existingGalleryImages: resultData.galleryImagesData ||
           (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
       }));
+      const nextGalleryItems = (resultData.galleryImagesData ||
+        (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
+      ).map((img) => ({
+        id: img.id,
+        url: img.url,
+        isExisting: true,
+        file: null
+      }));
+      setGalleryItems(nextGalleryItems);
 
       if (onSuccess) {
         onSuccess(resultData);
@@ -162,74 +218,108 @@ export default function VendorProfile({ user, onSuccess }) {
     }));
   };
 
-  const removeGalleryImage = (index, isNew = false) => {
-    if (isNew) {
-      setFormData(prev => ({
-        ...prev,
-        galleryImages: (prev.galleryImages || []).filter((_, i) => i !== index)
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        existingGalleryImages: (prev.existingGalleryImages || []).filter((_, i) => i !== index)
-      }));
-    }
+  const openHeroEditor = (imageSrc, fileName = "cover-photo.jpg") => {
+    setHeroEditor({ isOpen: true, imageSrc, fileName });
   };
 
-  // Drag and drop handlers for reordering gallery images
-  const handleDragStart = (e, index, isNew) => {
-    setDraggedIndex({ index, isNew });
-    e.dataTransfer.effectAllowed = 'move';
-    e.target.style.opacity = '0.5';
+  const openGalleryEditor = (item) => {
+    setGalleryEditor({
+      isOpen: true,
+      imageSrc: item.url,
+      fileName: item.file?.name || "gallery-photo.jpg",
+      targetId: item.id,
+      isExisting: item.isExisting
+    });
   };
 
-  const handleDragEnd = (e) => {
-    e.target.style.opacity = '1';
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+  const createGalleryItem = (file) => ({
+    id: `new_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    url: URL.createObjectURL(file),
+    file,
+    isExisting: false
+  });
+
+  const removeGalleryImage = (itemId, isExisting) => {
+    setConfirmRemove({ itemId, isExisting });
   };
 
-  const handleDragOver = (e, index, isNew) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex({ index, isNew });
-  };
+  const sortableIds = useMemo(() => galleryItems.map((item) => item.id), [galleryItems]);
 
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
-  const handleDrop = (e, dropIndex, dropIsNew) => {
-    e.preventDefault();
-    if (!draggedIndex) return;
-
-    const { index: dragIndex, isNew: dragIsNew } = draggedIndex;
-
-    // Only allow reordering within the same category (existing or new)
-    if (dragIsNew !== dropIsNew) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
+  const persistGalleryOrder = async (nextImages) => {
+    const orderedIds = nextImages
+      .filter((img) => img.isExisting)
+      .map((img) => img.id)
+      .filter((id) => id && !id.startsWith("legacy_"));
+    const hasLegacy = orderedIds.length !== nextImages.filter((img) => img.isExisting).length;
+    if (hasLegacy) {
+      setError("Some images need a full save to persist order.");
       return;
     }
 
-    setFormData(prev => {
-      if (dragIsNew) {
-        // Reorder new gallery images
-        const newImages = [...(prev.galleryImages || [])];
-        const [removed] = newImages.splice(dragIndex, 1);
-        newImages.splice(dropIndex, 0, removed);
-        return { ...prev, galleryImages: newImages };
-      } else {
-        // Reorder existing gallery images
-        const existingImages = [...(prev.existingGalleryImages || [])];
-        const [removed] = existingImages.splice(dragIndex, 1);
-        existingImages.splice(dropIndex, 0, removed);
-        return { ...prev, existingGalleryImages: existingImages };
-      }
-    });
+    setSavingOrder(true);
+    try {
+      await api(`/api/vendors/${vendor.id}/photos/reorder`, {
+        method: "PATCH",
+        body: { ordered_ids: orderedIds }
+      });
+    } catch (err) {
+      throw err;
+    } finally {
+      setSavingOrder(false);
+    }
+  };
 
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+  const handleGalleryDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const current = galleryItems;
+    const oldIndex = current.findIndex((img) => img.id === active.id);
+    const newIndex = current.findIndex((img) => img.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const nextImages = arrayMove(current, oldIndex, newIndex);
+    setGalleryItems(nextImages);
+
+    const existingOnly = nextImages.filter((img) => img.isExisting);
+    if (existingOnly.length === nextImages.length) {
+      try {
+        await persistGalleryOrder(existingOnly);
+      } catch (err) {
+        setGalleryItems(current);
+        setError(err.message || "Failed to save gallery order");
+      }
+    }
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!confirmRemove) return;
+    const { itemId, isExisting } = confirmRemove;
+    setConfirmRemove(null);
+
+    if (!isExisting) {
+      setGalleryItems((prev) => prev.filter((item) => item.id !== itemId));
+      return;
+    }
+
+    const existingImages = galleryItems.filter((item) => item.isExisting);
+    const image = existingImages.find((item) => item.id === itemId);
+    if (!image) return;
+
+    const nextImages = galleryItems.filter((item) => item.id !== itemId);
+    setGalleryItems(nextImages);
+
+    try {
+      await api(`/api/vendors/${vendor.id}/photos/${image.id}`, { method: "DELETE" });
+    } catch (err) {
+      setGalleryItems(galleryItems);
+      setError(err.message || "Failed to remove photo");
+    }
   };
 
   const handleUseMyLocation = async () => {
@@ -325,9 +415,7 @@ export default function VendorProfile({ user, onSuccess }) {
       : formData.heroImageUrl;
 
     // Filter out any null/undefined URLs
-    const existingGalleryUrls = (formData.existingGalleryImages || []).map(img => img.url).filter(url => url);
-    const newGalleryUrls = (formData.galleryImages || []).map(f => URL.createObjectURL(f));
-    const allGalleryImages = [...existingGalleryUrls, ...newGalleryUrls];
+    const allGalleryImages = galleryItems.map((item) => item.url).filter((url) => url);
 
     if (!heroUrl && allGalleryImages.length === 0 && !formData.name) {
       return null;
@@ -507,6 +595,13 @@ export default function VendorProfile({ user, onSuccess }) {
               </div>
               <button
                 type="button"
+                onClick={() => openHeroEditor(formData.heroImage ? URL.createObjectURL(formData.heroImage) : formData.heroImageUrl)}
+                className="absolute top-2 left-2 px-3 py-1.5 rounded-full bg-black/60 text-white text-xs font-semibold hover:bg-black/70 transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
                 onClick={() => setFormData({ ...formData, heroImage: null, heroImageUrl: '' })}
                 className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
               >
@@ -530,25 +625,22 @@ export default function VendorProfile({ user, onSuccess }) {
             </div>
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               onChange={async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                  setProcessingImages(true);
-                  try {
-                    const originalSize = file.size;
-                    const resizedFile = await resizeImage(file, { maxWidth: 2400, maxHeight: 800 });
-                    const newSize = resizedFile.size;
-                    if (newSize < originalSize) {
-                      console.log(`Hero image resized: ${formatFileSize(originalSize)} → ${formatFileSize(newSize)}`);
-                    }
-                    setFormData(prev => ({ ...prev, heroImage: resizedFile }));
-                  } catch (err) {
-                    console.error('Failed to resize image:', err);
-                    setFormData(prev => ({ ...prev, heroImage: file }));
-                  } finally {
-                    setProcessingImages(false);
+                  const typeCheck = validateFileType(file);
+                  if (!typeCheck.valid) {
+                    setError(typeCheck.message);
+                    return;
                   }
+                  const sizeCheck = validateFileSize(file, 10);
+                  if (!sizeCheck.valid) {
+                    setError(sizeCheck.message);
+                    return;
+                  }
+                  setError(null);
+                  openHeroEditor(URL.createObjectURL(file), file.name);
                 }
               }}
               className="hidden"
@@ -560,9 +652,9 @@ export default function VendorProfile({ user, onSuccess }) {
         <div className="card bg-white p-5">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-h4">Gallery Photos</h3>
-            {((formData.existingGalleryImages || []).length + (formData.galleryImages || []).length) > 0 && (
+            {galleryItems.length > 0 && (
               <span className="chip chip-filled text-xs">
-                {(formData.existingGalleryImages || []).length + (formData.galleryImages || []).length} photo{((formData.existingGalleryImages || []).length + (formData.galleryImages || []).length) !== 1 ? 's' : ''}
+                {galleryItems.length} photo{galleryItems.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -571,75 +663,26 @@ export default function VendorProfile({ user, onSuccess }) {
           </p>
 
           {/* Existing & New Gallery Images */}
-          {((formData.existingGalleryImages || []).length > 0 || (formData.galleryImages || []).length > 0) && (
+          {galleryItems.length > 0 && (
             <div className="grid grid-cols-3 gap-2 mb-4">
-              {/* Existing images from server */}
-              {(formData.existingGalleryImages || []).map((img, index) => (
-                <div
-                  key={`existing-${img.id}`}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index, false)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => handleDragOver(e, index, false)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index, false)}
-                  className={`relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)] cursor-grab active:cursor-grabbing transition-all ${
-                    dragOverIndex?.index === index && !dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-105' : ''
-                  }`}
-                >
-                  <SmartImage src={img.url} alt={`Gallery ${index + 1}`} className="w-full h-full object-cover pointer-events-none" />
-                  {/* Drag handle indicator */}
-                  <div className="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                    </svg>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeGalleryImage(index, false)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
-              {/* New images to upload */}
-              {(formData.galleryImages || []).map((file, index) => (
-                <div
-                  key={`new-${index}`}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, index, true)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => handleDragOver(e, index, true)}
-                  onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, index, true)}
-                  className={`relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)] cursor-grab active:cursor-grabbing transition-all ${
-                    dragOverIndex?.index === index && dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-105' : ''
-                  }`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={URL.createObjectURL(file)} alt={`New ${index + 1}`} className="w-full h-full object-cover pointer-events-none" />
-                  <div className="absolute inset-0 bg-[var(--violet-600)]/10 pointer-events-none" />
-                  <span className="absolute top-1 left-1 badge bg-[var(--violet-600)] text-white text-[10px]">New</span>
-                  {/* Drag handle indicator */}
-                  <div className="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
-                    </svg>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeGalleryImage(index, true)}
-                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleGalleryDragEnd}
+              >
+                <SortableContext items={sortableIds} strategy={rectSortingStrategy}>
+                  {galleryItems.map((item, index) => (
+                    <SortableGalleryImage
+                      key={item.id}
+                      id={item.id}
+                      item={item}
+                      index={index}
+                      onEdit={() => openGalleryEditor(item)}
+                      onRemove={() => removeGalleryImage(item.id, item.isExisting)}
+                    />
+                  ))}
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 
@@ -655,29 +698,54 @@ export default function VendorProfile({ user, onSuccess }) {
             </div>
             <input
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp"
               multiple
               onChange={async (e) => {
                 const files = Array.from(e.target.files);
                 if (files.length > 0) {
+                  const validFiles = [];
+                  const errors = [];
+                  files.forEach((file) => {
+                    const typeCheck = validateFileType(file);
+                    if (!typeCheck.valid) {
+                      errors.push(typeCheck.message);
+                      return;
+                    }
+                    const sizeCheck = validateFileSize(file, 10);
+                    if (!sizeCheck.valid) {
+                      errors.push(sizeCheck.message);
+                      return;
+                    }
+                    validFiles.push(file);
+                  });
+
+                  if (errors.length > 0) {
+                    setError(errors[0]);
+                  }
+
+                  if (validFiles.length === 0) {
+                    return;
+                  }
+
+                  setError(null);
                   setProcessingImages(true);
                   try {
-                    const totalOriginal = files.reduce((sum, f) => sum + f.size, 0);
-                    const resizedFiles = await resizeImages(files);
+                    const totalOriginal = validFiles.reduce((sum, f) => sum + f.size, 0);
+                    const resizedFiles = await resizeImages(validFiles);
                     const totalResized = resizedFiles.reduce((sum, f) => sum + f.size, 0);
                     if (totalResized < totalOriginal) {
                       console.log(`Gallery images resized: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalResized)}`);
                     }
-                    setFormData(prev => ({
+                    setGalleryItems(prev => ([
                       ...prev,
-                      galleryImages: [...(prev.galleryImages || []), ...resizedFiles]
-                    }));
+                      ...resizedFiles.map(createGalleryItem)
+                    ]));
                   } catch (err) {
                     console.error('Failed to resize images:', err);
-                    setFormData(prev => ({
+                    setGalleryItems(prev => ([
                       ...prev,
-                      galleryImages: [...(prev.galleryImages || []), ...files]
-                    }));
+                      ...validFiles.map(createGalleryItem)
+                    ]));
                   } finally {
                     setProcessingImages(false);
                   }
@@ -728,14 +796,16 @@ export default function VendorProfile({ user, onSuccess }) {
         </div>
 
         {/* Processing indicator */}
-        {processingImages && (
+        {(processingImages || savingOrder) && (
           <div className="card bg-[var(--violet-50)] border border-[var(--violet-200)] p-4">
             <div className="flex items-center gap-3">
               <svg className="animate-spin h-5 w-5 text-[var(--violet-600)]" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              <p className="text-sm text-[var(--violet-700)]">Optimizing images for upload...</p>
+              <p className="text-sm text-[var(--violet-700)]">
+                {savingOrder ? "Saving gallery order..." : "Optimizing images for upload..."}
+              </p>
             </div>
           </div>
         )}
@@ -755,6 +825,135 @@ export default function VendorProfile({ user, onSuccess }) {
           {saving ? 'Saving...' : (vendor ? 'Save Changes' : 'Create Store Profile')}
         </button>
       </form>
+
+      {confirmRemove && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-sm rounded-[var(--radius-xl)] bg-white p-5 shadow-xl">
+            <h4 className="text-lg font-semibold text-[var(--gray-900)]">Remove this photo?</h4>
+            <p className="text-sm text-[var(--gray-600)] mt-1">
+              This will permanently delete the photo from your gallery.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmRemove(null)}
+                className="flex-1 btn btn-outlined"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemove}
+                className="flex-1 btn btn-gradient"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      <ImageEditorModal
+        isOpen={heroEditor.isOpen}
+        imageSrc={heroEditor.imageSrc}
+        fileName={heroEditor.fileName}
+        initialAspect={3 / 1}
+        onClose={() => setHeroEditor({ isOpen: false, imageSrc: null, fileName: "cover-photo.jpg" })}
+        onSave={async (editedFile) => {
+          setProcessingImages(true);
+          try {
+            const originalSize = editedFile.size;
+            const resizedFile = await resizeImage(editedFile, { maxWidth: 2400, maxHeight: 800 });
+            const newSize = resizedFile.size;
+            if (newSize < originalSize) {
+              console.log(`Hero image resized: ${formatFileSize(originalSize)} → ${formatFileSize(newSize)}`);
+            }
+            setFormData(prev => ({ ...prev, heroImage: resizedFile }));
+          } catch (err) {
+            console.error("Failed to resize image:", err);
+            setFormData(prev => ({ ...prev, heroImage: editedFile }));
+          } finally {
+            setProcessingImages(false);
+          }
+        }}
+      />
+      <ImageEditorModal
+        isOpen={galleryEditor.isOpen}
+        imageSrc={galleryEditor.imageSrc}
+        fileName={galleryEditor.fileName}
+        initialAspect={1}
+        onClose={() => setGalleryEditor({
+          isOpen: false,
+          imageSrc: null,
+          fileName: "gallery-photo.jpg",
+          targetId: null,
+          isExisting: false
+        })}
+        onSave={(editedFile) => {
+          setGalleryItems((prev) =>
+            prev.map((item) => {
+              if (item.id !== galleryEditor.targetId) return item;
+              return {
+                ...item,
+                url: URL.createObjectURL(editedFile),
+                file: editedFile,
+                isExisting: false
+              };
+            })
+          );
+        }}
+      />
+    </div>
+  );
+}
+
+function SortableGalleryImage({ id, item, index, onEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative aspect-square rounded-lg overflow-hidden group bg-[var(--gray-100)] cursor-grab active:cursor-grabbing transition-all"
+      {...attributes}
+      {...listeners}
+    >
+      <SmartImage src={item.url} alt={`Gallery ${index + 1}`} className="w-full h-full object-cover pointer-events-none" />
+      {!item.isExisting && (
+        <span className="absolute top-1 left-1 badge bg-[var(--violet-600)] text-white text-[10px]">New</span>
+      )}
+      <div className="absolute bottom-1 left-1 w-5 h-5 rounded bg-black/30 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+        </svg>
+      </div>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit?.();
+        }}
+        className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6-6m2.828 2.828l-6 6M7 17l-2 2 2-2z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove?.();
+        }}
+        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }

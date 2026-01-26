@@ -22,66 +22,66 @@ export const CATEGORY_DISPLAY = {
   "Food & Beverage": {
     icon: "🍕",
     label: "Food & Drink",
-    color: "#FEE2E2"
+    color: "var(--coral-100)"
   },
   "Health & Wellness": {
     icon: "💆",
     label: "Wellness",
-    color: "#D1FAE5"
+    color: "var(--mint-100)"
   },
   "Clothing & Accessories": {
     icon: "👗",
     label: "Fashion",
-    color: "#FCE7F3"
+    color: "var(--magenta-100)"
   },
   "Beauty": {
     icon: "💄",
     label: "Beauty",
-    color: "#FEF3C7"
+    color: "var(--amber-100)"
   },
   "Venue": {
     icon: "🏛️",
     label: "Venues",
-    color: "#E0F2FE"
+    color: "var(--info-50)"
   },
   "Photography": {
     icon: "📸",
     label: "Photography",
-    color: "#DBEAFE"
+    color: "var(--violet-50)"
   },
   "Rentals": {
     icon: "🎪",
     label: "Rentals",
-    color: "#FED7AA"
+    color: "var(--amber-50)"
   },
   "Photography & Videography": {
     icon: "🎬",
     label: "Photo & Video",
-    color: "#E9D5FF"
+    color: "var(--magenta-50)"
   },
   "DJ/Music": {
     icon: "🎵",
     label: "DJ/Music",
-    color: "#D8B4FE"
+    color: "var(--violet-100)"
   },
   "Transportation": {
     icon: "🚗",
     label: "Transportation",
-    color: "#BAE6FD"
+    color: "var(--info-100)"
   },
   "Workshops": {
     icon: "🎨",
     label: "Workshops",
-    color: "#E0E7FF"
+    color: "var(--violet-50)"
   },
   "Entertainment": {
     icon: "🎭",
     label: "Entertainment",
-    color: "#FED7E2"
+    color: "var(--coral-50)"
   },
   "Other": {
     icon: "✨",
     label: "Other",
-    color: "#CFFAFE"
+    color: "var(--gray-100)"
   }
 };

@@ -6,6 +6,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import AuthGate from "../../../components/AuthGate";
 import Link from "next/link";
 import { api } from "../../../services/api";
+import ImageEditorModal from "../../../components/ImageEditorModal";
 
 const EVENT_THEMES = [
   { id: "classic", name: "Classic", font: "font-body", style: "elegant" },
@@ -28,12 +29,12 @@ const EVENT_CATEGORIES = [
 ];
 
 const COVER_STYLES = [
-  { id: "gradient-violet", gradient: "from-[var(--violet-600)] to-[var(--magenta-500)]" },
-  { id: "gradient-coral", gradient: "from-[var(--coral-500)] to-[var(--amber-500)]" },
-  { id: "gradient-mint", gradient: "from-[var(--mint-500)] to-[#14B8A6]" },
-  { id: "gradient-sunset", gradient: "from-[#F472B6] to-[#FB923C]" },
-  { id: "gradient-night", gradient: "from-[#1e1b4b] to-[#312e81]" },
-  { id: "gradient-ocean", gradient: "from-[#0891b2] to-[#0d9488]" },
+  { id: "gradient-primary", className: "bg-gradient-primary" },
+  { id: "gradient-secondary", className: "bg-gradient-secondary" },
+  { id: "gradient-sunset", className: "bg-gradient-sunset" },
+  { id: "gradient-warm", className: "bg-gradient-warm" },
+  { id: "gradient-vendor", className: "bg-gradient-vendor" },
+  { id: "gradient-organizer", className: "bg-gradient-organizer" },
 ];
 
 export default function CreateEventPage() {
@@ -61,7 +62,7 @@ function CreateEventInner() {
     category: "",
     attendees: "",
     theme: "classic",
-    coverStyle: "gradient-violet",
+    coverStyle: "gradient-primary",
     coverImage: null,
     coverImagePreview: null,
     costPerPerson: "",
@@ -76,6 +77,11 @@ function CreateEventInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [showCoverOptions, setShowCoverOptions] = useState(false);
+  const [editorState, setEditorState] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "event-cover.jpg"
+  });
   
   // Modal state for quick add buttons
   const [activeModal, setActiveModal] = useState(null);
@@ -85,18 +91,14 @@ function CreateEventInner() {
     setEventData(prev => ({ ...prev, [field]: value }));
   };
 
+  const openEditor = (imageSrc, fileName = "event-cover.jpg") => {
+    setEditorState({ isOpen: true, imageSrc, fileName });
+  };
+
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setEventData(prev => ({
-          ...prev,
-          coverImage: file,
-          coverImagePreview: e.target.result
-        }));
-      };
-      reader.readAsDataURL(file);
+      openEditor(URL.createObjectURL(file), file.name);
     }
   };
 
@@ -181,7 +183,7 @@ function CreateEventInner() {
   const selectedCover = COVER_STYLES.find(c => c.id === eventData.coverStyle);
 
   return (
-    <div className="min-h-screen bg-[#1a1625]">
+    <div className="min-h-screen bg-[var(--gray-900)]">
       {/* Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 left-10 w-64 h-64 bg-[var(--violet-500)]/20 rounded-full blur-[100px] animate-pulse" />
@@ -207,7 +209,7 @@ function CreateEventInner() {
       {activeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeModal} />
-          <div className="relative bg-[#252033] rounded-2xl p-6 w-full max-w-md border border-white/10 shadow-2xl">
+          <div className="relative bg-[var(--gray-800)] rounded-2xl p-6 w-full max-w-md border border-white/10 shadow-2xl">
             <h3 className="text-lg font-semibold text-white mb-4">
               {activeModal === "externalLink" && "Add External Link"}
               {activeModal === "playlistLink" && "Add Playlist Link"}
@@ -241,7 +243,7 @@ function CreateEventInner() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-40 bg-[#1a1625]/80 backdrop-blur-xl border-b border-white/10">
+      <header className="sticky top-0 z-40 bg-[var(--gray-900)]/80 backdrop-blur-xl border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <Link 
@@ -292,7 +294,7 @@ function CreateEventInner() {
       {/* Error Toast */}
       {error && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-slide-up">
-          <div className="bg-red-500 text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3">
+          <div className="bg-[var(--error)] text-white px-6 py-3 rounded-full shadow-xl flex items-center gap-3">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="12" cy="12" r="10"/>
               <line x1="12" y1="8" x2="12" y2="12"/>
@@ -345,7 +347,7 @@ function CreateEventInner() {
         <div className="relative mb-8">
           <div 
             className={`relative aspect-[16/10] rounded-[var(--radius-2xl)] overflow-hidden cursor-pointer group ${
-              eventData.coverImagePreview ? "" : `bg-gradient-to-br ${selectedCover?.gradient}`
+              eventData.coverImagePreview ? "" : selectedCover?.className || "bg-gradient-primary"
             }`}
             onClick={() => setShowCoverOptions(!showCoverOptions)}
           >
@@ -373,7 +375,11 @@ function CreateEventInner() {
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                fileInputRef.current?.click();
+                if (eventData.coverImagePreview) {
+                  openEditor(eventData.coverImagePreview, "event-cover.jpg");
+                } else {
+                  fileInputRef.current?.click();
+                }
               }}
               className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-[var(--gray-900)] rounded-full text-sm font-medium hover:bg-white transition-colors shadow-lg"
             >
@@ -395,8 +401,8 @@ function CreateEventInner() {
 
           {/* Cover Style Options */}
           {showCoverOptions && !eventData.coverImagePreview && (
-            <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-[#252033] rounded-[var(--radius-xl)] border border-white/10 z-10">
-              <p className="text-xs text-white/50 uppercase tracking-wider mb-3">Choose a gradient</p>
+            <div className="absolute top-full left-0 right-0 mt-2 p-4 bg-[var(--gray-800)] rounded-[var(--radius-xl)] border border-white/10 z-10">
+              <p className="text-xs text-white/60 uppercase tracking-wider mb-3">Choose a gradient</p>
               <div className="flex gap-2 flex-wrap">
                 {COVER_STYLES.map((style) => (
                   <button
@@ -405,8 +411,8 @@ function CreateEventInner() {
                       handleInputChange("coverStyle", style.id);
                       setShowCoverOptions(false);
                     }}
-                    className={`w-12 h-12 rounded-xl bg-gradient-to-br ${style.gradient} transition-all ${
-                      eventData.coverStyle === style.id ? "ring-2 ring-white ring-offset-2 ring-offset-[#252033]" : "hover:scale-105"
+                    className={`w-12 h-12 rounded-xl ${style.className} transition-all ${
+                      eventData.coverStyle === style.id ? "ring-2 ring-white ring-offset-2 ring-offset-[var(--gray-800)]" : "hover:scale-105"
                     }`}
                   />
                 ))}
@@ -422,7 +428,7 @@ function CreateEventInner() {
         </div>
 
         {/* Date & Time Section */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-xl bg-[var(--violet-500)]/20 flex items-center justify-center">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -476,7 +482,7 @@ function CreateEventInner() {
         </div>
 
         {/* Host Info */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[var(--violet-500)] to-[var(--magenta-500)] flex items-center justify-center text-white font-semibold">
               {user?.name?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"}
@@ -492,10 +498,10 @@ function CreateEventInner() {
         </div>
 
         {/* Location */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[var(--coral-500)]/20 flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B6B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--coral-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
                 <circle cx="12" cy="10" r="3"/>
               </svg>
@@ -512,10 +518,10 @@ function CreateEventInner() {
 
         {/* Capacity & Cost */}
         <div className="grid grid-cols-2 gap-4 mb-4">
-          <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 border border-white/5">
+          <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 border border-white/5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[var(--mint-500)]/20 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--mint-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                   <circle cx="9" cy="7" r="4"/>
                   <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
@@ -532,10 +538,10 @@ function CreateEventInner() {
             </div>
           </div>
           
-          <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 border border-white/5">
+          <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 border border-white/5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-[var(--amber-500)]/20 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--amber-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="12" y1="1" x2="12" y2="23"/>
                   <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                 </svg>
@@ -552,11 +558,11 @@ function CreateEventInner() {
         </div>
 
         {/* Guest Settings */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-[#6366F1]/20 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <div className="w-10 h-10 rounded-xl bg-[var(--violet-500)]/20 flex items-center justify-center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13"/>
                   <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                 </svg>
@@ -605,7 +611,7 @@ function CreateEventInner() {
         </div>
 
         {/* Description */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
           <textarea
             value={eventData.description}
             onChange={(e) => handleInputChange("description", e.target.value)}
@@ -616,7 +622,7 @@ function CreateEventInner() {
         </div>
 
         {/* Category Selection */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
           <h3 className="text-white font-semibold mb-4">Event Category</h3>
           <div className="flex gap-2 flex-wrap">
             {EVENT_CATEGORIES.map((cat) => (
@@ -637,7 +643,7 @@ function CreateEventInner() {
         </div>
 
         {/* Expected Attendees */}
-        <div className="bg-[#252033]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 border border-white/5">
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 border border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[var(--magenta-500)]/20 flex items-center justify-center">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--magenta-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -662,7 +668,7 @@ function CreateEventInner() {
       </main>
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#1a1625]/90 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 bg-[var(--gray-900)]/90 backdrop-blur-xl border-t border-white/10 safe-area-bottom">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -671,13 +677,13 @@ function CreateEventInner() {
                 <span className="text-xs">Theme</span>
               </button>
               <button className="flex flex-col items-center gap-1 text-white/50 hover:text-white transition-colors">
-                <div className="w-8 h-8 rounded-full bg-[#252033] border border-white/20 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-[var(--gray-800)] border border-white/20 flex items-center justify-center">
                   <span className="text-sm">✨</span>
                 </div>
                 <span className="text-xs">Effect</span>
               </button>
               <button className="flex flex-col items-center gap-1 text-white/50 hover:text-white transition-colors">
-                <div className="w-8 h-8 rounded-full bg-[#252033] border border-white/20 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-[var(--gray-800)] border border-white/20 flex items-center justify-center">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <circle cx="12" cy="12" r="3"/>
                     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
@@ -686,7 +692,7 @@ function CreateEventInner() {
                 <span className="text-xs">Settings</span>
               </button>
               <button className="flex flex-col items-center gap-1 text-white/50 hover:text-white transition-colors">
-                <div className="w-8 h-8 rounded-full bg-[#252033] border border-white/20 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-[var(--gray-800)] border border-white/20 flex items-center justify-center">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
                     <circle cx="12" cy="12" r="3"/>
@@ -726,6 +732,24 @@ function CreateEventInner() {
           opacity: 1;
         }
       `}</style>
+      <ImageEditorModal
+        isOpen={editorState.isOpen}
+        imageSrc={editorState.imageSrc}
+        fileName={editorState.fileName}
+        initialAspect={16 / 10}
+        onClose={() => setEditorState({ isOpen: false, imageSrc: null, fileName: "event-cover.jpg" })}
+        onSave={(editedFile) => {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setEventData(prev => ({
+              ...prev,
+              coverImage: editedFile,
+              coverImagePreview: event.target.result
+            }));
+          };
+          reader.readAsDataURL(editedFile);
+        }}
+      />
     </div>
   );
 }
@@ -737,7 +761,7 @@ function QuickAddButton({ icon, label, active, onClick }) {
       className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
         active
           ? "bg-[var(--violet-500)] text-white"
-          : "bg-[#252033] text-white/60 border border-white/10 hover:bg-white/5 hover:text-white/80"
+          : "bg-[var(--gray-800)] text-white/60 border border-white/10 hover:bg-white/5 hover:text-white/80"
       }`}
     >
       <span className="text-base">+</span>
