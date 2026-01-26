@@ -10,11 +10,16 @@ export async function listVendors(params = {}) {
   const queryString = queryParams.toString();
   const url = `/api/vendors${queryString ? `?${queryString}` : ""}`;
 
-  const res = await api(url);
-  if (Array.isArray(res)) return res;
-  if (Array.isArray(res?.vendors)) return res.vendors;
-  if (Array.isArray(res?.data)) return res.data;
-  return [];
+  try {
+    const res = await api(url);
+    if (Array.isArray(res)) return res;
+    if (Array.isArray(res?.vendors)) return res.vendors;
+    if (Array.isArray(res?.data)) return res.data;
+    return [];
+  } catch (error) {
+    console.error("Failed to fetch vendors:", error);
+    return [];
+  }
 }
 
 export async function getVendorProfile(vendorId) {

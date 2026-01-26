@@ -7,6 +7,7 @@ import HomeToggle from "../components/HomeToggle";
 import UserTypePopup from "../components/UserTypePopup";
 import { getVendorPlaceholderImage } from "../utils/placeholderImages";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
+import { getStorefrontPath } from "../utils/storefrontLinks";
 
 // Fetch events function
 async function listEvents(params = {}) {
@@ -395,7 +396,7 @@ function VendorCard({ vendor, index }) {
   
   return (
     <Link
-      href={`/store/${vendor.id}`}
+      href={getStorefrontPath(vendor)}
       className="group flex-shrink-0 w-[200px] sm:w-[220px]"
       style={{ animationDelay: `${index * 50}ms` }}
     >

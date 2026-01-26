@@ -6,6 +6,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { api } from "../../services/api";
 import RescheduleModal from "../../components/RescheduleModal";
+import { getStorefrontPath } from "../../utils/storefrontLinks";
 
 // Keep saveBooking for backward compatibility (no-op now)
 export function saveBooking(booking) {
@@ -357,7 +358,7 @@ function BookingCard({ booking, onReschedule }) {
       {!isPast && (
         <div className="px-5 py-3 bg-[var(--gray-50)] border-t border-[var(--gray-100)] flex gap-3">
           <Link
-            href={`/store/${booking.vendorId}`}
+            href={getStorefrontPath({ vendorSlug: booking.vendorSlug, vendorId: booking.vendorId })}
             className="flex-1 h-9 rounded-[var(--radius-lg)] border border-[var(--gray-200)] text-[var(--gray-600)] text-sm font-medium flex items-center justify-center hover:bg-white transition-colors"
           >
             View Vendor
@@ -459,7 +460,7 @@ function OrderCard({ order }) {
       {/* Actions */}
       <div className="px-5 py-3 bg-[var(--gray-50)] border-t border-[var(--gray-100)] flex gap-3">
         <Link
-          href={`/store/${order.vendor?.id}`}
+          href={getStorefrontPath(order.vendor || { id: order.vendor?.id })}
           className="flex-1 h-9 rounded-[var(--radius-lg)] border border-[var(--gray-200)] text-[var(--gray-600)] text-sm font-medium flex items-center justify-center hover:bg-white transition-colors"
         >
           View Vendor

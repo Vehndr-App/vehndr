@@ -6,6 +6,7 @@ import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import ProductCard from "../../../components/ProductCard";
 import SmartImage from "../../../components/SmartImage";
 import Link from "next/link";
+import { getStorefrontUrl } from "../../../utils/storefrontLinks";
 
 export default function StorefrontPage() {
   const { vendorId } = useParams();
@@ -15,6 +16,7 @@ export default function StorefrontPage() {
   const [activeTab, setActiveTab] = useState("all");
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [shareStatus, setShareStatus] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -50,6 +52,30 @@ export default function StorefrontPage() {
   const allImages = hasHeroImage ? [vendor.heroImage, ...galleryImages] : galleryImages;
   const productCount = products.filter(p => !p.isService).length;
   const serviceCount = products.filter(p => p.isService).length;
+  const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
+
+  const handleShare = async () => {
+    if (!storefrontUrl) return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: vendor?.name || "Vehndr Storefront",
+          url: storefrontUrl
+        });
+        setShareStatus("shared");
+        return;
+      }
+
+      await navigator.clipboard.writeText(storefrontUrl);
+      setShareStatus("copied");
+    } catch (error) {
+      console.error("Failed to share storefront link:", error);
+      setShareStatus("error");
+    } finally {
+      setTimeout(() => setShareStatus(null), 2500);
+    }
+  };
 
   const openGallery = (index = 0) => {
     setGalleryIndex(index);
@@ -139,10 +165,26 @@ export default function StorefrontPage() {
                   </div>
                 </div>
                 
-                {/* Status Badge */}
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
-                  <span className="w-2 h-2 rounded-full bg-[var(--mint-500)]"></span>
-                  Open Now
+                <div className="flex items-center gap-2">
+                  {/* Status Badge */}
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
+                    <span className="w-2 h-2 rounded-full bg-[var(--mint-500)]"></span>
+                    Open Now
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleShare}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white hover:bg-white/30 transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="18" cy="5" r="3"/>
+                      <circle cx="6" cy="12" r="3"/>
+                      <circle cx="18" cy="19" r="3"/>
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                    Share
+                  </button>
                 </div>
               </div>
             </div>
@@ -175,6 +217,13 @@ export default function StorefrontPage() {
       </div>
 
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        {shareStatus && (
+          <div className="mt-4 flex items-center gap-2 rounded-full bg-[var(--gray-900)]/80 text-white text-xs px-3 py-1.5 w-fit">
+            {shareStatus === "copied" && "Storefront link copied!"}
+            {shareStatus === "shared" && "Thanks for sharing!"}
+            {shareStatus === "error" && "Unable to share. Try again."}
+          </div>
+        )}
         {/* Description */}
         <p className="text-[var(--gray-600)] text-sm mt-4 mb-6">
           {vendor.description}
@@ -191,28 +240,18 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* Tap to Pay Section - GoPuff/Uber Eats style */}
+        {/* Tap to Pay Section - Coming soon placeholder */}
         <div className="mb-6 p-4 rounded-[var(--radius-xl)] bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border border-[var(--violet-100)]">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                  <line x1="1" y1="10" x2="23" y2="10"/>
-                </svg>
-              </div>
-              <div>
-                <h3 className="font-semibold text-[var(--gray-900)]">Tap to Pay Available</h3>
-                <p className="text-xs text-[var(--gray-500)]">Pay instantly at this vendor&apos;s booth</p>
-              </div>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+                <line x1="1" y1="10" x2="23" y2="10"/>
+              </svg>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-1 rounded bg-white text-xs font-medium text-[var(--gray-700)]">
-                Apple Pay
-              </span>
-              <span className="px-2 py-1 rounded bg-white text-xs font-medium text-[var(--gray-700)]">
-                Google Pay
-              </span>
+            <div>
+              <h3 className="font-semibold text-[var(--gray-900)]">Tap to Pay coming soon</h3>
+              <p className="text-xs text-[var(--gray-500)]">Contactless payments will be available in a future update.</p>
             </div>
           </div>
         </div>

@@ -12,6 +12,8 @@ import PaymentForm from '../../components/PaymentForm';
 import TipSelector from '../../components/TipSelector';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const MAX_CHARGE_CENTS = 5000000;
+const MAX_CHARGE_LABEL = "$50,000.00";
 
 export default function CheckoutPage() {
   const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity } = useCart();
@@ -71,6 +73,11 @@ export default function CheckoutPage() {
 
     try {
       const tipCents = vendorTips[vendorId] || 0;
+      const total = calculateVendorSubtotal(vendorId) + tipCents;
+      if (total > MAX_CHARGE_CENTS) {
+        setError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+        return;
+      }
 
       // Create PaymentIntent for custom checkout using cart items on server
       const response = await api('/api/checkout/payment_intent', {
@@ -262,6 +269,7 @@ export default function CheckoutPage() {
             const items = vendorCarts[vendorId];
             const vendor = vendorDetails[vendorId];
             const total = calculateVendorTotal(vendorId);
+            const isOverLimit = total > MAX_CHARGE_CENTS;
             const canCheckout = vendor?.stripeReadyForCheckout !== false;
             const isProcessing = loading && activeVendor === vendorId;
 
@@ -394,6 +402,7 @@ export default function CheckoutPage() {
                       subtotalCents={calculateVendorSubtotal(vendorId)}
                       onTipChange={(tipCents) => handleTipChange(vendorId, tipCents)}
                       disabled={!!clientSecrets[vendorId]}
+                      maxTotalCents={MAX_CHARGE_CENTS}
                     />
                   </div>
                 )}
@@ -452,7 +461,7 @@ export default function CheckoutPage() {
                     ) : (
                       <button
                         onClick={() => handleCheckout(vendorId)}
-                        disabled={loading}
+                        disabled={loading || isOverLimit}
                         className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isProcessing ? (
@@ -474,6 +483,11 @@ export default function CheckoutPage() {
                         This vendor hasn&apos;t completed their payment setup yet.
                       </p>
                     </div>
+                  )}
+                  {isOverLimit && (
+                    <p className="text-sm text-[var(--error)] mt-3">
+                      Maximum charge is {MAX_CHARGE_LABEL}.
+                    </p>
                   )}
                 </div>
               </div>

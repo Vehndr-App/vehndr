@@ -9,28 +9,34 @@ const TIP_PRESETS = [
   { percent: 25, label: '25%' },
 ];
 
-export default function TipSelector({ subtotalCents, onTipChange, disabled = false }) {
+export default function TipSelector({ subtotalCents, onTipChange, disabled = false, maxTotalCents = null }) {
   const [selectedPreset, setSelectedPreset] = useState(null);
   const [customAmount, setCustomAmount] = useState('');
   const [isCustom, setIsCustom] = useState(false);
+  const maxTipCents = maxTotalCents !== null ? Math.max(0, maxTotalCents - subtotalCents) : null;
 
   const tipCents = useMemo(() => {
     if (isCustom) {
       const customCents = Math.round(parseFloat(customAmount || 0) * 100);
-      return isNaN(customCents) ? 0 : customCents;
+      const safeCents = isNaN(customCents) ? 0 : Math.max(0, customCents);
+      return maxTipCents !== null ? Math.min(safeCents, maxTipCents) : safeCents;
     }
     if (selectedPreset !== null) {
-      return Math.round(subtotalCents * (selectedPreset / 100));
+      const presetCents = Math.round(subtotalCents * (selectedPreset / 100));
+      return maxTipCents !== null ? Math.min(presetCents, maxTipCents) : presetCents;
     }
     return 0;
-  }, [selectedPreset, customAmount, isCustom, subtotalCents]);
+  }, [selectedPreset, customAmount, isCustom, subtotalCents, maxTipCents]);
 
   const handlePresetClick = (percent) => {
+    const presetCents = Math.round(subtotalCents * (percent / 100));
+    if (maxTipCents !== null && presetCents > maxTipCents) {
+      return;
+    }
     setIsCustom(false);
     setCustomAmount('');
     setSelectedPreset(percent);
-    const tip = Math.round(subtotalCents * (percent / 100));
-    onTipChange(tip);
+    onTipChange(presetCents);
   };
 
   const handleNoTip = () => {
@@ -47,9 +53,16 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
 
   const handleCustomChange = (e) => {
     const value = e.target.value;
-    setCustomAmount(value);
+    if (value.startsWith('-')) return;
     const cents = Math.round(parseFloat(value || 0) * 100);
-    onTipChange(isNaN(cents) ? 0 : cents);
+    const safeCents = isNaN(cents) ? 0 : Math.max(0, cents);
+    if (maxTipCents !== null && safeCents > maxTipCents) {
+      setCustomAmount((maxTipCents / 100).toFixed(2));
+      onTipChange(maxTipCents);
+      return;
+    }
+    setCustomAmount(value);
+    onTipChange(safeCents);
   };
 
   return (
@@ -67,11 +80,14 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
 
       {/* Preset Buttons */}
       <div className="flex gap-2">
-        {TIP_PRESETS.map(({ percent, label }) => (
+        {TIP_PRESETS.map(({ percent, label }) => {
+          const presetCents = Math.round(subtotalCents * (percent / 100));
+          const presetDisabled = maxTipCents !== null && presetCents > maxTipCents;
+          return (
           <button
             key={percent}
             type="button"
-            disabled={disabled}
+            disabled={disabled || presetDisabled}
             onClick={() => handlePresetClick(percent)}
             className={`flex-1 py-2.5 px-3 rounded-xl text-sm font-semibold transition-all ${
               selectedPreset === percent && !isCustom
@@ -81,7 +97,7 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
           >
             {label}
           </button>
-        ))}
+        )})}
       </div>
 
       {/* Custom & No Tip Row */}

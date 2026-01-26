@@ -3,7 +3,7 @@
 import AuthGate from "../../../components/AuthGate";
 import { getCurrentUser } from "../../../services/auth";
 import { api } from "../../../services/api";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -21,6 +21,10 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import SmartImage from "../../../components/SmartImage";
 import ImageEditorModal from "../../../components/ImageEditorModal";
+import { getStorefrontUrl } from "../../../utils/storefrontLinks";
+
+const MAX_CHARGE_CENTS = 5000000;
+const MAX_CHARGE_LABEL = "$50,000.00";
 
 export default function StorefrontPage() {
   return (
@@ -49,6 +53,9 @@ function POSSystem() {
   const [editingProduct, setEditingProduct] = useState(null);
   const [keypadValue, setKeypadValue] = useState('0');
   const [customItemName, setCustomItemName] = useState('Custom Amount');
+  const [shareStatus, setShareStatus] = useState(null);
+  const [keypadError, setKeypadError] = useState(null);
+  const [limitError, setLimitError] = useState(null);
 
   // Cash payment modal state
   const [showCashModal, setShowCashModal] = useState(false);
@@ -57,6 +64,7 @@ function POSSystem() {
   // Tip screen state
   const [showTipScreen, setShowTipScreen] = useState(false);
   const [currentTip, setCurrentTip] = useState(0);
+  const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
 
   const fetchData = useCallback(async (vendorId) => {
     try {
@@ -94,6 +102,12 @@ function POSSystem() {
 
   // Cart Functions
   const addToCart = (product, quantity = 1) => {
+    const nextTotal = cartTotal + (product.price * quantity);
+    if (nextTotal > MAX_CHARGE_CENTS) {
+      setLimitError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+      return;
+    }
+
     const existingItem = cart.find(item => item.id === product.id && !item.isCustom);
     if (existingItem) {
       setCart(cart.map(item => 
@@ -104,11 +118,23 @@ function POSSystem() {
     } else {
       setCart([...cart, { ...product, quantity, cartId: Date.now() }]);
     }
+    setLimitError(null);
   };
 
   const addCustomAmount = () => {
     const amountInCents = parseInt(keypadValue);
+    if (amountInCents > MAX_CHARGE_CENTS) {
+      setKeypadError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+      return;
+    }
+
     if (amountInCents > 0) {
+      const nextTotal = cartTotal + amountInCents;
+      if (nextTotal > MAX_CHARGE_CENTS) {
+        setKeypadError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+        return;
+      }
+
       setCart([...cart, {
         id: `custom-${Date.now()}`,
         name: customItemName,
@@ -119,6 +145,8 @@ function POSSystem() {
       }]);
       setKeypadValue('0');
       setCustomItemName('Custom Amount');
+      setKeypadError(null);
+      setLimitError(null);
     }
   };
 
@@ -130,21 +158,61 @@ function POSSystem() {
     if (quantity <= 0) {
       removeFromCart(cartId);
     } else {
+      const targetItem = cart.find(item => item.cartId === cartId);
+      if (targetItem) {
+        const nextTotal = cartTotal - (targetItem.price * targetItem.quantity) + (targetItem.price * quantity);
+        if (nextTotal > MAX_CHARGE_CENTS) {
+          setLimitError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+          return;
+        }
+      }
+
       setCart(cart.map(item => 
         item.cartId === cartId 
           ? { ...item, quantity }
           : item
       ));
+      setLimitError(null);
     }
   };
 
   const clearCart = () => {
     setCart([]);
+    setLimitError(null);
+    setKeypadError(null);
+  };
+
+  const handleShare = async () => {
+    if (!storefrontUrl) return;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: vendor?.name || "Vehndr Storefront",
+          url: storefrontUrl
+        });
+        setShareStatus("shared");
+        return;
+      }
+
+      await navigator.clipboard.writeText(storefrontUrl);
+      setShareStatus("copied");
+    } catch (error) {
+      console.error("Failed to share storefront link:", error);
+      setShareStatus("error");
+    } finally {
+      setTimeout(() => setShareStatus(null), 2500);
+    }
   };
 
   // Checkout - show tip screen first, then process payment
   const handleCharge = async () => {
     if (cart.length === 0) return;
+    const totalDue = totalWithTax + currentTip;
+    if (totalDue > MAX_CHARGE_CENTS) {
+      setLimitError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+      return;
+    }
 
     // Show tip screen for customer to add tip
     setShowTipScreen(true);
@@ -152,6 +220,12 @@ function POSSystem() {
 
   // Called after customer selects tip
   const handleTipConfirmed = async (tipCents) => {
+    if (tipCents < 0) return;
+    if (totalWithTax + tipCents > MAX_CHARGE_CENTS) {
+      setLimitError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+      return;
+    }
+
     setCurrentTip(tipCents);
     setShowTipScreen(false);
 
@@ -299,12 +373,33 @@ function POSSystem() {
     }
   };
 
+  const handleToggleActive = async (product) => {
+    if (!product?.id) return;
+    const nextActive = !product.active;
+    try {
+      await api(`/api/products/${product.id}`, {
+        method: 'PATCH',
+        body: { product: { active: nextActive } }
+      });
+      if (user?.vendorId) {
+        await fetchData(user.vendorId);
+      }
+    } catch (err) {
+      console.error('Failed to update visibility', err);
+      alert('Failed to update visibility');
+    }
+  };
+
   // Calculations
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const taxRate = 0.08;
   const taxAmount = cartTotal * taxRate;
   const totalWithTax = cartTotal + taxAmount;
+  const keypadAmount = parseInt(keypadValue || '0');
+  const canAddCustomAmount = keypadAmount > 0
+    && keypadAmount <= MAX_CHARGE_CENTS
+    && (cartTotal + keypadAmount) <= MAX_CHARGE_CENTS;
 
   // Filter products
   const filteredProducts = products.filter(product => {
@@ -320,11 +415,22 @@ function POSSystem() {
   const handleKeypadPress = (key) => {
     if (key === 'C') {
       setKeypadValue('0');
+      setKeypadError(null);
     } else if (key === '⌫') {
       setKeypadValue(prev => prev.length > 1 ? prev.slice(0, -1) : '0');
+      setKeypadError(null);
     } else {
       // Only append digits, treating value as cents
-      setKeypadValue(prev => prev === '0' ? key : prev + key);
+      setKeypadValue(prev => {
+        const nextValue = prev === '0' ? key : prev + key;
+        const nextCents = parseInt(nextValue);
+        if (nextCents > MAX_CHARGE_CENTS) {
+          setKeypadError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+          return prev;
+        }
+        setKeypadError(null);
+        return nextValue;
+      });
     }
   };
 
@@ -370,6 +476,20 @@ function POSSystem() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleShare}
+              className="h-10 px-3 rounded-xl bg-[var(--violet-600)] text-white text-sm font-semibold flex items-center gap-2 hover:bg-[var(--violet-700)] transition-colors"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="18" cy="5" r="3"/>
+                <circle cx="6" cy="12" r="3"/>
+                <circle cx="18" cy="19" r="3"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+              </svg>
+              Share link
+            </button>
             <button className="w-10 h-10 rounded-xl bg-[var(--gray-100)] flex items-center justify-center">
               <svg className="w-5 h-5 text-[var(--gray-600)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -378,6 +498,14 @@ function POSSystem() {
             </button>
           </div>
         </div>
+
+        {shareStatus && (
+          <div className="mt-3 text-xs font-medium text-[var(--gray-500)]">
+            {shareStatus === "copied" && "Storefront link copied."}
+            {shareStatus === "shared" && "Share sent."}
+            {shareStatus === "error" && "Unable to share link right now."}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-1 mt-4 bg-[var(--gray-100)] p-1 rounded-xl">
@@ -418,6 +546,7 @@ function POSSystem() {
               onAddToCart={addToCart}
               onEdit={(product) => { setEditingProduct(product); setShowAddModal(true); }}
               onDelete={handleDeleteProduct}
+              onToggleActive={handleToggleActive}
               onAddNew={() => { setEditingProduct(null); setShowAddModal(true); }}
               cart={cart}
             />
@@ -428,6 +557,8 @@ function POSSystem() {
               customItemName={customItemName}
               setCustomItemName={setCustomItemName}
               onAddToCart={addCustomAmount}
+              errorMessage={keypadError}
+              canAdd={canAddCustomAmount}
             />
           )}
         </div>
@@ -447,6 +578,7 @@ function POSSystem() {
             setPaymentMethod={setPaymentMethod}
             onCharge={handleCharge}
             processing={processing}
+            limitError={limitError}
           />
         </div>
       </div>
@@ -496,7 +628,8 @@ function LibraryPanel({
   setActiveCategory, 
   onAddToCart, 
   onEdit, 
-  onDelete, 
+  onDelete,
+  onToggleActive,
   onAddNew,
   cart 
 }) {
@@ -579,6 +712,7 @@ function LibraryPanel({
                         onAdd={() => onAddToCart(product)}
                         onEdit={() => onEdit(product)}
                         onDelete={() => onDelete(product.id)}
+                        onToggleActive={() => onToggleActive(product)}
                         inCart={cart.some(item => item.id === product.id)}
                       />
                     ))}
@@ -601,12 +735,14 @@ function LibraryPanel({
 }
 
 // Library Item Component
-function LibraryItem({ product, onAdd, onEdit, onDelete, inCart }) {
+function LibraryItem({ product, onAdd, onEdit, onDelete, onToggleActive, inCart }) {
   const price = (product.price || 0) / 100;
   const [showActions, setShowActions] = useState(false);
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-[var(--gray-50)] transition-colors">
+    <div className={`flex items-center gap-3 px-4 py-3 bg-white hover:bg-[var(--gray-50)] transition-colors ${
+      product.active === false ? 'opacity-60' : ''
+    }`}>
       {/* Image */}
       <div className="w-14 h-14 rounded-xl overflow-hidden bg-[var(--gray-100)] flex-shrink-0">
         {product.images && product.images[0] ? (
@@ -633,9 +769,16 @@ function LibraryItem({ product, onAdd, onEdit, onDelete, inCart }) {
       {/* Info */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-[var(--foreground)] truncate">{product.name}</h3>
+          <h3 className="font-semibold text-[var(--foreground)] truncate flex-1 min-w-0">
+            {product.name}
+          </h3>
           {inCart && (
             <span className="w-2 h-2 rounded-full bg-[var(--success)] flex-shrink-0"></span>
+          )}
+          {product.active === false && (
+            <span className="chip text-[10px] px-1.5 py-0.5 bg-[var(--gray-200)] text-[var(--gray-600)] flex-shrink-0">
+              Hidden
+            </span>
           )}
         </div>
         <p className="text-lg font-bold text-[var(--foreground)]">${price.toFixed(2)}</p>
@@ -677,6 +820,25 @@ function LibraryItem({ product, onAdd, onEdit, onDelete, inCart }) {
             Edit
           </button>
           <button
+            onClick={() => { onToggleActive(); setShowActions(false); }}
+            className="w-full px-4 py-3 text-left text-sm font-medium hover:bg-[var(--gray-50)] flex items-center gap-2"
+          >
+            {product.active === false ? (
+              <svg className="w-4 h-4 text-[var(--gray-500)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M1.933 12.5C3.416 8.127 7.5 5 12 5c4.5 0 8.584 3.127 10.067 7.5-1.483 4.373-5.567 7.5-10.067 7.5-4.5 0-8.584-3.127-10.067-7.5z" />
+                <circle cx="12" cy="12.5" r="3" strokeWidth={2} />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-[var(--gray-500)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3l18 18" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.58 10.58a3 3 0 0 0 4.24 4.24" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.1 5.1C3.2 6.7 1.8 9.1 1.2 12c1.5 4.5 5.7 7.5 10.8 7.5 1.7 0 3.3-.3 4.7-.9" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.12 14.12 9.88 9.88" />
+              </svg>
+            )}
+            {product.active === false ? 'Show on marketplace' : 'Hide from marketplace'}
+          </button>
+          <button
             onClick={() => { onDelete(); setShowActions(false); }}
             className="w-full px-4 py-3 text-left text-sm font-medium text-[var(--error)] hover:bg-[var(--error)]/5 flex items-center gap-2"
           >
@@ -692,7 +854,7 @@ function LibraryItem({ product, onAdd, onEdit, onDelete, inCart }) {
 }
 
 // Keypad Panel Component
-function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onAddToCart }) {
+function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onAddToCart, errorMessage, canAdd }) {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', '⌫'];
 
   return (
@@ -712,6 +874,9 @@ function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onA
         <p className="text-5xl font-bold text-[var(--foreground)] tracking-tight">
           ${(parseInt(value || '0') / 100).toFixed(2)}
         </p>
+        {errorMessage && (
+          <p className="text-xs text-[var(--error)] mt-2">{errorMessage}</p>
+        )}
       </div>
 
       {/* Keypad */}
@@ -741,7 +906,7 @@ function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onA
         </button>
         <button
           onClick={onAddToCart}
-          disabled={parseInt(value || '0') <= 0}
+          disabled={!canAdd}
           className="flex-1 h-14 rounded-2xl bg-[var(--violet-600)] text-white font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
         >
           Add to Sale
@@ -764,7 +929,8 @@ function CartPanel({
   paymentMethod,
   setPaymentMethod,
   onCharge,
-  processing
+  processing,
+  limitError
 }) {
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -830,6 +996,9 @@ function CartPanel({
               <span className="text-[var(--violet-600)]">${(totalWithTax / 100).toFixed(2)}</span>
             </div>
           </div>
+          {limitError && (
+            <p className="text-sm text-[var(--error)] font-medium">{limitError}</p>
+          )}
 
           {/* Payment Methods */}
           <div className="flex gap-2">
@@ -1310,6 +1479,7 @@ function CustomerTipScreen({ subtotalCents, taxCents, onConfirm, onSkip }) {
   const [isCustom, setIsCustom] = useState(false);
 
   const totalBeforeTip = subtotalCents + taxCents;
+  const maxTipCents = Math.max(0, MAX_CHARGE_CENTS - totalBeforeTip);
 
   const tipPresets = [
     { percent: 15, label: '15%' },
@@ -1319,19 +1489,33 @@ function CustomerTipScreen({ subtotalCents, taxCents, onConfirm, onSkip }) {
   ];
 
   const tipCents = isCustom
-    ? Math.round(parseFloat(customAmount || '0') * 100) || 0
+    ? Math.min(
+        Math.max(0, Math.round(parseFloat(customAmount || '0') * 100) || 0),
+        maxTipCents
+      )
     : selectedTip !== null
-      ? Math.round(subtotalCents * (selectedTip / 100))
+      ? Math.min(
+          Math.max(0, Math.round(subtotalCents * (selectedTip / 100))),
+          maxTipCents
+        )
       : 0;
 
   const handlePreset = (percent) => {
+    const presetCents = Math.round(subtotalCents * (percent / 100));
+    if (presetCents > maxTipCents) return;
     setSelectedTip(percent);
     setCustomAmount('');
     setIsCustom(false);
   };
 
   const handleCustom = (value) => {
-    setCustomAmount(value);
+    if (value.startsWith('-')) return;
+    const nextCents = Math.round(parseFloat(value || '0') * 100) || 0;
+    if (nextCents > maxTipCents) {
+      setCustomAmount((maxTipCents / 100).toFixed(2));
+    } else {
+      setCustomAmount(value);
+    }
     setSelectedTip(null);
     setIsCustom(true);
   };
@@ -1355,15 +1539,17 @@ function CustomerTipScreen({ subtotalCents, taxCents, onConfirm, onSkip }) {
           {tipPresets.map(({ percent, label }) => {
             const tipAmount = Math.round(subtotalCents * (percent / 100));
             const isSelected = selectedTip === percent && !isCustom;
+            const isDisabled = tipAmount > maxTipCents;
             return (
               <button
                 key={percent}
+                disabled={isDisabled}
                 onClick={() => handlePreset(percent)}
                 className={`p-5 rounded-2xl text-center transition-all ${
                   isSelected
                     ? 'bg-[var(--violet-600)] text-white shadow-lg scale-[1.02]'
                     : 'bg-[var(--gray-100)] text-[var(--gray-800)] hover:bg-[var(--gray-200)]'
-                }`}
+                } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 <p className="text-3xl font-bold mb-1">{label}</p>
                 <p className={`text-sm ${isSelected ? 'opacity-80' : 'text-[var(--gray-500)]'}`}>

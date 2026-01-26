@@ -4,6 +4,7 @@ import SearchFilters from "../../components/SearchFilters";
 import FavoriteButton from "../../components/FavoriteButton";
 import { getVendorPlaceholderImage } from "../../utils/placeholderImages";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../../constants/categories";
+import { getStorefrontPath } from "../../utils/storefrontLinks";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
@@ -234,7 +235,7 @@ function VendorCard({ vendor, index }) {
   
   return (
     <Link
-      href={`/store/${vendor.id}`}
+      href={getStorefrontPath(vendor)}
       className="group"
       style={{ animationDelay: `${index * 50}ms` }}
     >

@@ -5,6 +5,7 @@ import { useCart } from "../../contexts/CartContext";
 import { useEffect, useState } from "react";
 import { getVendorProfile } from "../../services/vendors";
 import { useRouter } from "next/navigation";
+import { getStorefrontPath } from "../../utils/storefrontLinks";
 
 export default function CartPage() {
   const { vendorCarts, removeItem, clearVendor, getVendorTotal, totalItems, allItems, updateQuantity } = useCart();
@@ -68,6 +69,7 @@ export default function CartPage() {
             const items = vendorCarts[vendorId];
             const vendor = vendorInfo[vendorId];
             const vendorTotal = getVendorTotal(vendorId);
+            const storefrontPath = getStorefrontPath(vendor || { id: vendorId });
 
             return (
               <div key={vendorId} className="card p-0 overflow-hidden">
@@ -89,7 +91,7 @@ export default function CartPage() {
                     <div>
                       <h2 className="font-semibold text-[var(--gray-900)]">{vendor?.name || 'Vendor'}</h2>
                       <Link 
-                        href={`/store/${vendorId}`} 
+                        href={storefrontPath} 
                         className="text-xs text-[var(--violet-600)] hover:text-[var(--violet-700)] font-medium"
                       >
                         Continue shopping →
@@ -107,7 +109,7 @@ export default function CartPage() {
                     >
                       {/* Product Image */}
                       <Link 
-                        href={`/store/${vendorId}/products/${item.productId || item.id}`}
+                        href={`${storefrontPath}/products/${item.productId || item.id}`}
                         className="flex-shrink-0"
                       >
                         {item.image ? (
@@ -129,7 +131,7 @@ export default function CartPage() {
                       {/* Item Details */}
                       <div className="flex-1 min-w-0">
                         <Link 
-                          href={`/store/${vendorId}/products/${item.productId || item.id}`}
+                          href={`${storefrontPath}/products/${item.productId || item.id}`}
                           className="font-semibold text-sm text-[var(--gray-900)] hover:text-[var(--violet-600)] transition-colors line-clamp-2"
                         >
                           {item.name}

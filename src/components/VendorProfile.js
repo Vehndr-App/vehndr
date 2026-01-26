@@ -29,12 +29,14 @@ import {
 } from "../utils/imageResize";
 
 export default function VendorProfile({ user, onSuccess }) {
+  const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const [vendor, setVendor] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
     description: '',
     location: '',
     heroImage: null,
@@ -47,6 +49,7 @@ export default function VendorProfile({ user, onSuccess }) {
   const [processingImages, setProcessingImages] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [slugError, setSlugError] = useState(null);
   const [galleryItems, setGalleryItems] = useState([]);
   const [heroEditor, setHeroEditor] = useState({
     isOpen: false,
@@ -76,6 +79,7 @@ export default function VendorProfile({ user, onSuccess }) {
 
       const newFormData = {
         name: vendorData.name || '',
+        slug: vendorData.slug || '',
         description: vendorData.description || '',
         location: vendorData.location || '',
         heroImage: null,
@@ -114,12 +118,19 @@ export default function VendorProfile({ user, onSuccess }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const normalizedSlug = formData.slug?.trim().toLowerCase();
+    if (normalizedSlug && !slugPattern.test(normalizedSlug)) {
+      setSlugError("Use lowercase letters, numbers, and dashes only.");
+      return;
+    }
+    setSlugError(null);
     setSaving(true);
     setError(null);
 
     try {
       const formDataToSend = new FormData();
       formDataToSend.append('vendor[name]', formData.name);
+      formDataToSend.append('vendor[slug]', normalizedSlug || '');
       formDataToSend.append('vendor[description]', formData.description);
       formDataToSend.append('vendor[location]', formData.location);
 
@@ -185,6 +196,7 @@ export default function VendorProfile({ user, onSuccess }) {
         heroImage: null,
         heroImageUrl: resultData.heroImage || prev.heroImageUrl,
         galleryImages: [],
+        slug: resultData.slug || prev.slug,
         existingGalleryImages: resultData.galleryImagesData ||
           (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
       }));
@@ -208,6 +220,14 @@ export default function VendorProfile({ user, onSuccess }) {
       setSaving(false);
     }
   };
+
+  const normalizeSlugInput = (value) => (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+  );
 
   const toggleCategory = (category) => {
     setFormData(prev => ({
@@ -519,6 +539,39 @@ export default function VendorProfile({ user, onSuccess }) {
                 className="input"
                 placeholder="Your business name"
               />
+            </div>
+
+            {/* Storefront Slug */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                Storefront URL
+              </label>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-xs text-[var(--gray-500)] sm:whitespace-nowrap">
+                  https://www.vehndr.com/store/
+                </span>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => {
+                    const nextSlug = normalizeSlugInput(e.target.value);
+                    setFormData({ ...formData, slug: nextSlug });
+                    if (nextSlug && !slugPattern.test(nextSlug)) {
+                      setSlugError("Use lowercase letters, numbers, and dashes only.");
+                    } else {
+                      setSlugError(null);
+                    }
+                  }}
+                  className="input flex-1"
+                  placeholder="your-business-name"
+                />
+              </div>
+              <p className="text-xs text-[var(--gray-500)] mt-2">
+                This is the link you can share with customers.
+              </p>
+              {slugError && (
+                <p className="text-xs text-[var(--error)] mt-2">{slugError}</p>
+              )}
             </div>
 
             {/* Description */}
