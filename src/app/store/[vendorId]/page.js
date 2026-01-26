@@ -54,7 +54,8 @@ export default function StorefrontPage() {
   const serviceCount = products.filter(p => p.isService).length;
   const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
 
-  const handleShare = async () => {
+  const handleShare = async (event) => {
+    event?.stopPropagation();
     if (!storefrontUrl) return;
 
     try {
