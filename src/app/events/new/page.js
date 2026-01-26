@@ -802,6 +802,7 @@ function NewEventInner() {
           </div>
         )}
       </div>
+      </div>
       <ImageEditorModal
         isOpen={editorState.isOpen}
         imageSrc={editorState.imageSrc}
