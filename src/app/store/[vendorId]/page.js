@@ -166,11 +166,6 @@ export default function StorefrontPage() {
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  {/* Status Badge */}
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white">
-                    <span className="w-2 h-2 rounded-full bg-[var(--mint-500)]"></span>
-                    Open Now
-                  </div>
                   <button
                     type="button"
                     onClick={handleShare}
@@ -327,12 +322,6 @@ export default function StorefrontPage() {
               </div>
             </div>
             <div className="flex gap-2">
-              <button className="btn btn-outline h-9 px-4 text-sm">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
-                </svg>
-                Message
-              </button>
               <button className="btn bg-gradient-primary text-white h-9 px-4 text-sm rounded-full">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>

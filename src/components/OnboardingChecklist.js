@@ -12,13 +12,26 @@ const CHECKLISTS = {
       description: "Add your brand story, contact info, and event preferences.",
       href: "/dashboard/profile",
       cta: "Update profile",
+      icon: "📝",
+      iconClass: "bg-[var(--violet-50)] text-[var(--violet-600)]",
+    },
+    {
+      id: "vendor_storefront",
+      title: "Add items for attendees",
+      description: "Build your attendee-facing storefront and POS with products or services for in-person checkout or preorders.",
+      href: "/dashboard/storefront",
+      cta: "Edit storefront",
+      icon: "🎨",
+      iconClass: "bg-[var(--info-50)] text-[var(--info-600)]",
     },
     {
       id: "vendor_offerings",
-      title: "Add offerings",
-      description: "List your products or services with pricing and photos.",
+      title: "Create organizer offerings",
+      description: "Define how event organizers can book you as a vendor, including how you sell on-site and how you get paid.",
       href: "/dashboard/offerings",
       cta: "Add offerings",
+      icon: "🛍️",
+      iconClass: "bg-[var(--coral-50)] text-[var(--coral-600)]",
     },
     {
       id: "vendor_availability",
@@ -26,6 +39,8 @@ const CHECKLISTS = {
       description: "Mark the dates you are open for bookings.",
       href: "/dashboard/availability",
       cta: "Set dates",
+      icon: "📅",
+      iconClass: "bg-[var(--mint-50)] text-[var(--mint-600)]",
     },
     {
       id: "vendor_payments",
@@ -33,13 +48,8 @@ const CHECKLISTS = {
       description: "Finish Stripe onboarding to accept card payments.",
       href: "/dashboard/payments",
       cta: "Connect Stripe",
-    },
-    {
-      id: "vendor_storefront",
-      title: "Polish your storefront",
-      description: "Add hero imagery and featured items to improve bookings.",
-      href: "/dashboard/storefront",
-      cta: "Edit storefront",
+      icon: "💳",
+      iconClass: "bg-[var(--amber-50)] text-[var(--amber-600)]",
     },
   ],
   coordinator: [
@@ -49,6 +59,8 @@ const CHECKLISTS = {
       description: "Add your contact info and event planning preferences.",
       href: "/profile",
       cta: "Update profile",
+      icon: "📝",
+      iconClass: "bg-[var(--violet-50)] text-[var(--violet-600)]",
     },
     {
       id: "coordinator_event",
@@ -56,6 +68,8 @@ const CHECKLISTS = {
       description: "Set dates, location, and vendor categories.",
       href: "/coordinator-dashboard/create",
       cta: "Create event",
+      icon: "🎉",
+      iconClass: "bg-[var(--magenta-50)] text-[var(--magenta-600)]",
     },
     {
       id: "coordinator_budget",
@@ -63,6 +77,8 @@ const CHECKLISTS = {
       description: "Set budgets, booth requirements, and timelines.",
       href: "/coordinator-dashboard/create",
       cta: "Set requirements",
+      icon: "🧩",
+      iconClass: "bg-[var(--mint-50)] text-[var(--mint-600)]",
     },
     {
       id: "coordinator_invites",
@@ -70,6 +86,8 @@ const CHECKLISTS = {
       description: "Reach out to vendors and review incoming requests.",
       href: "/coordinator-dashboard",
       cta: "Review vendors",
+      icon: "📣",
+      iconClass: "bg-[var(--coral-50)] text-[var(--coral-600)]",
     },
     {
       id: "coordinator_publish",
@@ -77,6 +95,8 @@ const CHECKLISTS = {
       description: "Make your event visible and ready for bookings.",
       href: "/coordinator-dashboard",
       cta: "Publish event",
+      icon: "🚀",
+      iconClass: "bg-[var(--amber-50)] text-[var(--amber-600)]",
     },
   ],
 };
@@ -196,6 +216,14 @@ export default function OnboardingChecklist({ role }) {
                   </svg>
                 )}
               </button>
+              <span
+                className={`mt-0.5 h-8 w-8 rounded-full text-base flex items-center justify-center ${
+                  item.iconClass || "bg-[var(--gray-50)] text-[var(--gray-600)]"
+                }`}
+                aria-hidden="true"
+              >
+                {item.icon || "✨"}
+              </span>
               <div className="flex-1">
                 <p className="text-sm font-semibold text-[var(--gray-900)]">
                   {item.title}
