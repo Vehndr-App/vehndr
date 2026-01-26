@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '../../../services/api';
 import { useCart } from '../../../contexts/CartContext';
 import AddToCalendar from '../../../components/AddToCalendar';
+import RatingForm from '../../../components/RatingForm';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -13,6 +14,8 @@ function SuccessContent() {
   const [loading, setLoading] = useState(true);
   const [order, setOrder] = useState(null);
   const [error, setError] = useState(null);
+  const [showRatingForm, setShowRatingForm] = useState(false);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
   useEffect(() => {
     const vendorId = searchParams.get('vendor_id');
@@ -178,6 +181,51 @@ function SuccessContent() {
             </li>
           </ul>
         </div>
+
+        {/* Rating Section */}
+        {order && !order.isRated && !ratingSubmitted && (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-6 mb-8">
+            {showRatingForm ? (
+              <RatingForm
+                orderId={order.id}
+                vendorName={order.vendor?.name || 'the vendor'}
+                guestEmail={order.customerEmail}
+                onSuccess={() => {
+                  setShowRatingForm(false);
+                  setRatingSubmitted(true);
+                }}
+                onCancel={() => setShowRatingForm(false)}
+              />
+            ) : (
+              <div className="text-center">
+                <h2 className="font-semibold text-amber-900 mb-2">How was your experience?</h2>
+                <p className="text-sm text-amber-800 mb-4">
+                  Help other customers by rating {order.vendor?.name || 'this vendor'}
+                </p>
+                <button
+                  onClick={() => setShowRatingForm(true)}
+                  className="px-4 py-2 bg-amber-500 text-white rounded-lg font-semibold hover:bg-amber-600 transition"
+                >
+                  Rate This Order
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Rating Submitted Confirmation */}
+        {ratingSubmitted && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-8 text-center">
+            <div className="text-2xl mb-2">
+              <svg className="w-8 h-8 mx-auto text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9 12l2 2 4-4" />
+              </svg>
+            </div>
+            <h2 className="font-semibold text-green-900 mb-1">Thank you for your rating!</h2>
+            <p className="text-sm text-green-700">Your feedback helps other customers.</p>
+          </div>
+        )}
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
