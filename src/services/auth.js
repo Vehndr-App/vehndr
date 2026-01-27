@@ -23,7 +23,17 @@ export async function login({ email, password, recaptchaToken }) {
   return result?.user || result;
 }
 
-export async function register({ email, password, passwordConfirmation, name, businessName, role, recaptchaToken }) {
+export async function register({
+  email,
+  password,
+  passwordConfirmation,
+  name,
+  businessName,
+  role,
+  recaptchaToken,
+  termsAccepted,
+  privacyAccepted
+}) {
   const result = await api("/api/auth/register", {
     method: "POST",
     body: {
@@ -33,7 +43,9 @@ export async function register({ email, password, passwordConfirmation, name, bu
       name,
       business_name: businessName,
       role,
-      recaptcha_token: recaptchaToken
+      recaptcha_token: recaptchaToken,
+      terms_accepted: termsAccepted,
+      privacy_accepted: privacyAccepted
     },
   });
   if (typeof window !== "undefined" && result?.token) {

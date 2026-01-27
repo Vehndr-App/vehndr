@@ -279,7 +279,21 @@ export default function LoginPage() {
         
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-[var(--gray-400)]">
-          By signing in, you agree to our Terms of Service and Privacy Policy
+          By signing in, you agree to our{" "}
+          <Link
+            href="/terms"
+            className="text-[var(--gray-500)] hover:text-[var(--gray-700)] underline-offset-2 hover:underline"
+          >
+            Terms & Conditions
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/privacy"
+            className="text-[var(--gray-500)] hover:text-[var(--gray-700)] underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </Link>
+          .
         </p>
       </div>
     </div>

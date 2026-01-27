@@ -195,9 +195,11 @@ export default function CartPage() {
                             )}
                             <button
                               onClick={() => removeItem(vendorId, item.id)}
-                              className="text-xs text-[var(--error)] hover:text-red-700 font-medium"
+                              className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--error)] hover:text-red-700 hover:bg-red-50 transition-colors"
+                              aria-label="Remove item"
+                              title="Remove"
                             >
-                              Remove
+                              <span aria-hidden="true">×</span>
                             </button>
                           </div>
                           <span className="font-semibold text-[var(--gray-900)]">

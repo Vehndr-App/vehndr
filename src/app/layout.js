@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "../components/Navbar";
 import BottomNav from "../components/BottomNav";
 import EventBestie from "../components/EventBestie";
+import Footer from "../components/Footer";
 import { CartProvider } from "../contexts/CartContext";
 import { AuthProvider } from "../contexts/AuthContext";
 import { Analytics } from "@vercel/analytics/next"
@@ -46,6 +47,7 @@ export default function RootLayout({ children }) {
           <CartProvider>
             <Navbar />
             <main className="min-h-screen pb-20">{children}</main>
+            <Footer />
             <BottomNav />
             <EventBestie />
           </CartProvider>

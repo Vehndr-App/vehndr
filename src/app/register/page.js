@@ -18,6 +18,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
@@ -61,6 +62,12 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!acceptedTerms) {
+      setError("You must accept the Terms & Conditions and Privacy Policy");
+      setLoading(false);
+      return;
+    }
+
     // Get reCAPTCHA token
     const recaptchaToken = recaptchaRef.current?.getValue();
     // #region agent log
@@ -85,7 +92,9 @@ export default function RegisterPage() {
         name,
         businessName,
         role,
-        recaptchaToken
+        recaptchaToken,
+        termsAccepted: acceptedTerms,
+        privacyAccepted: acceptedTerms
       });
 
       // Show success message - user needs to verify email
@@ -345,6 +354,34 @@ export default function RegisterPage() {
               />
             </div>
 
+            <div className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                name="termsAccepted"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+                required
+                className="mt-1 h-4 w-4 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+              />
+              <label className="text-xs text-[var(--gray-600)]">
+                I agree to the{" "}
+                <Link
+                  href="/terms"
+                  className="text-[var(--violet-600)] hover:text-[var(--violet-700)] underline-offset-2 hover:underline"
+                >
+                  Terms & Conditions
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/privacy"
+                  className="text-[var(--violet-600)] hover:text-[var(--violet-700)] underline-offset-2 hover:underline"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </label>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
@@ -370,7 +407,21 @@ export default function RegisterPage() {
         
         {/* Footer */}
         <p className="mt-6 text-center text-xs text-[var(--gray-400)]">
-          By creating an account, you agree to our Terms of Service and Privacy Policy
+          By creating an account, you agree to our{" "}
+          <Link
+            href="/terms"
+            className="text-[var(--gray-500)] hover:text-[var(--gray-700)] underline-offset-2 hover:underline"
+          >
+            Terms & Conditions
+          </Link>{" "}
+          and{" "}
+          <Link
+            href="/privacy"
+            className="text-[var(--gray-500)] hover:text-[var(--gray-700)] underline-offset-2 hover:underline"
+          >
+            Privacy Policy
+          </Link>
+          .
         </p>
       </div>
     </div>

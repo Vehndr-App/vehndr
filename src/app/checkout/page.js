@@ -11,12 +11,13 @@ import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../../components/PaymentForm';
 import TipSelector from '../../components/TipSelector';
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 const MAX_CHARGE_CENTS = 5000000;
 const MAX_CHARGE_LABEL = "$50,000.00";
 
 export default function CheckoutPage() {
-  const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity } = useCart();
+  const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity, removeItem } = useCart();
   const { refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [activeVendor, setActiveVendor] = useState(null);
@@ -26,7 +27,8 @@ export default function CheckoutPage() {
   const [clientSecrets, setClientSecrets] = useState({});
   const [paymentIntents, setPaymentIntents] = useState({});
   const [vendorTips, setVendorTips] = useState({});
-  const [vendorPickupAt, setVendorPickupAt] = useState({});
+  const [vendorPickupDate, setVendorPickupDate] = useState({});
+  const [vendorPickupTime, setVendorPickupTime] = useState({});
   const router = useRouter();
 
   // Calculate grand total
@@ -120,9 +122,10 @@ export default function CheckoutPage() {
         requestBody.email = accountData.email;
       }
 
-      const pickupAt = vendorPickupAt[vendorId];
-      if (pickupAt) {
-        requestBody.pickupAt = pickupAt;
+      const pickupDate = vendorPickupDate[vendorId];
+      const pickupTime = vendorPickupTime[vendorId];
+      if (pickupDate && pickupTime) {
+        requestBody.pickupAt = `${pickupDate}T${pickupTime}`;
       }
 
       console.log('=== Checkout Debug ===');
@@ -155,7 +158,12 @@ export default function CheckoutPage() {
         return updated;
       });
 
-      setVendorPickupAt(prev => {
+      setVendorPickupDate(prev => {
+        const updated = { ...prev };
+        delete updated[vendorId];
+        return updated;
+      });
+      setVendorPickupTime(prev => {
         const updated = { ...prev };
         delete updated[vendorId];
         return updated;
@@ -191,6 +199,7 @@ export default function CheckoutPage() {
   };
 
   const vendorIds = Object.keys(vendorCarts);
+  const stripeKeyMissing = !stripePromise;
 
   if (vendorIds.length === 0) {
     return (
@@ -257,7 +266,7 @@ export default function CheckoutPage() {
         </div>
       </div>
 
-      {error && (
+      {(error || stripeKeyMissing) && (
         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-[var(--radius-lg)] text-red-700 text-sm">
           <div className="flex items-center gap-2">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -265,7 +274,7 @@ export default function CheckoutPage() {
               <line x1="12" y1="8" x2="12" y2="12"/>
               <line x1="12" y1="16" x2="12.01" y2="16"/>
             </svg>
-            {error}
+            {error || 'Stripe publishable key is missing. Set NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY to enable checkout.'}
           </div>
         </div>
       )}
@@ -395,6 +404,14 @@ export default function CheckoutPage() {
                           <span className="text-xs text-[var(--gray-400)]">
                             ${(item.price / 100).toFixed(2)} each
                           </span>
+                          <button
+                            onClick={() => removeItem(vendorId, item.id)}
+                            className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--error)] hover:text-red-700 hover:bg-red-50 transition-colors"
+                            aria-label="Remove item"
+                            title="Remove"
+                          >
+                            <span aria-hidden="true">×</span>
+                          </button>
                         </div>
                       </div>
 
@@ -425,20 +442,40 @@ export default function CheckoutPage() {
                     <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
                       Pickup date &amp; time (optional)
                     </label>
-                    <input
-                      type="datetime-local"
-                      value={vendorPickupAt[vendorId] || ''}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        setVendorPickupAt(prev => ({
-                          ...prev,
-                          [vendorId]: value
-                        }));
-                      }}
-                      className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
-                    />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <span className="text-xs text-[var(--gray-500)]">Date</span>
+                        <input
+                          type="date"
+                          value={vendorPickupDate[vendorId] || ''}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setVendorPickupDate(prev => ({
+                              ...prev,
+                              [vendorId]: value
+                            }));
+                          }}
+                          className="mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-xs text-[var(--gray-500)]">Time</span>
+                        <input
+                          type="time"
+                          value={vendorPickupTime[vendorId] || ''}
+                          onChange={(event) => {
+                            const value = event.target.value;
+                            setVendorPickupTime(prev => ({
+                              ...prev,
+                              [vendorId]: value
+                            }));
+                          }}
+                          className="mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
+                        />
+                      </div>
+                    </div>
                     <p className="text-xs text-[var(--gray-500)] mt-2">
-                      Share a preferred pickup time so the vendor can prepare your order.
+                      Optional for pickup orders only. Leave blank if you don&apos;t need a pickup time.
                     </p>
                   </div>
                 )}
@@ -471,29 +508,37 @@ export default function CheckoutPage() {
 
                   {canCheckout ? (
                     clientSecrets[vendorId] ? (
-                      <Elements
-                        stripe={stripePromise}
-                        options={{
-                          clientSecret: clientSecrets[vendorId],
-                          appearance: {
-                            theme: 'stripe',
-                            variables: {
-                              colorPrimary: '#7C3AED',
-                              borderRadius: '8px',
-                            }
-                          },
-                          loader: 'auto',
-                          paymentMethodOrder: ['apple_pay', 'google_pay', 'card']
-                        }}
-                      >
-                        <PaymentForm
-                          vendorName={vendor?.name || 'Vendor'}
-                          totalCents={total}
-                          tipCents={vendorTips[vendorId] || 0}
-                          onSuccess={(paymentIntent, accountData) => handlePaymentSuccess(vendorId, paymentIntent, accountData)}
-                          onError={(error) => handlePaymentError(vendorId, error)}
-                        />
-                      </Elements>
+                      stripePromise ? (
+                        <Elements
+                          stripe={stripePromise}
+                          options={{
+                            clientSecret: clientSecrets[vendorId],
+                            appearance: {
+                              theme: 'stripe',
+                              variables: {
+                                colorPrimary: '#7C3AED',
+                                borderRadius: '8px',
+                              }
+                            },
+                            loader: 'auto',
+                            paymentMethodOrder: ['apple_pay', 'google_pay', 'card']
+                          }}
+                        >
+                          <PaymentForm
+                            vendorName={vendor?.name || 'Vendor'}
+                            totalCents={total}
+                            tipCents={vendorTips[vendorId] || 0}
+                            onSuccess={(paymentIntent, accountData) => handlePaymentSuccess(vendorId, paymentIntent, accountData)}
+                            onError={(error) => handlePaymentError(vendorId, error)}
+                          />
+                        </Elements>
+                      ) : (
+                        <div className="text-center p-3 bg-[var(--amber-50)] border border-[var(--amber-200)] rounded-[var(--radius-lg)]">
+                          <p className="text-sm text-[var(--amber-700)]">
+                            Stripe key is missing. Checkout is temporarily unavailable.
+                          </p>
+                        </div>
+                      )
                     ) : (
                       <button
                         onClick={() => handleCheckout(vendorId)}

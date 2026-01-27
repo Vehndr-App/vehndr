@@ -164,13 +164,13 @@ export function CartProvider({ children }) {
     }
   };
 
-  const removeItem = async (vendorId, productId) => {
+  const removeItem = async (vendorId, cartItemId) => {
     // Optimistically update UI
     const previousState = vendorCarts;
     setVendorCarts((prev) => {
       const updated = { ...prev };
       if (updated[vendorId]) {
-        updated[vendorId] = updated[vendorId].filter((i) => i.id !== productId);
+        updated[vendorId] = updated[vendorId].filter((i) => i.id !== cartItemId);
         if (updated[vendorId].length === 0) {
           delete updated[vendorId];
         }
@@ -178,12 +178,8 @@ export function CartProvider({ children }) {
       return updated;
     });
 
-    // Sync with backend - Note: backend uses cart_item ID, not product ID
-    // We'll need to find the cart item by productId or clear vendor items
     try {
-      // For now, we'll just reload the cart after removal
-      // You may want to enhance the backend API to support removing by productId
-      const response = await api(`/api/cart/vendors/${vendorId}`, {
+      const response = await api(`/api/cart/items/${cartItemId}`, {
         method: 'DELETE'
       });
 
