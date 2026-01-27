@@ -7,7 +7,6 @@ export const VENDOR_CATEGORIES = [
   "Clothing & Accessories",
   "Beauty",
   "Venue",
-  "Photography",
   "Rentals",
   "Photography & Videography",
   "DJ/Music",
@@ -43,11 +42,6 @@ export const CATEGORY_DISPLAY = {
     icon: "🏛️",
     label: "Venues",
     color: "var(--info-50)"
-  },
-  "Photography": {
-    icon: "📸",
-    label: "Photography",
-    color: "var(--violet-50)"
   },
   "Rentals": {
     icon: "🎪",
