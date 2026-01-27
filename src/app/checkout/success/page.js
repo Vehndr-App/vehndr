@@ -254,6 +254,12 @@ function SuccessContent() {
                 <span>Total:</span>
                 <span className="font-semibold">${(order.totalCents / 100).toFixed(2)}</span>
               </div>
+              {order.pickupAt && (
+                <div className="flex justify-between">
+                  <span>Pickup:</span>
+                  <span className="font-medium">{formatPickupAt(order.pickupAt)}</span>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -271,6 +277,20 @@ function formatBookingDate(dateStr) {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
+  });
+}
+
+function formatPickupAt(dateTimeStr) {
+  if (!dateTimeStr) return '';
+  const date = new Date(dateTimeStr);
+  if (Number.isNaN(date.getTime())) return dateTimeStr;
+  return date.toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
   });
 }
 

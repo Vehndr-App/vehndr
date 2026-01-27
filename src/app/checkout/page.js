@@ -26,6 +26,7 @@ export default function CheckoutPage() {
   const [clientSecrets, setClientSecrets] = useState({});
   const [paymentIntents, setPaymentIntents] = useState({});
   const [vendorTips, setVendorTips] = useState({});
+  const [vendorPickupAt, setVendorPickupAt] = useState({});
   const router = useRouter();
 
   // Calculate grand total
@@ -119,6 +120,11 @@ export default function CheckoutPage() {
         requestBody.email = accountData.email;
       }
 
+      const pickupAt = vendorPickupAt[vendorId];
+      if (pickupAt) {
+        requestBody.pickupAt = pickupAt;
+      }
+
       console.log('=== Checkout Debug ===');
       console.log('accountData received:', accountData);
       console.log('requestBody being sent:', { ...requestBody, password: requestBody.password ? '[REDACTED]' : undefined });
@@ -144,6 +150,12 @@ export default function CheckoutPage() {
 
       // Clear the client secret for this vendor
       setClientSecrets(prev => {
+        const updated = { ...prev };
+        delete updated[vendorId];
+        return updated;
+      });
+
+      setVendorPickupAt(prev => {
         const updated = { ...prev };
         delete updated[vendorId];
         return updated;
@@ -272,6 +284,7 @@ export default function CheckoutPage() {
             const isOverLimit = total > MAX_CHARGE_CENTS;
             const canCheckout = vendor?.stripeReadyForCheckout !== false;
             const isProcessing = loading && activeVendor === vendorId;
+            const hasPhysicalItems = items.some(item => !item.isService);
 
             return (
               <div key={vendorId} className="card p-0 overflow-hidden">
@@ -404,6 +417,29 @@ export default function CheckoutPage() {
                       disabled={!!clientSecrets[vendorId]}
                       maxTotalCents={MAX_CHARGE_CENTS}
                     />
+                  </div>
+                )}
+
+                {hasPhysicalItems && (
+                  <div className="p-4 border-t border-[var(--gray-100)]">
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                      Pickup date &amp; time (optional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={vendorPickupAt[vendorId] || ''}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setVendorPickupAt(prev => ({
+                          ...prev,
+                          [vendorId]: value
+                        }));
+                      }}
+                      className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
+                    />
+                    <p className="text-xs text-[var(--gray-500)] mt-2">
+                      Share a preferred pickup time so the vendor can prepare your order.
+                    </p>
                   </div>
                 )}
 
