@@ -24,6 +24,7 @@ export default function CheckoutPage() {
   const [clientSecrets, setClientSecrets] = useState({});
   const [paymentIntents, setPaymentIntents] = useState({});
   const [vendorTips, setVendorTips] = useState({});
+  const [vendorNotes, setVendorNotes] = useState({});
   const router = useRouter();
 
   // Calculate grand total
@@ -64,6 +65,13 @@ export default function CheckoutPage() {
     }));
   };
 
+  const handleNotesChange = (vendorId, notes) => {
+    setVendorNotes(prev => ({
+      ...prev,
+      [vendorId]: notes
+    }));
+  };
+
   const handleCheckout = async (vendorId) => {
     setLoading(true);
     setActiveVendor(vendorId);
@@ -71,13 +79,15 @@ export default function CheckoutPage() {
 
     try {
       const tipCents = vendorTips[vendorId] || 0;
+      const notes = vendorNotes[vendorId] || '';
 
       // Create PaymentIntent for custom checkout using cart items on server
       const response = await api('/api/checkout/payment_intent', {
         method: 'POST',
         body: {
           vendorId: vendorId,
-          tipCents: tipCents
+          tipCents: tipCents,
+          notes: notes.trim() || null
         }
       });
 
@@ -395,6 +405,26 @@ export default function CheckoutPage() {
                       onTipChange={(tipCents) => handleTipChange(vendorId, tipCents)}
                       disabled={!!clientSecrets[vendorId]}
                     />
+                  </div>
+                )}
+
+                {/* Order Notes */}
+                {canCheckout && !clientSecrets[vendorId] && (
+                  <div className="p-4 border-t border-[var(--gray-100)]">
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                      Order Notes <span className="text-[var(--gray-400)] font-normal">(optional)</span>
+                    </label>
+                    <textarea
+                      value={vendorNotes[vendorId] || ''}
+                      onChange={(e) => handleNotesChange(vendorId, e.target.value)}
+                      placeholder="Add any special instructions or notes for your order..."
+                      rows={2}
+                      maxLength={500}
+                      className="w-full px-3 py-2 border border-[var(--gray-200)] rounded-[var(--radius-lg)] text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-400)] focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent resize-none"
+                    />
+                    <p className="text-xs text-[var(--gray-400)] mt-1 text-right">
+                      {(vendorNotes[vendorId] || '').length}/500
+                    </p>
                   </div>
                 )}
 
