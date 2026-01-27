@@ -72,7 +72,7 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const COLORS = ["#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444", "#10b981"];
+  const COLORS = ["var(--violet-500)", "var(--info)", "var(--amber-500)", "var(--error)", "var(--mint-500)"];
 
   const roleData = stats?.users?.byRole
     ? Object.entries(stats.users.byRole).map(([name, value]) => ({
@@ -164,11 +164,11 @@ export default function AdminDashboardPage() {
               <AreaChart data={revenueData}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                    <stop offset="5%" stopColor="var(--violet-500)" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="var(--violet-500)" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 12 }}
@@ -190,7 +190,7 @@ export default function AdminDashboardPage() {
                 <Area
                   type="monotone"
                   dataKey="revenue"
-                  stroke="#8b5cf6"
+                  stroke="var(--violet-500)"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorRevenue)"
@@ -208,7 +208,7 @@ export default function AdminDashboardPage() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={userGrowthData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
                 <XAxis
                   dataKey="date"
                   tick={{ fontSize: 12 }}
@@ -227,7 +227,7 @@ export default function AdminDashboardPage() {
                 <Line
                   type="monotone"
                   dataKey="totalUsers"
-                  stroke="#06b6d4"
+                  stroke="var(--info)"
                   strokeWidth={2}
                   dot={false}
                   name="Total Users"
@@ -235,7 +235,7 @@ export default function AdminDashboardPage() {
                 <Line
                   type="monotone"
                   dataKey="newUsers"
-                  stroke="#8b5cf6"
+                  stroke="var(--violet-500)"
                   strokeWidth={2}
                   dot={false}
                   name="New Users"
@@ -287,7 +287,7 @@ export default function AdminDashboardPage() {
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={orderStatusData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
                 <XAxis type="number" tick={{ fontSize: 12 }} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={80} />
                 <Tooltip />

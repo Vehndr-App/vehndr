@@ -140,9 +140,10 @@ export default function LoginPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-block">
-              <h1 className="font-display text-3xl tracking-tight text-gradient-primary">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <span className="font-display text-3xl tracking-tight text-gradient-primary">
                 vehndr
-              </h1>
+              </span>
             </Link>
             <h2 className="mt-3 text-xl font-semibold text-[var(--gray-900)]">Welcome back</h2>
             <p className="mt-1 text-sm text-[var(--gray-500)]">Sign in to your account to continue</p>
@@ -220,7 +221,7 @@ export default function LoginPage() {
                 name="password"
                 required
                 className="input"
-                placeholder="••••••••"
+                placeholder="********"
               />
             </div>
 

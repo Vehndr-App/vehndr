@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "../../services/api";
 import FavoriteButton from "../../components/FavoriteButton";
 import { getVendorPlaceholderImage } from "../../utils/placeholderImages";
+import { getStorefrontPath } from "../../utils/storefrontLinks";
 
 const FAVORITES_KEY = "vehndr_favorites";
 
@@ -121,7 +122,7 @@ function VendorCard({ vendor }) {
 
   return (
     <Link
-      href={`/store/${vendor.id}`}
+      href={getStorefrontPath(vendor)}
       className="group bg-white rounded-[var(--radius-2xl)] overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all"
     >
       {/* Image */}

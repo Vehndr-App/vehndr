@@ -7,6 +7,7 @@ import HomeToggle from "../components/HomeToggle";
 import UserTypePopup from "../components/UserTypePopup";
 import { getVendorPlaceholderImage } from "../utils/placeholderImages";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
+import { getStorefrontPath } from "../utils/storefrontLinks";
 
 // Fetch events function
 async function listEvents(params = {}) {
@@ -107,7 +108,7 @@ export default async function Home({ searchParams }) {
                 href="/?mode=events"
                 icon="🗓️"
                 label="Events"
-                color="#EDE9FE"
+              color="var(--violet-100)"
               />
               {VENDOR_CATEGORIES.filter(category => allCategories.includes(category)).map((category) => {
                 const display = CATEGORY_DISPLAY[category];
@@ -136,44 +137,44 @@ export default async function Home({ searchParams }) {
                 href="/?mode=vendors" 
                 icon="🏪" 
                 label="Vendors"
-                color="#F3E8FF"
+                color="var(--violet-50)"
               />
               <QuickActionCard 
                 href="/?mode=events&type=party" 
                 icon="🎉" 
                 label="Parties"
-                color="#FCE7F3"
+                color="var(--magenta-100)"
                 badge="Hot"
               />
               <QuickActionCard 
                 href="/?mode=events&type=wedding" 
                 icon="💒" 
                 label="Weddings"
-                color="#FEE2E2"
+                color="var(--coral-100)"
               />
               <QuickActionCard 
                 href="/?mode=events&type=concert" 
                 icon="🎸" 
                 label="Concerts"
-                color="#FEF3C7"
+                color="var(--amber-100)"
               />
               <QuickActionCard 
                 href="/?mode=events&type=festival" 
                 icon="🎪" 
                 label="Festivals"
-                color="#CFFAFE"
+                color="var(--info-50)"
               />
               <QuickActionCard 
                 href="/?mode=events&type=corporate" 
                 icon="💼" 
                 label="Corporate"
-                color="#E0E7FF"
+                color="var(--violet-50)"
               />
               <QuickActionCard 
                 href="/?mode=events&type=wellness" 
                 icon="🧘" 
                 label="Wellness"
-                color="#D1FAE5"
+                color="var(--mint-100)"
               />
             </div>
           </div>
@@ -395,7 +396,7 @@ function VendorCard({ vendor, index }) {
   
   return (
     <Link
-      href={`/store/${vendor.id}`}
+      href={getStorefrontPath(vendor)}
       className="group flex-shrink-0 w-[200px] sm:w-[220px]"
       style={{ animationDelay: `${index * 50}ms` }}
     >

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "../contexts/CartContext";
+import { getStorefrontPath } from "../utils/storefrontLinks";
 
 export default function ProductCard({ product, compact = false }) {
   const { addItem } = useCart();
@@ -15,6 +16,11 @@ export default function ProductCard({ product, compact = false }) {
   const priceFormatted = (product.price / 100).toFixed(2);
   const hasImage = product.images && product.images.length > 0;
   const hasOptions = product.options && product.options.length > 0;
+  const storefrontPath = getStorefrontPath({
+    vendorSlug: product.vendorSlug || product.vendor_slug,
+    vendorId: product.vendorId || product.vendor_id
+  });
+  const productPath = `${storefrontPath}/products/${product.id}`;
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();
@@ -22,7 +28,7 @@ export default function ProductCard({ product, compact = false }) {
     
     // For services or products with options, navigate to product page
     if (isService || hasOptions) {
-      router.push(`/store/${product.vendorId}/products/${product.id}`);
+      router.push(productPath);
       return;
     }
     
@@ -37,7 +43,7 @@ export default function ProductCard({ product, compact = false }) {
         setShowFeedback('options');
         setTimeout(() => {
           setShowFeedback(null);
-          router.push(`/store/${product.vendorId}/products/${product.id}`);
+          router.push(productPath);
         }, 1000);
       } else {
         console.error('Failed to add item:', error);
@@ -50,7 +56,7 @@ export default function ProductCard({ product, compact = false }) {
   
   return (
     <Link 
-      href={`/store/${product.vendorId}/products/${product.id}`}
+      href={productPath}
       className="group relative rounded-[var(--radius-xl)] overflow-hidden bg-white shadow-[var(--shadow-sm)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-200 block"
     >
       {/* Image Container */}

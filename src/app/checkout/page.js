@@ -12,6 +12,8 @@ import PaymentForm from '../../components/PaymentForm';
 import TipSelector from '../../components/TipSelector';
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const MAX_CHARGE_CENTS = 5000000;
+const MAX_CHARGE_LABEL = "$50,000.00";
 
 export default function CheckoutPage() {
   const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity } = useCart();
@@ -25,6 +27,7 @@ export default function CheckoutPage() {
   const [paymentIntents, setPaymentIntents] = useState({});
   const [vendorTips, setVendorTips] = useState({});
   const [vendorNotes, setVendorNotes] = useState({});
+  const [vendorPickupAt, setVendorPickupAt] = useState({});
   const router = useRouter();
 
   // Calculate grand total
@@ -80,6 +83,13 @@ export default function CheckoutPage() {
     try {
       const tipCents = vendorTips[vendorId] || 0;
       const notes = vendorNotes[vendorId] || '';
+      const total = calculateVendorSubtotal(vendorId) + tipCents;
+      if (total > MAX_CHARGE_CENTS) {
+        setError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+        setLoading(false);
+        setActiveVendor(null);
+        return;
+      }
 
       // Create PaymentIntent for custom checkout using cart items on server
       const response = await api('/api/checkout/payment_intent', {
@@ -122,6 +132,11 @@ export default function CheckoutPage() {
         requestBody.email = accountData.email;
       }
 
+      const pickupAt = vendorPickupAt[vendorId];
+      if (pickupAt) {
+        requestBody.pickupAt = pickupAt;
+      }
+
       console.log('=== Checkout Debug ===');
       console.log('accountData received:', accountData);
       console.log('requestBody being sent:', { ...requestBody, password: requestBody.password ? '[REDACTED]' : undefined });
@@ -147,6 +162,12 @@ export default function CheckoutPage() {
 
       // Clear the client secret for this vendor
       setClientSecrets(prev => {
+        const updated = { ...prev };
+        delete updated[vendorId];
+        return updated;
+      });
+
+      setVendorPickupAt(prev => {
         const updated = { ...prev };
         delete updated[vendorId];
         return updated;
@@ -272,8 +293,10 @@ export default function CheckoutPage() {
             const items = vendorCarts[vendorId];
             const vendor = vendorDetails[vendorId];
             const total = calculateVendorTotal(vendorId);
+            const isOverLimit = total > MAX_CHARGE_CENTS;
             const canCheckout = vendor?.stripeReadyForCheckout !== false;
             const isProcessing = loading && activeVendor === vendorId;
+            const hasPhysicalItems = items.some(item => !item.isService);
 
             return (
               <div key={vendorId} className="card p-0 overflow-hidden">
@@ -404,6 +427,7 @@ export default function CheckoutPage() {
                       subtotalCents={calculateVendorSubtotal(vendorId)}
                       onTipChange={(tipCents) => handleTipChange(vendorId, tipCents)}
                       disabled={!!clientSecrets[vendorId]}
+                      maxTotalCents={MAX_CHARGE_CENTS}
                     />
                   </div>
                 )}
@@ -424,6 +448,30 @@ export default function CheckoutPage() {
                     />
                     <p className="text-xs text-[var(--gray-400)] mt-1 text-right">
                       {(vendorNotes[vendorId] || '').length}/500
+                    </p>
+                  </div>
+                )}
+
+                {/* Pickup Date/Time */}
+                {hasPhysicalItems && canCheckout && !clientSecrets[vendorId] && (
+                  <div className="p-4 border-t border-[var(--gray-100)]">
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                      Pickup date &amp; time <span className="text-[var(--gray-400)] font-normal">(optional)</span>
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={vendorPickupAt[vendorId] || ''}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        setVendorPickupAt(prev => ({
+                          ...prev,
+                          [vendorId]: value
+                        }));
+                      }}
+                      className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
+                    />
+                    <p className="text-xs text-[var(--gray-500)] mt-2">
+                      Share a preferred pickup time so the vendor can prepare your order.
                     </p>
                   </div>
                 )}
@@ -463,7 +511,7 @@ export default function CheckoutPage() {
                           appearance: {
                             theme: 'stripe',
                             variables: {
-                              colorPrimary: '#8b5cf6',
+                              colorPrimary: '#7C3AED',
                               borderRadius: '8px',
                             }
                           },
@@ -482,7 +530,7 @@ export default function CheckoutPage() {
                     ) : (
                       <button
                         onClick={() => handleCheckout(vendorId)}
-                        disabled={loading}
+                        disabled={loading || isOverLimit}
                         className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isProcessing ? (
@@ -504,6 +552,11 @@ export default function CheckoutPage() {
                         This vendor hasn&apos;t completed their payment setup yet.
                       </p>
                     </div>
+                  )}
+                  {isOverLimit && (
+                    <p className="text-sm text-[var(--error)] mt-3">
+                      Maximum charge is {MAX_CHARGE_LABEL}.
+                    </p>
                   )}
                 </div>
               </div>

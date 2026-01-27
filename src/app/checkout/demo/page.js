@@ -215,35 +215,6 @@ function DemoCheckoutContent() {
             )}
           </button>
 
-          {/* Tap to Pay */}
-          <button
-            onClick={() => setSelectedMethod('tap_to_pay')}
-            className={`w-full flex items-center gap-4 p-4 rounded-[var(--radius-lg)] border-2 mb-3 transition-all ${
-              selectedMethod === 'tap_to_pay' 
-                ? 'border-[var(--violet-500)] bg-[var(--violet-50)]' 
-                : 'border-[var(--gray-200)] hover:border-[var(--gray-300)]'
-            }`}
-          >
-            <div className="w-12 h-8 bg-gradient-primary rounded-md flex items-center justify-center">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
-                <path d="M8 12c0-2.21 1.79-4 4-4"/>
-                <path d="M12 16c2.21 0 4-1.79 4-4"/>
-                <circle cx="12" cy="12" r="1"/>
-              </svg>
-            </div>
-            <div className="flex-1 text-left">
-              <p className="font-semibold text-[var(--gray-900)]">Tap to Pay</p>
-              <p className="text-xs text-[var(--gray-500)]">Hold your phone near the terminal</p>
-            </div>
-            {selectedMethod === 'tap_to_pay' && (
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--violet-600)" stroke="none">
-                <circle cx="12" cy="12" r="10"/>
-                <polyline points="8 12 11 15 16 9" fill="none" stroke="white" strokeWidth="2"/>
-              </svg>
-            )}
-          </button>
-
           {/* Credit/Debit Card */}
           <button
             onClick={() => setSelectedMethod('card')}
@@ -387,10 +358,6 @@ function DemoCheckoutContent() {
             ) : selectedMethod === 'google_pay' ? (
               <span className="flex items-center justify-center gap-2">
                 Pay with Google Pay
-              </span>
-            ) : selectedMethod === 'tap_to_pay' ? (
-              <span className="flex items-center justify-center gap-2">
-                Ready to Tap
               </span>
             ) : selectedMethod === 'card' ? (
               `Pay $${(total / 100).toFixed(2)}`

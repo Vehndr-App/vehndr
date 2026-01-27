@@ -1,10 +1,26 @@
 "use client";
 
-import AuthGate from "../../../components/AuthGate";
-import { getCurrentUser } from "../../../services/auth";
-import { api } from "../../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  rectSortingStrategy,
+  useSortable
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import AuthGate from "../../../components/AuthGate";
+import ImageEditorModal from "../../../components/ImageEditorModal";
+import { getCurrentUser } from "../../../services/auth";
+import { api } from "../../../services/api";
 import { resizeImages, formatFileSize } from "../../../utils/imageResize";
 
 export default function ProductsPage() {
@@ -24,17 +40,26 @@ function ProductsInner() {
   const [successMessage, setSuccessMessage] = useState(null);
   const [saving, setSaving] = useState(false);
   const [processingImages, setProcessingImages] = useState(false);
-  const [draggedIndex, setDraggedIndex] = useState(null);
-  const [dragOverIndex, setDragOverIndex] = useState(null);
+  const [togglingId, setTogglingId] = useState(null);
   const [productForm, setProductForm] = useState({
     name: '',
     description: '',
     price: '',
     isService: false,
     duration: '',
-    images: [],
-    existingImages: []  // Array of {id, url} objects for reordering support
+    active: true,
+    imageItems: []
   });
+  const [imageEditor, setImageEditor] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "product-photo.jpg",
+    targetId: null
+  });
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   const fetchProducts = useCallback(async (vendorId) => {
     try {
@@ -67,17 +92,24 @@ function ProductsInner() {
   const openModal = (product = null) => {
     if (product) {
       setEditingProduct(product);
-      // Use imagesData if available (has id+url), fallback to images URLs
-      const existingImgs = product.imagesData ||
-        (product.images || []).map((url, i) => ({ id: `legacy_${i}`, url }));
+      const imagesData = product.images_data || product.imagesData || [];
+      const existingItems = (imagesData.length > 0
+        ? imagesData
+        : (product.images || []).map((url, i) => ({ id: `legacy_${i}`, url }))
+      ).map((img) => ({
+        id: img.id,
+        url: img.url,
+        isExisting: true,
+        file: null
+      }));
       setProductForm({
         name: product.name || '',
         description: product.description || '',
         price: product.price ? (product.price / 100).toString() : '',
         isService: product.isService || false,
         duration: product.duration?.toString() || '',
-        images: [],
-        existingImages: existingImgs
+        active: product.active !== false,
+        imageItems: existingItems
       });
     } else {
       setEditingProduct(null);
@@ -87,18 +119,47 @@ function ProductsInner() {
         price: '',
         isService: false,
         duration: '',
-        images: [],
-        existingImages: []
+        active: true,
+        imageItems: []
       });
     }
-    setDraggedIndex(null);
-    setDragOverIndex(null);
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingProduct(null);
+  };
+
+  const createImageItem = (file) => ({
+    id: `new_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    url: URL.createObjectURL(file),
+    file,
+    isExisting: false
+  });
+
+  const openImageEditor = (item) => {
+    setImageEditor({
+      isOpen: true,
+      imageSrc: item.url,
+      fileName: item.file?.name || "product-photo.jpg",
+      targetId: item.id
+    });
+  };
+
+  const handleImageDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const current = productForm.imageItems;
+    const oldIndex = current.findIndex((img) => img.id === active.id);
+    const newIndex = current.findIndex((img) => img.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    setProductForm((prev) => ({
+      ...prev,
+      imageItems: arrayMove(current, oldIndex, newIndex)
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -111,27 +172,31 @@ function ProductsInner() {
       formData.append('product[description]', productForm.description);
       formData.append('product[price]', Math.round(parseFloat(productForm.price) * 100));
       formData.append('product[is_service]', productForm.isService);
+      formData.append('product[active]', productForm.active ? 'true' : 'false');
       if (productForm.isService && productForm.duration) {
         formData.append('product[duration]', productForm.duration);
       }
 
       // Add new images
-      if (productForm.images && productForm.images.length > 0) {
-        productForm.images.forEach((image) => {
-          formData.append('images[]', image);
+      const existingItems = productForm.imageItems.filter((item) => item.isExisting);
+      const newItems = productForm.imageItems.filter((item) => !item.isExisting);
+      if (newItems.length > 0) {
+        newItems.forEach((item) => {
+          if (item.file) {
+            formData.append('images[]', item.file);
+          }
         });
       }
 
       // When editing, send the list of existing images to keep and their order
       if (editingProduct) {
-        const existingImages = productForm.existingImages || [];
-        existingImages.forEach((img) => {
-          formData.append('keep_images[]', img.url);
+        existingItems.forEach((item) => {
+          const imageUrl = item.url;
+          formData.append('keep_images[]', imageUrl);
         });
-        // Send the order of image IDs (existing images in their current order)
-        existingImages.forEach((img) => {
-          if (img.id && !img.id.startsWith('legacy_')) {
-            formData.append('image_order[]', img.id);
+        existingItems.forEach((item) => {
+          if (item.id && !item.id.startsWith("legacy_")) {
+            formData.append("image_order[]", item.id);
           }
         });
       }
@@ -174,60 +239,26 @@ function ProductsInner() {
     }
   };
 
-  // Drag and drop handlers for reordering images
-  const handleDragStart = (e, index, isNew) => {
-    setDraggedIndex({ index, isNew });
-    e.dataTransfer.effectAllowed = 'move';
-    e.target.style.opacity = '0.5';
-  };
-
-  const handleDragEnd = (e) => {
-    e.target.style.opacity = '1';
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const handleDragOver = (e, index, isNew) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    setDragOverIndex({ index, isNew });
-  };
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (e, dropIndex, dropIsNew) => {
-    e.preventDefault();
-    if (!draggedIndex) return;
-
-    const { index: dragIndex, isNew: dragIsNew } = draggedIndex;
-
-    // Only allow reordering within the same category (existing or new)
-    if (dragIsNew !== dropIsNew) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    setProductForm(prev => {
-      if (dragIsNew) {
-        // Reorder new images
-        const newImages = [...(prev.images || [])];
-        const [removed] = newImages.splice(dragIndex, 1);
-        newImages.splice(dropIndex, 0, removed);
-        return { ...prev, images: newImages };
-      } else {
-        // Reorder existing images
-        const existingImages = [...(prev.existingImages || [])];
-        const [removed] = existingImages.splice(dragIndex, 1);
-        existingImages.splice(dropIndex, 0, removed);
-        return { ...prev, existingImages: existingImages };
+  const handleToggleActive = async (product) => {
+    if (!product?.id) return;
+    const nextActive = !product.active;
+    setTogglingId(product.id);
+    try {
+      await api(`/api/products/${product.id}`, {
+        method: 'PATCH',
+        body: { product: { active: nextActive } }
+      });
+      setSuccessMessage(nextActive ? 'Product visible!' : 'Product hidden!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      if (user?.vendorId) {
+        await fetchProducts(user.vendorId);
       }
-    });
-
-    setDraggedIndex(null);
-    setDragOverIndex(null);
+    } catch (err) {
+      console.error('Failed to update visibility', err);
+      alert('Failed to update visibility');
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   if (loading) {
@@ -306,6 +337,8 @@ function ProductsInner() {
                   product={product}
                   onEdit={() => openModal(product)}
                   onDelete={() => handleDelete(product.id)}
+                  onToggleActive={() => handleToggleActive(product)}
+                  toggling={togglingId === product.id}
                 />
               ))}
             </div>
@@ -404,84 +437,47 @@ function ProductsInner() {
                 )}
 
                 <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Visible</label>
+                  <div className="mt-2 flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={productForm.active}
+                      onChange={(e) => setProductForm({ ...productForm, active: e.target.checked })}
+                      className="h-4 w-4 rounded border-[var(--gray-300)] text-[var(--violet-600)]"
+                    />
+                    <span className="text-sm text-[var(--gray-600)]">Show on marketplace</span>
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Images</label>
-                  <p className="text-xs text-[var(--gray-500)] mb-3">Drag to reorder. First image is the primary photo.</p>
-
-                  {/* Existing images */}
-                  {productForm.existingImages.length > 0 && (
+                  {productForm.imageItems.length > 0 && (
                     <div className="mb-3">
-                      <p className="text-xs text-[var(--gray-500)] mb-2">Current images</p>
-                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                        {productForm.existingImages.map((img, i) => (
-                          <div
-                            key={`existing-${img.id || i}`}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, i, false)}
-                            onDragEnd={handleDragEnd}
-                            onDragOver={(e) => handleDragOver(e, i, false)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, i, false)}
-                            className={`relative flex-shrink-0 cursor-grab active:cursor-grabbing transition-all ${
-                              dragOverIndex?.index === i && !dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-110' : ''
-                            }`}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={img.url} alt="" className="w-16 h-16 rounded-lg object-cover pointer-events-none" />
-                            {i === 0 && (
-                              <span className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[8px] text-center py-0.5 rounded-b-lg">Primary</span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setProductForm({
-                                ...productForm,
-                                existingImages: productForm.existingImages.filter((_, idx) => idx !== i)
-                              })}
-                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
+                      <p className="text-xs text-[var(--gray-500)] mb-2">Drag to reorder</p>
+                      <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleImageDragEnd}
+                      >
+                        <SortableContext items={productForm.imageItems.map((item) => item.id)} strategy={rectSortingStrategy}>
+                          <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
+                            {productForm.imageItems.map((item) => (
+                              <SortableProductImage
+                                key={item.id}
+                                id={item.id}
+                                item={item}
+                                onEdit={() => openImageEditor(item)}
+                                onRemove={() =>
+                                  setProductForm((prev) => ({
+                                    ...prev,
+                                    imageItems: prev.imageItems.filter((img) => img.id !== item.id)
+                                  }))
+                                }
+                              />
+                            ))}
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* New images preview */}
-                  {productForm.images.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-xs text-[var(--gray-500)] mb-2">New images to add</p>
-                      <div className="flex gap-2 mb-2 overflow-x-auto scrollbar-hide">
-                        {Array.from(productForm.images).map((file, i) => (
-                          <div
-                            key={`new-${i}`}
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, i, true)}
-                            onDragEnd={handleDragEnd}
-                            onDragOver={(e) => handleDragOver(e, i, true)}
-                            onDragLeave={handleDragLeave}
-                            onDrop={(e) => handleDrop(e, i, true)}
-                            className={`relative flex-shrink-0 cursor-grab active:cursor-grabbing transition-all ${
-                              dragOverIndex?.index === i && dragOverIndex?.isNew ? 'ring-2 ring-[var(--violet-500)] scale-110' : ''
-                            }`}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={URL.createObjectURL(file)} alt="" className="w-16 h-16 rounded-lg object-cover pointer-events-none" />
-                            <div className="absolute inset-0 bg-[var(--violet-600)]/10 rounded-lg pointer-events-none" />
-                            <span className="absolute top-0 left-0 bg-[var(--violet-600)] text-white text-[8px] px-1 py-0.5 rounded-tl-lg rounded-br-lg">New</span>
-                            <button
-                              type="button"
-                              onClick={() => setProductForm({ ...productForm, images: Array.from(productForm.images).filter((_, idx) => idx !== i) })}
-                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </div>
-                        ))}
-                      </div>
+                        </SortableContext>
+                      </DndContext>
                     </div>
                   )}
 
@@ -500,15 +496,15 @@ function ProductsInner() {
                           if (totalResized < totalOriginal) {
                             console.log(`Product images resized: ${formatFileSize(totalOriginal)} → ${formatFileSize(totalResized)}`);
                           }
-                          setProductForm(prev => ({
+                          setProductForm((prev) => ({
                             ...prev,
-                            images: [...(prev.images || []), ...resizedFiles]
+                            imageItems: [...prev.imageItems, ...resizedFiles.map(createImageItem)]
                           }));
                         } catch (err) {
                           console.error('Failed to resize images:', err);
-                          setProductForm(prev => ({
+                          setProductForm((prev) => ({
                             ...prev,
-                            images: [...(prev.images || []), ...files]
+                            imageItems: [...prev.imageItems, ...files.map(createImageItem)]
                           }));
                         } finally {
                           setProcessingImages(false);
@@ -542,16 +538,37 @@ function ProductsInner() {
           </div>
         </div>
       )}
+      <ImageEditorModal
+        isOpen={imageEditor.isOpen}
+        imageSrc={imageEditor.imageSrc}
+        fileName={imageEditor.fileName}
+        initialAspect={1}
+        onClose={() => setImageEditor({ isOpen: false, imageSrc: null, fileName: "product-photo.jpg", targetId: null })}
+        onSave={(editedFile) => {
+          setProductForm((prev) => ({
+            ...prev,
+            imageItems: prev.imageItems.map((item) => {
+              if (item.id !== imageEditor.targetId) return item;
+              return {
+                ...item,
+                url: URL.createObjectURL(editedFile),
+                file: editedFile,
+                isExisting: false
+              };
+            })
+          }));
+        }}
+      />
     </div>
   );
 }
 
-function ProductCard({ product, onEdit, onDelete }) {
+function ProductCard({ product, onEdit, onDelete, onToggleActive, toggling }) {
   const images = product.images || [];
   const price = (product.price || 0) / 100;
 
   return (
-    <div className="card bg-white overflow-hidden">
+    <div className={`card bg-white overflow-hidden ${product.active === false ? 'opacity-70' : ''}`}>
       {images.length > 0 ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -569,11 +586,18 @@ function ProductCard({ product, onEdit, onDelete }) {
       <div className="p-3">
         <div className="flex items-start justify-between gap-1 mb-1">
           <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
-          {product.isService && (
-            <span className="chip text-[10px] px-1.5 py-0.5 bg-[var(--magenta-500)]/10 text-[var(--magenta-600)] flex-shrink-0">
-              Service
-            </span>
-          )}
+          <div className="flex items-center gap-1">
+            {product.isService && (
+              <span className="chip text-[10px] px-1.5 py-0.5 bg-[var(--magenta-500)]/10 text-[var(--magenta-600)] flex-shrink-0">
+                Service
+              </span>
+            )}
+            {product.active === false && (
+              <span className="chip text-[10px] px-1.5 py-0.5 bg-[var(--gray-200)] text-[var(--gray-600)] flex-shrink-0">
+                Hidden
+              </span>
+            )}
+          </div>
         </div>
         <p className="text-lg font-bold text-[var(--foreground)]">${price.toFixed(2)}</p>
         {product.isService && (
@@ -589,6 +613,13 @@ function ProductCard({ product, onEdit, onDelete }) {
             Edit
           </button>
           <button
+            onClick={onToggleActive}
+            disabled={toggling}
+            className="flex-1 chip text-xs bg-[var(--gray-100)] text-[var(--gray-700)] justify-center"
+          >
+            {toggling ? 'Saving...' : (product.active === false ? 'Show' : 'Hide')}
+          </button>
+          <button
             onClick={onDelete}
             className="chip text-xs bg-[var(--error)]/10 text-[var(--error)] px-3"
           >
@@ -598,6 +629,54 @@ function ProductCard({ product, onEdit, onDelete }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function SortableProductImage({ id, item, onEdit, onRemove }) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="relative flex-shrink-0 cursor-grab active:cursor-grabbing"
+      {...attributes}
+      {...listeners}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={item.url} alt="" className="w-16 h-16 rounded-lg object-cover" />
+      {!item.isExisting && (
+        <span className="absolute top-1 left-1 badge bg-[var(--violet-600)] text-white text-[10px]">New</span>
+      )}
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit?.();
+        }}
+        className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6-6m2.828 2.828l-6 6M7 17l-2 2 2-2z" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove?.();
+        }}
+        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-[var(--error)] text-white flex items-center justify-center"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
   );
 }

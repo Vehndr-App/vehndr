@@ -44,6 +44,10 @@ export default function RegisterPage() {
     const businessName = formData.get("businessName");
     const role = formData.get("role");
 
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'register/page.js:47',message:'handleRegister start',data:{hasEmail:!!email,role,hasPassword:!!password,hasPasswordConfirmation:!!passwordConfirmation,hasRecaptchaRef:!!recaptchaRef.current},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+
     // Client-side validation
     if (password !== passwordConfirmation) {
       setError("Passwords do not match");
@@ -59,6 +63,9 @@ export default function RegisterPage() {
 
     // Get reCAPTCHA token
     const recaptchaToken = recaptchaRef.current?.getValue();
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'register/page.js:68',message:'recaptcha token checked',data:{hasRecaptchaToken:!!recaptchaToken},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
     if (!recaptchaToken) {
       setError("Please complete the reCAPTCHA verification");
       setLoading(false);
@@ -67,6 +74,9 @@ export default function RegisterPage() {
 
     try {
       console.log("Attempting registration with:", email, role);
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'register/page.js:77',message:'calling register()',data:{role,hasRecaptchaToken:!!recaptchaToken},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
 
       await register({
         email,
@@ -87,11 +97,13 @@ export default function RegisterPage() {
       // Reset reCAPTCHA on error
       recaptchaRef.current?.reset();
 
-      // Display backend validation errors if available
+      // Display backend or network errors if available
       if (err?.details?.errors && Array.isArray(err.details.errors)) {
         setError(err.details.errors.join(", "));
       } else if (err?.details?.error) {
         setError(err.details.error);
+      } else if (err?.message) {
+        setError(err.message);
       } else {
         setError("Registration failed. Please try again.");
       }
@@ -128,9 +140,10 @@ export default function RegisterPage() {
           {/* Logo */}
           <div className="text-center mb-8">
             <Link href="/" className="inline-block">
-              <h1 className="font-display text-3xl tracking-tight text-gradient-primary">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <span className="font-display text-3xl tracking-tight text-gradient-primary">
                 vehndr
-              </h1>
+              </span>
             </Link>
             <h2 className="mt-3 text-xl font-semibold text-[var(--gray-900)]">Create Account</h2>
             <p className="mt-1 text-sm text-[var(--gray-500)]">Join the marketplace and start connecting</p>

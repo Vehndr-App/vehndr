@@ -4,6 +4,8 @@ import { createContext, useContext, useMemo, useState, useEffect, useCallback } 
 import { api } from "../services/api";
 
 const CartContext = createContext(null);
+const MAX_CHARGE_CENTS = 5000000;
+const MAX_CHARGE_LABEL = "$50,000.00";
 
 export function CartProvider({ children }) {
   const [vendorCarts, setVendorCarts] = useState({}); // {vendorId: [{id, name, price, quantity, vendorId, options}]}
@@ -30,10 +32,32 @@ export function CartProvider({ children }) {
   }, []);
 
   const addItem = async (product, quantity = 1, selectedOptions = {}) => {
+    const vendorId = product.vendorId;
+    const vendorItems = vendorCarts[vendorId] || [];
+    const keyMatches = (i) => i.id === product.id && JSON.stringify(i.options ?? {}) === JSON.stringify(selectedOptions ?? {});
+    const existing = vendorItems.find(keyMatches);
+    const nextItems = existing
+      ? vendorItems.map((i) => (keyMatches(i) ? { ...i, quantity: i.quantity + quantity } : i))
+      : [
+          ...vendorItems,
+          {
+            id: product.id,
+            vendorId: product.vendorId,
+            name: product.name,
+            price: product.price,
+            quantity,
+            options: selectedOptions,
+          },
+        ];
+    const nextTotal = nextItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+    if (nextTotal > MAX_CHARGE_CENTS) {
+      alert(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+      return { error: "limit_exceeded" };
+    }
+
     // Optimistically update UI
     const previousState = vendorCarts;
     setVendorCarts((prev) => {
-      const vendorId = product.vendorId;
       const vendorItems = prev[vendorId] || [];
       const keyMatches = (i) => i.id === product.id && JSON.stringify(i.options ?? {}) === JSON.stringify(selectedOptions ?? {});
       const existing = vendorItems.find(keyMatches);
@@ -85,6 +109,28 @@ export function CartProvider({ children }) {
 
   const updateQuantity = async (cartItemId, newQuantity) => {
     if (newQuantity < 1) return;
+
+    let targetVendorId = null;
+    let targetItems = [];
+    for (const vendorId of Object.keys(vendorCarts)) {
+      const items = vendorCarts[vendorId];
+      if (items.some((item) => item.id === cartItemId)) {
+        targetVendorId = vendorId;
+        targetItems = items;
+        break;
+      }
+    }
+
+    if (targetVendorId) {
+      const nextItems = targetItems.map((item) =>
+        item.id === cartItemId ? { ...item, quantity: newQuantity } : item
+      );
+      const nextTotal = nextItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
+      if (nextTotal > MAX_CHARGE_CENTS) {
+        alert(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
+        return;
+      }
+    }
 
     // Optimistically update UI
     const previousState = vendorCarts;

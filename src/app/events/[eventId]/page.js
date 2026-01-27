@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getEvent } from "../../../services/events";
 import { listVendors } from "../../../services/vendors";
+import { getStorefrontPath } from "../../../utils/storefrontLinks";
 
 export default async function EventDetailPage({ params }) {
   const { eventId } = await params;
@@ -202,7 +203,7 @@ function VendorCard({ vendor, index }) {
   
   return (
     <Link
-      href={`/store/${vendor.id}`}
+      href={getStorefrontPath(vendor)}
       className="group relative w-[260px] sm:w-[280px] rounded-[var(--radius-2xl)] overflow-hidden shadow-[var(--shadow-card)] hover:shadow-[var(--shadow-card-hover)] transition-all duration-300 hover:-translate-y-1 block bg-white"
       style={{ animationDelay: `${index * 50}ms` }}
     >

@@ -6,6 +6,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import AuthGate from "../../components/AuthGate";
 import { api } from "../../services/api";
 import Link from "next/link";
+import OnboardingChecklist from "../../components/OnboardingChecklist";
 
 export default function CoordinatorDashboardPage() {
   return (
@@ -164,6 +165,8 @@ function CoordinatorDashboardInner() {
       </div>
 
       <div className="mx-auto max-w-4xl px-4 sm:px-6 -mt-6 relative z-10">
+        <OnboardingChecklist role="coordinator" />
+
         {/* Create Event Card */}
         <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] p-6 mb-6">
           <div className="flex items-center gap-3 mb-4">

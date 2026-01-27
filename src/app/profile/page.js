@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { api } from "../../services/api";
+import ImageEditorModal from "../../components/ImageEditorModal";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -27,6 +28,11 @@ export default function ProfilePage() {
   const [profileImage, setProfileImage] = useState(null);
   const [profileImagePreview, setProfileImagePreview] = useState(null);
   const fileInputRef = useRef(null);
+  const [editorState, setEditorState] = useState({
+    isOpen: false,
+    imageSrc: null,
+    fileName: "profile.jpg"
+  });
 
   // Interest options
   const interestOptions = [
@@ -60,15 +66,15 @@ export default function ProfilePage() {
     }
   }, [user, router]);
 
+  const openEditor = (imageSrc, fileName = "profile.jpg") => {
+    setEditorState({ isOpen: true, imageSrc, fileName });
+  };
+
   const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      setProfileImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfileImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
+      const objectUrl = URL.createObjectURL(file);
+      openEditor(objectUrl, file.name);
     }
   };
 
@@ -137,7 +143,13 @@ export default function ProfilePage() {
           <div className="relative inline-block mb-4">
             <div 
               className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-xl cursor-pointer bg-white/20 backdrop-blur-sm"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => {
+                if (profileImagePreview) {
+                  openEditor(profileImagePreview, "profile.jpg");
+                } else {
+                  fileInputRef.current?.click();
+                }
+              }}
             >
               {profileImagePreview ? (
                 /* eslint-disable-next-line @next/next/no-img-element */
@@ -169,6 +181,15 @@ export default function ProfilePage() {
               onChange={handleImageChange}
               className="hidden"
             />
+            {profileImagePreview && (
+              <button
+                type="button"
+                onClick={() => openEditor(profileImagePreview, "profile.jpg")}
+                className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-xs font-semibold text-white/90 bg-black/40 px-3 py-1 rounded-full"
+              >
+                Edit photo
+              </button>
+            )}
           </div>
 
           <h1 className="text-2xl font-bold text-white mb-1">{user.name || "Your Profile"}</h1>
@@ -374,6 +395,17 @@ export default function ProfilePage() {
           </button>
         </form>
       </div>
+      <ImageEditorModal
+        isOpen={editorState.isOpen}
+        imageSrc={editorState.imageSrc}
+        fileName={editorState.fileName}
+        initialAspect={1}
+        onClose={() => setEditorState({ isOpen: false, imageSrc: null, fileName: "profile.jpg" })}
+        onSave={(editedFile) => {
+          setProfileImage(editedFile);
+          setProfileImagePreview(URL.createObjectURL(editedFile));
+        }}
+      />
     </div>
   );
 }

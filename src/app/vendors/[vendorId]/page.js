@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import Link from "next/link";
+import { getStorefrontPath } from "../../../utils/storefrontLinks";
 
 export default function VendorProfilePage() {
   const { vendorId } = useParams();
@@ -39,6 +40,7 @@ export default function VendorProfilePage() {
 
   const services = products.filter(p => p.isService);
   const regularProducts = products.filter(p => !p.isService);
+  const storefrontPath = getStorefrontPath(vendor || { id: vendorId });
 
   return (
     <div className="mx-auto max-w-6xl p-6">
@@ -67,7 +69,7 @@ export default function VendorProfilePage() {
             {services.map((service) => (
               <Link
                 key={service.id}
-                href={`/store/${vendorId}/products/${service.id}`}
+                href={`${storefrontPath}/products/${service.id}`}
                 className="block bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 border border-gray-200"
               >
                 <div className="flex items-start justify-between mb-2">
@@ -107,7 +109,7 @@ export default function VendorProfilePage() {
             {regularProducts.map((product) => (
               <Link
                 key={product.id}
-                href={`/store/${vendorId}/products/${product.id}`}
+                href={`${storefrontPath}/products/${product.id}`}
                 className="block bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 border border-gray-200"
               >
                 <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
