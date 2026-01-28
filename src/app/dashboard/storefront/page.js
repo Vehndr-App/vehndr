@@ -45,7 +45,7 @@ function POSSystem() {
   const [activeLibraryCategory, setActiveLibraryCategory] = useState('items');
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('tap_to_pay');
+  const [paymentMethod, setPaymentMethod] = useState('card');
   const [processing, setProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [lastOrderTotal, setLastOrderTotal] = useState(0);
@@ -60,6 +60,11 @@ function POSSystem() {
   // Cash payment modal state
   const [showCashModal, setShowCashModal] = useState(false);
   const [cashReceived, setCashReceived] = useState('0');
+
+  // Checkout link modal state
+  const [showCheckoutLinkModal, setShowCheckoutLinkModal] = useState(false);
+  const [checkoutLinkData, setCheckoutLinkData] = useState(null);
+  const [checkoutLinkLoading, setCheckoutLinkLoading] = useState(false);
 
   // Tip screen state
   const [showTipScreen, setShowTipScreen] = useState(false);
@@ -205,20 +210,25 @@ function POSSystem() {
     }
   };
 
-  // Checkout - show tip screen first, then process payment
+  // Checkout - show tip screen for cash, generate link directly for card
   const handleCharge = async () => {
     if (cart.length === 0) return;
-    const totalDue = totalWithTax + currentTip;
-    if (totalDue > MAX_CHARGE_CENTS) {
+    if (totalWithTax > MAX_CHARGE_CENTS) {
       setLimitError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
       return;
     }
 
-    // Show tip screen for customer to add tip
+    // For card payments, generate checkout link directly (tip is on customer's phone)
+    if (paymentMethod === 'card') {
+      await generateCheckoutLink(0); // No tip from vendor side, customer adds on their phone
+      return;
+    }
+
+    // For cash, show tip screen for customer to add tip
     setShowTipScreen(true);
   };
 
-  // Called after customer selects tip
+  // Called after customer selects tip (only for cash now)
   const handleTipConfirmed = async (tipCents) => {
     if (tipCents < 0) return;
     if (totalWithTax + tipCents > MAX_CHARGE_CENTS) {
@@ -230,14 +240,74 @@ function POSSystem() {
     setShowTipScreen(false);
 
     // For cash payments, show the cash modal
-    if (paymentMethod === 'cash') {
-      setCashReceived('0');
-      setShowCashModal(true);
-      return;
-    }
+    setCashReceived('0');
+    setShowCashModal(true);
+  };
 
-    // For other payment methods, process directly with tip
-    await processPayment(tipCents);
+  // Generate checkout link for customer payment
+  const generateCheckoutLink = async (tipCents = currentTip) => {
+    setCheckoutLinkLoading(true);
+
+    try {
+      const items = cart.filter(item => !item.isCustom).map(item => ({
+        product_id: item.id,
+        quantity: item.quantity
+      }));
+
+      const customItems = cart.filter(item => item.isCustom).map(item => ({
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity
+      }));
+
+      const response = await api('/api/checkout/pos_link', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          vendor_id: vendor.id,
+          items: items,
+          custom_items: customItems,
+          tip_cents: tipCents
+        })
+      });
+
+      if (response.success) {
+        setCheckoutLinkData({
+          url: response.checkoutUrl,
+          totalCents: response.totalCents,
+          tipCents: response.tipCents
+        });
+        setShowCheckoutLinkModal(true);
+        setCheckoutLinkLoading(false);
+      } else {
+        throw new Error(response.message || 'Failed to create checkout link');
+      }
+    } catch (error) {
+      console.error('Checkout link error:', error);
+      setCheckoutLinkLoading(false);
+      alert(`Failed to create checkout link: ${error.message}`);
+    }
+  };
+
+  // Handle checkout link modal close (after sale complete or cancel)
+  const handleCheckoutLinkComplete = () => {
+    setShowCheckoutLinkModal(false);
+    setCheckoutLinkData(null);
+    setCurrentTip(0);
+    setShowSuccess(true);
+    setLastOrderTotal(checkoutLinkData?.totalCents || 0);
+
+    setTimeout(() => {
+      setShowSuccess(false);
+      clearCart();
+    }, 2500);
+  };
+
+  const handleCheckoutLinkCancel = () => {
+    setShowCheckoutLinkModal(false);
+    setCheckoutLinkData(null);
   };
 
   // Process the actual payment (called directly for non-cash, or after cash modal confirmation)
@@ -614,6 +684,28 @@ function POSSystem() {
           onConfirm={handleTipConfirmed}
           onSkip={() => handleTipConfirmed(0)}
         />
+      )}
+
+      {/* Checkout Link Modal */}
+      {showCheckoutLinkModal && checkoutLinkData && (
+        <CheckoutLinkModal
+          checkoutUrl={checkoutLinkData.url}
+          totalCents={checkoutLinkData.totalCents}
+          tipCents={checkoutLinkData.tipCents}
+          vendorName={vendor?.name}
+          onComplete={handleCheckoutLinkComplete}
+          onCancel={handleCheckoutLinkCancel}
+        />
+      )}
+
+      {/* Loading overlay for checkout link generation */}
+      {checkoutLinkLoading && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+          <div className="bg-white rounded-2xl p-6 text-center">
+            <div className="animate-spin w-10 h-10 border-3 border-[var(--violet-600)] border-t-transparent rounded-full mx-auto mb-4"></div>
+            <p className="text-[var(--gray-700)] font-medium">Creating checkout link...</p>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1001,17 +1093,7 @@ function CartPanel({
           )}
 
           {/* Payment Methods */}
-          <div className="flex gap-2">
-            <PaymentMethodButton
-              active={paymentMethod === 'tap_to_pay'}
-              onClick={() => setPaymentMethod('tap_to_pay')}
-              icon={
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-              }
-              label="Tap"
-            />
+          <div className="grid grid-cols-2 gap-2">
             <PaymentMethodButton
               active={paymentMethod === 'card'}
               onClick={() => setPaymentMethod('card')}
@@ -1807,6 +1889,163 @@ function CashPaymentModal({
               )}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Checkout Link Modal Component
+function CheckoutLinkModal({
+  checkoutUrl,
+  totalCents,
+  tipCents = 0,
+  vendorName,
+  onComplete,
+  onCancel
+}) {
+  const [copied, setCopied] = useState(false);
+  const [shareStatus, setShareStatus] = useState(null);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(checkoutUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error('Failed to copy:', error);
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: `Pay ${vendorName || 'Vendor'}`,
+          text: `Complete your $${(totalCents / 100).toFixed(2)} payment`,
+          url: checkoutUrl
+        });
+        setShareStatus('shared');
+      } else {
+        handleCopy();
+      }
+    } catch (error) {
+      if (error.name !== 'AbortError') {
+        console.error('Failed to share:', error);
+      }
+    }
+  };
+
+  // Generate QR code URL using a public API
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(checkoutUrl)}`;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl max-h-[95vh] overflow-y-auto safe-area-bottom rounded-t-3xl">
+        <div className="p-6">
+          {/* Handle */}
+          <div className="w-10 h-1 bg-[var(--gray-300)] rounded-full mx-auto mb-6 sm:hidden" />
+
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold">Checkout Link</h2>
+            <button
+              onClick={onCancel}
+              className="w-10 h-10 rounded-xl bg-[var(--gray-100)] flex items-center justify-center"
+            >
+              <svg className="w-5 h-5 text-[var(--gray-600)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Amount Summary */}
+          <div className="bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] rounded-2xl p-4 mb-6 text-center">
+            <p className="text-sm text-[var(--gray-600)] mb-1">Amount Due</p>
+            <p className="text-4xl font-bold text-[var(--gray-900)]">
+              ${(totalCents / 100).toFixed(2)}
+            </p>
+            {tipCents > 0 && (
+              <p className="text-sm text-[var(--violet-600)] mt-1">
+                Includes ${(tipCents / 100).toFixed(2)} tip
+              </p>
+            )}
+          </div>
+
+          {/* QR Code */}
+          <div className="flex justify-center mb-6">
+            <div className="bg-white p-4 rounded-2xl border-2 border-[var(--gray-200)] shadow-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={qrCodeUrl}
+                alt="Checkout QR Code"
+                className="w-48 h-48"
+              />
+            </div>
+          </div>
+
+          <p className="text-center text-sm text-[var(--gray-500)] mb-6">
+            Customer can scan this code to pay on their device
+          </p>
+
+          {/* Action Buttons */}
+          <div className="space-y-3">
+            <button
+              onClick={handleShare}
+              className="w-full h-14 rounded-xl bg-[var(--violet-600)] text-white font-semibold flex items-center justify-center gap-2 hover:bg-[var(--violet-700)] transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <circle cx="18" cy="5" r="3" strokeWidth="2"/>
+                <circle cx="6" cy="12" r="3" strokeWidth="2"/>
+                <circle cx="18" cy="19" r="3" strokeWidth="2"/>
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" strokeWidth="2"/>
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" strokeWidth="2"/>
+              </svg>
+              Share Link
+            </button>
+
+            <button
+              onClick={handleCopy}
+              className="w-full h-14 rounded-xl border-2 border-[var(--gray-200)] text-[var(--gray-700)] font-semibold flex items-center justify-center gap-2 hover:bg-[var(--gray-50)] transition-colors"
+            >
+              {copied ? (
+                <>
+                  <svg className="w-5 h-5 text-[var(--success)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Copied!
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  Copy Link
+                </>
+              )}
+            </button>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={onCancel}
+                className="flex-1 h-12 rounded-xl bg-[var(--gray-100)] text-[var(--gray-600)] font-semibold hover:bg-[var(--gray-200)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onComplete}
+                className="flex-1 h-12 rounded-xl bg-[var(--success)] text-white font-semibold hover:bg-[var(--success)]/90 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+
+          {/* Note */}
+          <p className="text-xs text-[var(--gray-400)] text-center mt-4">
+            Click &quot;Done&quot; after customer completes payment
+          </p>
         </div>
       </div>
     </div>
