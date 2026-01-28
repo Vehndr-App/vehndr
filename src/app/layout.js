@@ -44,9 +44,9 @@ export const metadata = {
     description: metadataDescription,
     images: [
       {
-        url: "/vehndr-logo.svg",
-        width: 512,
-        height: 512,
+        url: "/Vehndr%20Logo%20Transparent.png",
+        width: 1024,
+        height: 1024,
         alt: "Vehndr logo",
       },
     ],
@@ -55,12 +55,12 @@ export const metadata = {
     card: "summary_large_image",
     title: metadataTitle,
     description: metadataDescription,
-    images: ["/vehndr-logo.svg"],
+    images: ["/Vehndr%20Logo%20Transparent.png"],
   },
   icons: {
-    icon: "/vehndr-logo.svg",
-    shortcut: "/vehndr-logo.svg",
-    apple: "/vehndr-logo.svg",
+    icon: "/Vehndr%20Logo%20Transparent.png",
+    shortcut: "/Vehndr%20Logo%20Transparent.png",
+    apple: "/Vehndr%20Logo%20Transparent.png",
   },
 };
 
