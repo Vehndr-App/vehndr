@@ -32,9 +32,36 @@ const dmSans = DM_Sans({
   display: "swap",
 });
 
+const metadataTitle = "Vehndr — Marketplace for Event Vendors";
+const metadataDescription =
+  "Discover and book the best vendors for your events. Browse storefronts, add to cart, and checkout seamlessly.";
+
 export const metadata = {
-  title: "Vehndr — Marketplace for Event Vendors",
-  description: "Discover and book the best vendors for your events. Browse storefronts, add to cart, and checkout seamlessly.",
+  title: metadataTitle,
+  description: metadataDescription,
+  openGraph: {
+    title: metadataTitle,
+    description: metadataDescription,
+    images: [
+      {
+        url: "/vehndr-logo.svg",
+        width: 512,
+        height: 512,
+        alt: "Vehndr logo",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: metadataTitle,
+    description: metadataDescription,
+    images: ["/vehndr-logo.svg"],
+  },
+  icons: {
+    icon: "/vehndr-logo.svg",
+    shortcut: "/vehndr-logo.svg",
+    apple: "/vehndr-logo.svg",
+  },
 };
 
 export default function RootLayout({ children }) {

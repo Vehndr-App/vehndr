@@ -1,0 +1,31 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="vehndrGlow" cx="0.5" cy="0.4" r="0.7">
+      <stop offset="0" stop-color="#FF9FD6"/>
+      <stop offset="0.35" stop-color="#FF4BB1"/>
+      <stop offset="0.65" stop-color="#2AA9FF"/>
+      <stop offset="1" stop-color="#FFC24B"/>
+    </radialGradient>
+    <radialGradient id="vehndrShine" cx="0.3" cy="0.25" r="0.45">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="256" cy="256" r="232" fill="url(#vehndrGlow)"/>
+  <circle cx="210" cy="150" r="140" fill="url(#vehndrShine)"/>
+  <path
+    d="M160 128L256 380L352 128"
+    stroke="#FFF6F8"
+    stroke-width="62"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M178 136L256 350L334 136"
+    stroke="#FFFFFF"
+    stroke-width="44"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    opacity="0.85"
+  />
+</svg>
