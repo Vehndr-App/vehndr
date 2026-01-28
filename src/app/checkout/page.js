@@ -29,7 +29,7 @@ export default function CheckoutPage() {
   const [vendorTips, setVendorTips] = useState({});
 
   const [vendorPickupDate, setVendorPickupDate] = useState({});
-  const [vendorPickupTime, setVendorPickupTime] = useState({});=======
+  const [vendorPickupTime, setVendorPickupTime] = useState({});
   const [vendorNotes, setVendorNotes] = useState({});
   const [vendorPickupAt, setVendorPickupAt] = useState({});
 
