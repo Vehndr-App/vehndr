@@ -173,9 +173,6 @@ export default function VendorProfile({ user, onSuccess }) {
               formDataToSend.append('vendor[gallery_image_order][]', img.id);
             }
           });
-        } else if (vendor.galleryImages && vendor.galleryImages.length > 0) {
-          // Had images before but now empty - signal to clear all
-          formDataToSend.append('clear_gallery_images', 'true');
         }
       }
 
