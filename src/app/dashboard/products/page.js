@@ -99,6 +99,7 @@ function ProductsInner() {
       ).map((img) => ({
         id: img.id,
         url: img.url,
+        signedId: img.signed_id || img.signedId || null,
         isExisting: true,
         file: null
       }));
@@ -191,8 +192,8 @@ function ProductsInner() {
       // When editing, send the list of existing images to keep and their order
       if (editingProduct) {
         existingItems.forEach((item) => {
-          const imageUrl = item.url;
-          formData.append('keep_images[]', imageUrl);
+          const keepValue = item.signedId || item.url;
+          formData.append('keep_images[]', keepValue);
         });
         existingItems.forEach((item) => {
           if (item.id && !item.id.startsWith("legacy_")) {

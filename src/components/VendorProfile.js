@@ -96,6 +96,7 @@ export default function VendorProfile({ user, onSuccess }) {
       ).map((img) => ({
         id: img.id,
         url: img.url,
+        signedId: img.signed_id || img.signedId || null,
         isExisting: true,
         file: null
       }));
@@ -163,7 +164,8 @@ export default function VendorProfile({ user, onSuccess }) {
       if (vendor) {
         if (existingGalleryItems.length > 0) {
           existingGalleryItems.forEach(img => {
-            formDataToSend.append('keep_gallery_images[]', img.url);
+            const keepValue = img.signedId || img.url;
+            formDataToSend.append('keep_gallery_images[]', keepValue);
           });
           // Send the order of image IDs (existing images in their current order)
           existingGalleryItems.forEach(img => {
@@ -205,6 +207,7 @@ export default function VendorProfile({ user, onSuccess }) {
       ).map((img) => ({
         id: img.id,
         url: img.url,
+        signedId: img.signed_id || img.signedId || null,
         isExisting: true,
         file: null
       }));
