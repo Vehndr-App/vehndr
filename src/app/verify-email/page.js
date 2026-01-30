@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyEmail, resendVerification } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
@@ -51,6 +51,7 @@ function VerifyEmailContent() {
   const [error, setError] = useState(null);
   const [email, setEmail] = useState("");
   const [resending, setResending] = useState(false);
+  const verificationAttemptedRef = useRef(false);
 
   useEffect(() => {
     const token = searchParams.get("token");
@@ -60,6 +61,12 @@ function VerifyEmailContent() {
       setError("No verification token provided");
       return;
     }
+
+    // Prevent duplicate verification attempts (React Strict Mode, mobile re-renders, etc.)
+    if (verificationAttemptedRef.current) {
+      return;
+    }
+    verificationAttemptedRef.current = true;
 
     const verify = async () => {
       try {
