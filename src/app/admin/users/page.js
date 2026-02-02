@@ -28,6 +28,11 @@ export default function AdminUsersPage() {
   const [deletingUser, setDeletingUser] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Create modal
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "customer", sendPasswordEmail: true });
+  const [creating, setCreating] = useState(false);
+
   const fetchUsers = useCallback(async (page = 1) => {
     try {
       setLoading(true);
@@ -121,16 +126,62 @@ export default function AdminUsersPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setCreateForm({ name: "", email: "", password: "", role: "customer", sendPasswordEmail: true });
+    setShowCreateModal(true);
+  };
+
+  const closeCreateModal = () => {
+    setShowCreateModal(false);
+    setCreateForm({ name: "", email: "", password: "", role: "customer", sendPasswordEmail: true });
+  };
+
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+
+    try {
+      setCreating(true);
+      const { sendPasswordEmail, ...userFields } = createForm;
+      const res = await api("/api/admin/users", {
+        method: "POST",
+        body: {
+          user: userFields,
+          send_password_email: sendPasswordEmail
+        },
+      });
+
+      // Add to local state at the beginning
+      setUsers((prev) => [res.user, ...prev]);
+      closeCreateModal();
+    } catch (err) {
+      console.error("Failed to create user", err);
+      alert(err.message || "Failed to create user");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[var(--foreground)]">
-          User Management
-        </h1>
-        <p className="text-[var(--gray-500)] mt-1">
-          View and manage all platform users
-        </p>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-[var(--foreground)]">
+            User Management
+          </h1>
+          <p className="text-[var(--gray-500)] mt-1">
+            View and manage all platform users
+          </p>
+        </div>
+        <button
+          onClick={openCreateModal}
+          className="px-4 py-2 bg-[var(--violet-600)] text-white rounded-lg hover:bg-[var(--violet-700)] transition-colors flex items-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Create User
+        </button>
       </div>
 
       {/* Filters */}
@@ -512,6 +563,120 @@ export default function AdminUsersPage() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md">
+            <div className="p-6 border-b border-[var(--gray-200)]">
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">
+                Create New User
+              </h2>
+            </div>
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                  Name
+                </label>
+                <input
+                  type="text"
+                  value={createForm.name}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, name: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={createForm.email}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, email: e.target.value })
+                  }
+                  required
+                  className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={createForm.sendPasswordEmail}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, sendPasswordEmail: e.target.checked })
+                    }
+                    className="w-4 h-4 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+                  />
+                  <span className="text-sm font-medium text-[var(--gray-700)]">
+                    Send password setup email
+                  </span>
+                </label>
+                <p className="text-xs text-[var(--gray-500)] mt-1 ml-6">
+                  User will receive an email with a link to set their password
+                </p>
+              </div>
+              {!createForm.sendPasswordEmail && (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={createForm.password}
+                    onChange={(e) =>
+                      setCreateForm({ ...createForm, password: e.target.value })
+                    }
+                    required
+                    minLength={6}
+                    className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent"
+                  />
+                  <p className="text-xs text-[var(--gray-500)] mt-1">
+                    Minimum 6 characters
+                  </p>
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                  Role
+                </label>
+                <select
+                  value={createForm.role}
+                  onChange={(e) =>
+                    setCreateForm({ ...createForm, role: e.target.value })
+                  }
+                  className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent"
+                >
+                  <option value="customer">Customer</option>
+                  <option value="vendor">Vendor</option>
+                  <option value="coordinator">Event Organizer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={closeCreateModal}
+                  className="flex-1 px-4 py-2 border border-[var(--gray-200)] rounded-lg text-[var(--gray-700)] hover:bg-[var(--gray-50)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="flex-1 px-4 py-2 bg-[var(--violet-600)] text-white rounded-lg hover:bg-[var(--violet-700)] disabled:opacity-50"
+                >
+                  {creating ? "Creating..." : "Create User"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
