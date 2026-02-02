@@ -221,8 +221,8 @@ export default function Navbar() {
                   <p className="px-3 py-2 text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Account</p>
                   
                   {user.role === 'vendor' && (
-                    <MenuLink 
-                      href="/dashboard" 
+                    <MenuLink
+                      href="/dashboard"
                       icon={<DashboardIcon />}
                       active={pathname === '/dashboard'}
                     >
@@ -230,12 +230,21 @@ export default function Navbar() {
                     </MenuLink>
                   )}
                   {user.role === 'coordinator' && (
-                    <MenuLink 
-                      href="/coordinator-dashboard" 
+                    <MenuLink
+                      href="/coordinator-dashboard"
                       icon={<DashboardIcon />}
                       active={pathname === '/coordinator-dashboard'}
                     >
                       Event Organizer Dashboard
+                    </MenuLink>
+                  )}
+                  {user.role === 'admin' && (
+                    <MenuLink
+                      href="/admin"
+                      icon={<AdminIcon />}
+                      active={pathname.startsWith('/admin')}
+                    >
+                      Admin Dashboard
                     </MenuLink>
                   )}
                   
@@ -392,6 +401,14 @@ function LogoutIcon() {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
       <polyline points="16 17 21 12 16 7"/>
       <line x1="21" y1="12" x2="9" y2="12"/>
+    </svg>
+  );
+}
+
+function AdminIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
     </svg>
   );
 }
