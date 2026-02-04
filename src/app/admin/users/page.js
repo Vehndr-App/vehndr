@@ -30,8 +30,33 @@ export default function AdminUsersPage() {
 
   // Create modal
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", role: "customer", sendPasswordEmail: true });
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "customer",
+    sendPasswordEmail: true,
+    vendorProfile: { name: "", description: "", location: "", categories: [] }
+  });
   const [creating, setCreating] = useState(false);
+
+  // Send password email
+  const [sendingPasswordEmail, setSendingPasswordEmail] = useState(null);
+
+  // Available vendor categories
+  const vendorCategories = [
+    "Catering",
+    "Photography",
+    "Videography",
+    "DJ/Music",
+    "Florist",
+    "Decor",
+    "Venue",
+    "Bakery",
+    "Entertainment",
+    "Transportation",
+    "Other"
+  ];
 
   const fetchUsers = useCallback(async (page = 1) => {
     try {
@@ -127,13 +152,27 @@ export default function AdminUsersPage() {
   };
 
   const openCreateModal = () => {
-    setCreateForm({ name: "", email: "", password: "", role: "customer", sendPasswordEmail: true });
+    setCreateForm({
+      name: "",
+      email: "",
+      password: "",
+      role: "customer",
+      sendPasswordEmail: true,
+      vendorProfile: { name: "", description: "", location: "", categories: [] }
+    });
     setShowCreateModal(true);
   };
 
   const closeCreateModal = () => {
     setShowCreateModal(false);
-    setCreateForm({ name: "", email: "", password: "", role: "customer", sendPasswordEmail: true });
+    setCreateForm({
+      name: "",
+      email: "",
+      password: "",
+      role: "customer",
+      sendPasswordEmail: true,
+      vendorProfile: { name: "", description: "", location: "", categories: [] }
+    });
   };
 
   const handleCreateUser = async (e) => {
@@ -141,13 +180,26 @@ export default function AdminUsersPage() {
 
     try {
       setCreating(true);
-      const { sendPasswordEmail, ...userFields } = createForm;
+      const { sendPasswordEmail, vendorProfile, ...userFields } = createForm;
+
+      const body = {
+        user: userFields,
+        send_password_email: sendPasswordEmail
+      };
+
+      // Include vendor profile if creating a vendor
+      if (userFields.role === "vendor" && vendorProfile.name) {
+        body.vendor_profile = {
+          name: vendorProfile.name,
+          description: vendorProfile.description,
+          location: vendorProfile.location,
+          categories: vendorProfile.categories
+        };
+      }
+
       const res = await api("/api/admin/users", {
         method: "POST",
-        body: {
-          user: userFields,
-          send_password_email: sendPasswordEmail
-        },
+        body,
       });
 
       // Add to local state at the beginning
@@ -158,6 +210,23 @@ export default function AdminUsersPage() {
       alert(err.message || "Failed to create user");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSendPasswordEmail = async (user) => {
+    if (!confirm(`Send password setup email to ${user.email}?`)) return;
+
+    try {
+      setSendingPasswordEmail(user.id);
+      await api(`/api/admin/users/${user.id}/send_password_setup`, {
+        method: "POST",
+      });
+      alert("Password setup email sent successfully");
+    } catch (err) {
+      console.error("Failed to send password email", err);
+      alert(err.message || "Failed to send password email");
+    } finally {
+      setSendingPasswordEmail(null);
     }
   };
 
@@ -334,6 +403,13 @@ export default function AdminUsersPage() {
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button
+                          onClick={() => handleSendPasswordEmail(user)}
+                          disabled={sendingPasswordEmail === user.id}
+                          className="text-blue-600 hover:text-blue-700 text-sm font-medium mr-3 disabled:opacity-50"
+                        >
+                          {sendingPasswordEmail === user.id ? "Sending..." : "Send Password"}
+                        </button>
+                        <button
                           onClick={() => openEditModal(user)}
                           className="text-[var(--violet-600)] hover:text-[var(--violet-700)] text-sm font-medium mr-3"
                         >
@@ -396,6 +472,13 @@ export default function AdminUsersPage() {
                       </span>
                     </div>
                     <div className="flex gap-3">
+                      <button
+                        onClick={() => handleSendPasswordEmail(user)}
+                        disabled={sendingPasswordEmail === user.id}
+                        className="text-blue-600 font-medium disabled:opacity-50"
+                      >
+                        {sendingPasswordEmail === user.id ? "..." : "Password"}
+                      </button>
                       <button
                         onClick={() => openEditModal(user)}
                         className="text-[var(--violet-600)] font-medium"
@@ -570,13 +653,13 @@ export default function AdminUsersPage() {
       {/* Create User Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl w-full max-w-md">
-            <div className="p-6 border-b border-[var(--gray-200)]">
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-[var(--gray-200)] flex-shrink-0">
               <h2 className="text-lg font-semibold text-[var(--foreground)]">
                 Create New User
               </h2>
             </div>
-            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4 overflow-y-auto">
               <div>
                 <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
                   Name
@@ -660,6 +743,94 @@ export default function AdminUsersPage() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
+
+              {/* Vendor Profile Fields */}
+              {createForm.role === "vendor" && (
+                <div className="border-t border-[var(--gray-200)] pt-4 mt-4 space-y-4">
+                  <p className="text-sm font-semibold text-[var(--gray-700)]">Vendor Profile</p>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                      Business Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.vendorProfile.name}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          vendorProfile: { ...createForm.vendorProfile, name: e.target.value }
+                        })
+                      }
+                      required
+                      className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                      Description
+                    </label>
+                    <textarea
+                      value={createForm.vendorProfile.description}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          vendorProfile: { ...createForm.vendorProfile, description: e.target.value }
+                        })
+                      }
+                      rows={3}
+                      className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                      Location
+                    </label>
+                    <input
+                      type="text"
+                      value={createForm.vendorProfile.location}
+                      onChange={(e) =>
+                        setCreateForm({
+                          ...createForm,
+                          vendorProfile: { ...createForm.vendorProfile, location: e.target.value }
+                        })
+                      }
+                      placeholder="City, State"
+                      className="w-full px-4 py-2 border border-[var(--gray-200)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                      Categories
+                    </label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {vendorCategories.map((category) => (
+                        <button
+                          key={category}
+                          type="button"
+                          onClick={() => {
+                            const currentCategories = createForm.vendorProfile.categories || [];
+                            const newCategories = currentCategories.includes(category)
+                              ? currentCategories.filter((c) => c !== category)
+                              : [...currentCategories, category];
+                            setCreateForm({
+                              ...createForm,
+                              vendorProfile: { ...createForm.vendorProfile, categories: newCategories }
+                            });
+                          }}
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                            (createForm.vendorProfile.categories || []).includes(category)
+                              ? "bg-[var(--violet-600)] text-white"
+                              : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]"
+                          }`}
+                        >
+                          {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
