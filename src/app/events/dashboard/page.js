@@ -1,23 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { useAuth } from "../../../../contexts/AuthContext";
-import AuthGate from "../../../../components/AuthGate";
-import { api } from "../../../../services/api";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useAuth } from "../../../contexts/AuthContext";
+import AuthGate from "../../../components/AuthGate";
+import { api } from "../../../services/api";
 import Link from "next/link";
-import { getVendorPlaceholderImage } from "../../../../utils/placeholderImages";
+import { getVendorPlaceholderImage } from "../../../utils/placeholderImages";
 
 export default function EventDashboardPage() {
   return (
     <AuthGate allowedRoles={["coordinator"]}>
-      <EventDashboardInner />
+      <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen px-4">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-[var(--gray-200)] border-t-[var(--violet-600)] mb-3" />
+            <p className="text-sm text-gray-600 font-medium">Loading…</p>
+          </div>
+        </div>
+      }>
+        <EventDashboardInner />
+      </Suspense>
     </AuthGate>
   );
 }
 
 function EventDashboardInner() {
-  const params = useParams();
+  const searchParams = useSearchParams();
+  const eventId = searchParams.get('eventId');
   const router = useRouter();
   const { user } = useAuth();
   const [event, setEvent] = useState(null);
@@ -39,19 +49,20 @@ function EventDashboardInner() {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false);
 
   useEffect(() => {
-    if (user && user.role === 'coordinator') {
+    if (user && user.role === 'coordinator' && eventId) {
       fetchEventDashboard();
       fetchRecommendedVendors();
       fetchVendorRequests();
       fetchAvailableVendors();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, params.eventId]);
+  }, [user, eventId]);
 
   const fetchEventDashboard = async () => {
+    if (!eventId) return;
     setLoading(true);
     try {
-      const data = await api(`/api/events/${params.eventId}/dashboard`);
+      const data = await api(`/api/events/${eventId}/dashboard`);
       setEvent(data.event);
       setVendors(data.vendors || []);
       setTotalSales(data.totalSales || 0);
@@ -64,8 +75,9 @@ function EventDashboardInner() {
   };
 
   const fetchRecommendedVendors = async () => {
+    if (!eventId) return;
     try {
-      const data = await api(`/api/events/${params.eventId}/recommended_vendors`);
+      const data = await api(`/api/events/${eventId}/recommended_vendors`);
       setRecommendedVendors(data.vendors || []);
     } catch (err) {
       console.error("Failed to fetch recommended vendors", err);
@@ -73,8 +85,9 @@ function EventDashboardInner() {
   };
 
   const fetchVendorRequests = async () => {
+    if (!eventId) return;
     try {
-      const data = await api(`/api/event_bookings?event_id=${params.eventId}`);
+      const data = await api(`/api/event_bookings?event_id=${eventId}`);
       setVendorRequests(Array.isArray(data) ? data : data?.bookings || []);
     } catch (err) {
       console.error("Failed to fetch vendor requests", err);
@@ -225,7 +238,7 @@ function EventDashboardInner() {
       await api("/api/event_bookings", {
         method: "POST",
         body: {
-          event_id: params.eventId,
+          event_id: eventId,
           vendor_id: activeVendorId,
           vendor_offering_id: selectedOfferingId,
           hours: activeOffering?.offeringType === "hourly" ? Number(requestHours) || null : null,
@@ -246,6 +259,16 @@ function EventDashboardInner() {
       setRequestLoading(false);
     }
   };
+
+  if (!eventId) {
+    return (
+      <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="text-center">
+          <p className="text-sm sm:text-base text-gray-600 font-medium">Please provide an event ID.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -326,7 +349,7 @@ function EventDashboardInner() {
 
               <div className="mb-4">
                 <Link
-                  href={`/events/${event.id}/edit`}
+                  href={`/events/edit?eventId=${event.id}`}
                   className="btn btn-ghost text-sm"
                 >
                   Edit Event
@@ -417,7 +440,7 @@ function EventDashboardInner() {
                             <div className="flex-1 min-w-0">
                               {vendor.id ? (
                                 <Link
-                                  href={`/vendors/${vendor.id}`}
+                                  href={`/vendors?vendorId=${vendor.id}`}
                                   className="text-base sm:text-lg font-semibold text-[var(--foreground)] hover:text-[var(--violet-600)] transition-colors inline-flex items-center min-h-[44px]"
                                 >
                                   {vendor.name}
@@ -465,7 +488,7 @@ function EventDashboardInner() {
                         <div className="flex-1 min-w-0">
                           {/* Vendor Name and Link */}
                           <Link
-                            href={`/vendors/${vendor.id}`}
+                            href={`/vendors?vendorId=${vendor.id}`}
                             className="text-base sm:text-lg font-semibold text-[var(--foreground)] hover:text-[var(--violet-600)] transition-colors inline-block mb-1 min-h-[44px] flex items-center"
                           >
                             {vendor.name}
@@ -630,7 +653,7 @@ function EventDashboardInner() {
                     <div key={request.id} className="p-4 sm:p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                       <div>
                         <Link
-                          href={`/vendors/${request.vendor.id}`}
+                          href={`/vendors?vendorId=${request.vendor.id}`}
                           className="font-semibold text-[var(--foreground)] hover:text-[var(--violet-600)] transition-colors"
                         >
                           {request.vendor.name}
@@ -662,7 +685,7 @@ function EventDashboardInner() {
                 {recommendedVendors.map((vendor) => (
                   <Link
                     key={vendor.id}
-                    href={`/vendors/${vendor.id}`}
+                    href={`/vendors?vendorId=${vendor.id}`}
                     className="card p-0 border border-[var(--gray-200)] hover:border-[var(--violet-400)] transition-all active:scale-[0.98] group overflow-hidden"
                   >
                     {vendor.heroImage && (

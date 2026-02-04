@@ -697,7 +697,7 @@ function OrderCard({ order }) {
           {order.vendor?.id && (
             <div className="mt-4 pt-4 border-t border-[var(--gray-200)]">
               <Link
-                href={`/vendors/${order.vendor.id}`}
+                href={`/vendors?vendorId=${order.vendor.id}`}
                 className="btn btn-outline w-full flex items-center justify-center gap-2"
               >
                 <svg

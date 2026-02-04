@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { getVendorProfile, getVendorProducts } from "../../../../../services/vendors";
-import { useCart } from "../../../../../contexts/CartContext";
-import { useAuth } from "../../../../../contexts/AuthContext";
-import { api } from "../../../../../services/api";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
+import { useCart } from "../../../contexts/CartContext";
+import { useAuth } from "../../../contexts/AuthContext";
+import { api } from "../../../services/api";
 import Link from "next/link";
-import { getVendorPlaceholderImage } from "../../../../../utils/placeholderImages";
-import { generateCalendarLinks, downloadIcsFile } from "../../../../../utils/calendarLinks";
+import { getVendorPlaceholderImage } from "../../../utils/placeholderImages";
+import { generateCalendarLinks, downloadIcsFile } from "../../../utils/calendarLinks";
 
 // Calendar helper functions
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -29,8 +29,10 @@ function generateCalendarDays(currentMonth) {
   return days;
 }
 
-export default function ProductPage() {
-  const { vendorId, productId } = useParams();
+function ProductPageContent() {
+  const searchParams = useSearchParams();
+  const vendorId = searchParams.get('vendorId');
+  const productId = searchParams.get('productId');
   const router = useRouter();
   const { addItem } = useCart();
   const { user } = useAuth();
@@ -60,6 +62,7 @@ export default function ProductPage() {
   const [calendarLinks, setCalendarLinks] = useState(null);
 
   useEffect(() => {
+    if (!vendorId || !productId) return;
     (async () => {
       const v = await getVendorProfile(vendorId);
       const products = await getVendorProducts(vendorId);
@@ -103,6 +106,16 @@ export default function ProductPage() {
 
     fetchTimeSlots();
   }, [selectedDate, vendorId, product]);
+
+  if (!vendorId || !productId) {
+    return (
+      <div className="min-h-screen bg-[var(--gray-50)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-sm text-[var(--gray-500)]">Please provide vendor ID and product ID.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!product || !vendor) {
     return (
@@ -225,7 +238,7 @@ export default function ProductPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
-            <Link href={`/store/${vendorId}`} className="text-[var(--gray-500)] hover:text-[var(--violet-600)] transition-colors">
+            <Link href={`/store?vendorId=${vendorId}`} className="text-[var(--gray-500)] hover:text-[var(--violet-600)] transition-colors">
               {vendor.name}
             </Link>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2">
@@ -309,7 +322,7 @@ export default function ProductPage() {
 
             {/* Vendor Info Card */}
             <Link 
-              href={`/store/${vendorId}`}
+              href={`/store?vendorId=${vendorId}`}
               className="flex items-center gap-4 bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] p-4 hover:shadow-[var(--shadow-card-hover)] transition-all group"
             >
               <div className="w-14 h-14 rounded-full bg-gradient-primary flex items-center justify-center text-white text-xl font-bold shrink-0">
@@ -645,7 +658,7 @@ export default function ProductPage() {
                   View Cart
                 </button>
                 <button
-                  onClick={() => router.push(`/store/${vendorId}`)}
+                  onClick={() => router.push(`/store?vendorId=${vendorId}`)}
                   className="h-11 rounded-[var(--radius-xl)] border-2 border-[var(--gray-200)] text-[var(--gray-600)] font-medium hover:bg-[var(--gray-50)] transition-colors"
                 >
                   Back to Store
@@ -831,5 +844,20 @@ export default function ProductPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ProductPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[var(--gray-50)] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 border-3 border-[var(--violet-600)] border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-[var(--gray-500)]">Loading…</p>
+        </div>
+      </div>
+    }>
+      <ProductPageContent />
+    </Suspense>
   );
 }

@@ -1,28 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import AuthGate from "../../../../components/AuthGate";
-import { api } from "../../../../services/api";
+import AuthGate from "../../../components/AuthGate";
+import { api } from "../../../services/api";
 
 const STATUS_OPTIONS = ["draft", "upcoming", "active", "past"];
 
 export default function EventEditPage() {
   return (
     <AuthGate allowedRoles={["coordinator"]}>
-      <EventEditInner />
+      <Suspense fallback={
+        <div className="min-h-screen flex items-center justify-center text-sm text-[var(--gray-500)]">
+          Loading…
+        </div>
+      }>
+        <EventEditInner />
+      </Suspense>
     </AuthGate>
   );
 }
 
 function EventEditInner() {
-  const params = useParams();
+  const searchParams = useSearchParams();
+  const eventId = searchParams.get('eventId');
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [eventId, setEventId] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -38,12 +44,12 @@ function EventEditInner() {
   });
 
   useEffect(() => {
+    if (!eventId) return;
     const loadEvent = async () => {
       setLoading(true);
       setError(null);
       try {
-        const event = await api(`/api/events/${params.eventId}`);
-        setEventId(event.id);
+        const event = await api(`/api/events/${eventId}`);
         setFormData({
           name: event.name || "",
           description: event.description || "",
@@ -66,7 +72,7 @@ function EventEditInner() {
     };
 
     loadEvent();
-  }, [params.eventId]);
+  }, [eventId]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -74,6 +80,7 @@ function EventEditInner() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!eventId) return;
     setSaving(true);
     setError(null);
 
@@ -95,7 +102,7 @@ function EventEditInner() {
         body: payload
       });
 
-      router.push(`/events/${eventId}/dashboard`);
+      router.push(`/events/dashboard?eventId=${eventId}`);
     } catch (err) {
       console.error("Failed to update event", err);
       setError(err?.details?.error || err?.details?.errors?.join(", ") || "Failed to update event.");
@@ -103,6 +110,14 @@ function EventEditInner() {
       setSaving(false);
     }
   };
+
+  if (!eventId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-sm text-[var(--gray-500)]">
+        Please provide an event ID.
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -117,7 +132,7 @@ function EventEditInner() {
       <div className="bg-white border-b border-[var(--gray-100)]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
           <Link
-            href={`/events/${eventId}/dashboard`}
+            href={`/events/dashboard?eventId=${eventId}`}
             className="inline-flex items-center gap-2 text-sm text-[var(--gray-500)] hover:text-[var(--gray-700)] mb-4"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -261,7 +276,7 @@ function EventEditInner() {
 
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
             <Link
-              href={`/events/${eventId}/dashboard`}
+              href={`/events/dashboard?eventId=${eventId}`}
               className="btn btn-outline px-4"
             >
               Cancel
@@ -303,4 +318,3 @@ function buildDateTime(date, time) {
 function pad(value) {
   return String(value).padStart(2, "0");
 }
-

@@ -1,19 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
+import { useSearchParams } from "next/navigation";
+import { getVendorProfile, getVendorProducts } from "../../services/vendors";
 import Link from "next/link";
-import { getStorefrontPath } from "../../../utils/storefrontLinks";
+import { getStorefrontPath } from "../../utils/storefrontLinks";
 
-export default function VendorProfilePage() {
-  const { vendorId } = useParams();
-  const router = useRouter();
+export default function VendorDetail({ vendorId }) {
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!vendorId) {
+      setLoading(false);
+      return;
+    }
     (async () => {
       try {
         const [v, p] = await Promise.all([
@@ -69,7 +71,7 @@ export default function VendorProfilePage() {
             {services.map((service) => (
               <Link
                 key={service.id}
-                href={`${storefrontPath}/products/${service.id}`}
+                href={`/store/products?vendorId=${vendorId}&productId=${service.id}`}
                 className="block bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 border border-gray-200"
               >
                 <div className="flex items-start justify-between mb-2">
@@ -109,7 +111,7 @@ export default function VendorProfilePage() {
             {regularProducts.map((product) => (
               <Link
                 key={product.id}
-                href={`${storefrontPath}/products/${product.id}`}
+                href={`/store/products?vendorId=${vendorId}&productId=${product.id}`}
                 className="block bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-4 border border-gray-200"
               >
                 <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
@@ -134,5 +136,3 @@ export default function VendorProfilePage() {
     </div>
   );
 }
-
-

@@ -1,19 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { getCoordinatorProfile } from "../../../services/coordinators";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { getCoordinatorProfile } from "../../services/coordinators";
 
-export default function CoordinatorProfilePage() {
-  const { coordinatorId } = useParams();
+function CoordinatorsContent() {
+  const searchParams = useSearchParams();
+  const coordinatorId = searchParams.get('coordinatorId');
   const [coord, setCoord] = useState(null);
 
   useEffect(() => {
+    if (!coordinatorId) return;
     (async () => {
       const c = await getCoordinatorProfile(coordinatorId);
       setCoord(c);
     })();
   }, [coordinatorId]);
+
+  if (!coordinatorId) {
+    return (
+      <div className="mx-auto max-w-4xl p-6 text-sm text-black/60">
+        Please provide a coordinator ID.
+      </div>
+    );
+  }
 
   if (!coord) {
     return (
@@ -42,4 +52,14 @@ export default function CoordinatorProfilePage() {
   );
 }
 
-
+export default function CoordinatorProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-4xl p-6 text-sm text-black/60">
+        Loading…
+      </div>
+    }>
+      <CoordinatorsContent />
+    </Suspense>
+  );
+}

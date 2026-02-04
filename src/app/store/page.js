@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
-import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
-import ProductCard from "../../../components/ProductCard";
-import SmartImage from "../../../components/SmartImage";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { getVendorProfile, getVendorProducts } from "../../services/vendors";
+import ProductCard from "../../components/ProductCard";
+import SmartImage from "../../components/SmartImage";
 import Link from "next/link";
-import { getStorefrontUrl } from "../../../utils/storefrontLinks";
+import { getStorefrontUrl } from "../../utils/storefrontLinks";
 
-export default function StorefrontPage() {
-  const { vendorId } = useParams();
+function StorefrontContent() {
+  const searchParams = useSearchParams();
+  const vendorId = searchParams.get('vendorId');
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [sort, setSort] = useState("recommended");
@@ -19,6 +20,7 @@ export default function StorefrontPage() {
   const [shareStatus, setShareStatus] = useState(null);
 
   useEffect(() => {
+    if (!vendorId) return;
     (async () => {
       const v = await getVendorProfile(vendorId);
       const p = await getVendorProducts(vendorId);
@@ -82,6 +84,16 @@ export default function StorefrontPage() {
     setGalleryIndex(index);
     setShowGallery(true);
   };
+
+  if (!vendorId) {
+    return (
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 pb-24">
+        <div className="text-center py-12">
+          <p className="text-[var(--gray-500)]">Please provide a vendor ID.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!vendor) {
     return (
@@ -404,6 +416,22 @@ export default function StorefrontPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function StorefrontPage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto w-full max-w-6xl px-4 py-8 pb-24">
+        <div className="animate-pulse space-y-4">
+          <div className="h-48 bg-[var(--gray-200)] rounded-[var(--radius-2xl)]" />
+          <div className="h-8 bg-[var(--gray-200)] rounded w-1/3" />
+          <div className="h-4 bg-[var(--gray-200)] rounded w-2/3" />
+        </div>
+      </div>
+    }>
+      <StorefrontContent />
+    </Suspense>
   );
 }
 

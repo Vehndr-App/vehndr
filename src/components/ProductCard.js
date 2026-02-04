@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "../contexts/CartContext";
-import { getStorefrontPath } from "../utils/storefrontLinks";
+import { getProductPath } from "../utils/storefrontLinks";
 
 export default function ProductCard({ product, compact = false }) {
   const { addItem } = useCart();
@@ -16,11 +16,10 @@ export default function ProductCard({ product, compact = false }) {
   const priceFormatted = (product.price / 100).toFixed(2);
   const hasImage = product.images && product.images.length > 0;
   const hasOptions = product.options && product.options.length > 0;
-  const storefrontPath = getStorefrontPath({
+  const productPath = getProductPath({
     vendorSlug: product.vendorSlug || product.vendor_slug,
     vendorId: product.vendorId || product.vendor_id
-  });
-  const productPath = `${storefrontPath}/products/${product.id}`;
+  }, product.id);
 
   const handleQuickAdd = async (e) => {
     e.preventDefault();

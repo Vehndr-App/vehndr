@@ -153,7 +153,7 @@ function NewEventInner() {
         headers: {}
       });
 
-      router.push(`/events/${response.id || response.event?.id}`);
+      router.push(`/events?eventId=${response.id || response.event?.id}`);
     } catch (err) {
       console.error("Failed to create event", err);
       setError(err?.details?.error || "Failed to create event. Please try again.");
