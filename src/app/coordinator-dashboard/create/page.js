@@ -169,7 +169,7 @@ function CreateEventInner() {
       });
       
       // Redirect to the event page or dashboard
-      router.push(`/events/${event.id}`);
+      router.push(`/events?eventId=${event.id}`);
     } catch (err) {
       console.error("Failed to create event:", err);
       // Show more detailed error message

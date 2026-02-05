@@ -16,7 +16,7 @@ export function getStorefrontIdentifier(data) {
 export function getStorefrontPath(data) {
   const identifier = typeof data === "string" ? data : getStorefrontIdentifier(data);
   if (!identifier) return "/store";
-  return `/store/${identifier}`;
+  return `/store?vendorId=${identifier}`;
 }
 
 export function getStorefrontUrl(data, originOverride) {
@@ -24,4 +24,10 @@ export function getStorefrontUrl(data, originOverride) {
     originOverride ||
     (typeof window !== "undefined" ? window.location.origin : DEFAULT_STOREFRONT_ORIGIN);
   return `${origin}${getStorefrontPath(data)}`;
+}
+
+export function getProductPath(vendorData, productId) {
+  const identifier = typeof vendorData === "string" ? vendorData : getStorefrontIdentifier(vendorData);
+  if (!identifier || !productId) return "/store";
+  return `/store/products?vendorId=${identifier}&productId=${productId}`;
 }

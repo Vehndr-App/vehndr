@@ -109,7 +109,7 @@ export default function CartPage() {
                     >
                       {/* Product Image */}
                       <Link 
-                        href={`${storefrontPath}/products/${item.productId || item.id}`}
+                        href={`/store/products?vendorId=${vendorId}&productId=${item.productId || item.id}`}
                         className="flex-shrink-0"
                       >
                         {item.image ? (
@@ -131,7 +131,7 @@ export default function CartPage() {
                       {/* Item Details */}
                       <div className="flex-1 min-w-0">
                         <Link 
-                          href={`${storefrontPath}/products/${item.productId || item.id}`}
+                          href={`/store/products?vendorId=${vendorId}&productId=${item.productId || item.id}`}
                           className="font-semibold text-sm text-[var(--gray-900)] hover:text-[var(--violet-600)] transition-colors line-clamp-2"
                         >
                           {item.name}

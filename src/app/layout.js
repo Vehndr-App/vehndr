@@ -36,6 +36,12 @@ const metadataTitle = "Vehndr — Marketplace for Event Vendors";
 const metadataDescription =
   "Discover and book the best vendors for your events. Browse storefronts, add to cart, and checkout seamlessly.";
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export const metadata = {
   title: metadataTitle,
   description: metadataDescription,

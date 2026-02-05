@@ -646,6 +646,11 @@ body {
   padding-top: max(env(safe-area-inset-top), 16px);
 }
 
+/* Native app only: push content below status bar / Dynamic Island (used by Navbar when Capacitor.isNativePlatform()) */
+.safe-area-top-native {
+  padding-top: env(safe-area-inset-top);
+}
+
 /* Modal Overlay */
 .overlay {
   background: rgba(0, 0, 0, 0.5);

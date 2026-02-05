@@ -151,7 +151,7 @@ function RequestsInner() {
 
                   <div className="flex flex-wrap items-center gap-3">
                     <Link
-                      href={`/events/${request.event.id}`}
+                      href={`/events?eventId=${request.event.id}`}
                       className="btn btn-ghost text-sm"
                     >
                       View Event

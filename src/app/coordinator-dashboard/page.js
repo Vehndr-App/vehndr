@@ -302,7 +302,7 @@ function CoordinatorDashboardInner() {
               {myEvents.map((event) => (
                 <Link
                   key={event.id}
-                  href={`/events/${event.id}/dashboard`}
+                  href={`/events/dashboard?eventId=${event.id}`}
                   className="flex items-center gap-4 p-4 sm:p-6 hover:bg-[var(--gray-50)] transition-colors group"
                 >
                   {/* Event Image/Emoji */}

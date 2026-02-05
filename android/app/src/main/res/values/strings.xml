@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Vehndr</string>
+    <string name="title_activity_main">Vehndr</string>
+    <string name="package_name">com.vehndr.app</string>
+    <string name="custom_url_scheme">com.vehndr.app</string>
+</resources>

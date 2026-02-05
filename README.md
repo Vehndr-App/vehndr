@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
+## Installation
+
+```bash
+brew install yarn
+brew install nodenv
+nodenv install
+# reload your terminal window here to load in bash/zsh settings installed with nodenv
+yarn install
+```
+
 ## Getting Started
 
 First, run the development server:
@@ -14,11 +24,23 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Running Mobile
+
+Mobile apps are built using [capacitor](https://capacitorjs.com/) and can be opened with the following commands:
+
+```bash
+# for ios 
+yarn run open:ios:dev
+
+# for android
+yarn run open:android:dev
+```
 
 ## Learn More
 
