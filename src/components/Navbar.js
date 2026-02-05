@@ -6,6 +6,7 @@ import { useCart } from "../contexts/CartContext";
 import { useState, useEffect, useRef } from "react";
 import { logout } from "../services/auth";
 import { useRouter, usePathname } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 
 const getRoleLabel = (role) => {
   if (role === "coordinator") return "event organizer";
@@ -16,9 +17,14 @@ export default function Navbar() {
   const { user, clearUser } = useAuth();
   const { totalItems } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNativeApp, setIsNativeApp] = useState(false);
   const menuRef = useRef(null);
   const router = useRouter();
   const pathname = usePathname();
+
+  useEffect(() => {
+    setIsNativeApp(Capacitor.isNativePlatform());
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -63,7 +69,7 @@ export default function Navbar() {
   
   return (
     <>
-      <header className="w-full bg-white/95 backdrop-blur-xl sticky top-0 z-50 border-b border-[var(--gray-100)]">
+      <header className={`w-full bg-white/95 backdrop-blur-xl sticky top-0 z-50 border-b border-[var(--gray-100)] ${isNativeApp ? "safe-area-top-native" : ""}`}>
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
           {/* Left: Back button or Logo */}
           <div className="flex items-center gap-3 min-w-0">
