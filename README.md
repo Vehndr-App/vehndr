@@ -36,10 +36,10 @@ Mobile apps are built using [capacitor](https://capacitorjs.com/) and can be ope
 
 ```bash
 # for ios 
-yarn run open:ios 
+yarn run open:ios:dev
 
 # for android
-yarn run open:android
+yarn run open:android:dev
 ```
 
 ## Learn More

@@ -7,9 +7,12 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "build:mobile": "IS_MOBILE=true next build && npx cap sync",
-    "open:ios": "npm run build:mobile && npx cap open ios",
-    "open:android": "npm run build:mobile && npx cap open android"
+    "build:mobile:prod": "IS_MOBILE=true next build && npx cap sync",
+    "build:mobile:dev": "node scripts/run-mobile-dev-build.js",
+    "open:ios:prod": "npm run build:mobile:prod && npx cap open ios",
+    "open:ios:dev": "npm run build:mobile:dev && npx cap open ios",
+    "open:android:prod": "npm run build:mobile:prod && npx cap open android",
+    "open:android:dev": "npm run build:mobile:dev && npx cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.2",
