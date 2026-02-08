@@ -7,6 +7,7 @@ import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ReCAPTCHA from "react-google-recaptcha";
 import ConfettiBurst from "../../components/ConfettiBurst";
+import { registerPushNotifications, setupNotificationListeners } from "../../services/pushNotifications";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -63,6 +64,26 @@ export default function LoginPage() {
       // Refresh the user in AuthContext
       await refreshUser();
 
+      // Register for push notifications (mobile only)
+      try {
+        await registerPushNotifications();
+        setupNotificationListeners({
+          onReceive: (notification) => {
+            console.log('Push notification received:', notification);
+            // Could show an in-app toast here
+          },
+          onTap: (notification) => {
+            console.log('Push notification tapped:', notification);
+            // Navigate to relevant page
+            if (notification.data?.type === 'new_order') {
+              router.push('/dashboard');
+            }
+          }
+        });
+      } catch (err) {
+        console.log('Push notification registration skipped (web or error):', err);
+      }
+
       setShowConfetti(true);
       setTimeout(() => setAllowRedirect(true), 900);
     } catch (err) {
@@ -114,6 +135,25 @@ export default function LoginPage() {
     try {
       await login({ email: "vendor@example.com", password: "password123", recaptchaToken });
       await refreshUser();
+
+      // Register for push notifications (mobile only)
+      try {
+        await registerPushNotifications();
+        setupNotificationListeners({
+          onReceive: (notification) => {
+            console.log('Push notification received:', notification);
+          },
+          onTap: (notification) => {
+            console.log('Push notification tapped:', notification);
+            if (notification.data?.type === 'new_order') {
+              router.push('/dashboard');
+            }
+          }
+        });
+      } catch (err) {
+        console.log('Push notification registration skipped (web or error):', err);
+      }
+
       setShowConfetti(true);
       setTimeout(() => setAllowRedirect(true), 900);
     } catch (err) {
