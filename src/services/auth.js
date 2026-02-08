@@ -1,6 +1,7 @@
 "use client";
 
 import { api } from "./api";
+import { registerPushToken, unregisterPushToken } from "./push";
 
 export async function getCurrentUser() {
   try {
@@ -19,6 +20,7 @@ export async function login({ email, password, recaptchaToken }) {
   });
   if (typeof window !== "undefined" && result?.token) {
     window.localStorage.setItem("vehndr_token", result.token);
+    registerPushToken().catch(() => {});
   }
   return result?.user || result;
 }
@@ -50,12 +52,14 @@ export async function register({
   });
   if (typeof window !== "undefined" && result?.token) {
     window.localStorage.setItem("vehndr_token", result.token);
+    registerPushToken().catch(() => {});
   }
   return result?.user || result;
 }
 
 export async function logout() {
   try {
+    await unregisterPushToken();
     await api("/api/auth/logout", { method: "POST" });
   } finally {
     if (typeof window !== "undefined") {
@@ -71,6 +75,7 @@ export async function verifyEmail(token) {
   });
   if (typeof window !== "undefined" && result?.token) {
     window.localStorage.setItem("vehndr_token", result.token);
+    registerPushToken().catch(() => {});
   }
   return result;
 }
