@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import { getCurrentUser } from "../services/auth";
+import { registerPushToken, setupTokenRefreshListener } from "../services/push";
 
 const AuthContext = createContext();
 
@@ -23,6 +24,18 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     loadUser();
+  }, []);
+
+  // Push: register token when user is loaded (e.g. app open when already logged in)
+  useEffect(() => {
+    if (!user) return;
+    registerPushToken().catch(() => {});
+  }, [user]);
+
+  // Push: listen for FCM token refresh and re-register with backend
+  useEffect(() => {
+    const cleanup = setupTokenRefreshListener();
+    return cleanup;
   }, []);
 
   const refreshUser = async () => {
