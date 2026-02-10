@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { login, resendVerification } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
-import ReCAPTCHA from "react-google-recaptcha";
 import ConfettiBurst from "../../components/ConfettiBurst";
+
+const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
 import { registerPushNotifications, setupNotificationListeners } from "../../services/pushNotifications";
 
 export default function LoginPage() {
@@ -48,9 +50,9 @@ export default function LoginPage() {
     const email = formData.get("email");
     const password = formData.get("password");
 
-    // Get reCAPTCHA token
-    const recaptchaToken = recaptchaRef.current?.getValue();
-    if (!recaptchaToken) {
+    // Get reCAPTCHA token (only required when enabled)
+    const recaptchaToken = recaptchaEnabled ? recaptchaRef.current?.getValue() : null;
+    if (recaptchaEnabled && !recaptchaToken) {
       setError("Please complete the reCAPTCHA verification");
       setLoading(false);
       return;
@@ -89,7 +91,7 @@ export default function LoginPage() {
     } catch (err) {
       console.error("Login error:", err);
       // Reset reCAPTCHA on error
-      recaptchaRef.current?.reset();
+      if (recaptchaEnabled) recaptchaRef.current?.reset();
 
       // Check if email not verified
       if (err?.details?.email_not_verified) {
@@ -124,9 +126,9 @@ export default function LoginPage() {
     setShowConfetti(false);
     setAllowRedirect(false);
 
-    // Get reCAPTCHA token
-    const recaptchaToken = recaptchaRef.current?.getValue();
-    if (!recaptchaToken) {
+    // Get reCAPTCHA token (only required when enabled)
+    const recaptchaToken = recaptchaEnabled ? recaptchaRef.current?.getValue() : null;
+    if (recaptchaEnabled && !recaptchaToken) {
       setError("Please complete the reCAPTCHA verification");
       setLoading(false);
       return;
@@ -159,7 +161,7 @@ export default function LoginPage() {
     } catch (err) {
       console.error(err);
       // Reset reCAPTCHA on error
-      recaptchaRef.current?.reset();
+      if (recaptchaEnabled) recaptchaRef.current?.reset();
       setError("Demo login failed");
       setLoading(false);
     }
@@ -265,12 +267,14 @@ export default function LoginPage() {
               />
             </div>
 
-            <div className="flex justify-center py-2">
-              <ReCAPTCHA
-                ref={recaptchaRef}
-                sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
-              />
-            </div>
+            {recaptchaEnabled && (
+              <div className="flex justify-center py-2">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                />
+              </div>
+            )}
 
             <button
               type="submit"

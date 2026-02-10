@@ -2,8 +2,10 @@
 
 import { useState, useRef } from "react";
 import Link from "next/link";
-import ReCAPTCHA from "react-google-recaptcha";
 import { api } from "../../services/api";
+
+const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,9 +19,9 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setError(null);
 
-    // Get reCAPTCHA token
-    const recaptchaToken = recaptchaRef.current?.getValue();
-    if (!recaptchaToken) {
+    // Get reCAPTCHA token (only required when enabled)
+    const recaptchaToken = recaptchaEnabled ? recaptchaRef.current?.getValue() : null;
+    if (recaptchaEnabled && !recaptchaToken) {
       setError("Please complete the reCAPTCHA verification");
       setLoading(false);
       return;
@@ -73,7 +75,7 @@ export default function ForgotPasswordPage() {
                 onClick={() => {
                   setSuccess(false);
                   setEmail("");
-                  recaptchaRef.current?.reset();
+                  if (recaptchaEnabled) recaptchaRef.current?.reset();
                 }}
                 className="btn btn-outline w-full"
               >
@@ -149,12 +151,14 @@ export default function ForgotPasswordPage() {
               </div>
             </div>
 
-            <div className="flex justify-center py-2">
-              <ReCAPTCHA
-                ref={recaptchaRef}
-                sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
-              />
-            </div>
+            {recaptchaEnabled && (
+              <div className="flex justify-center py-2">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                />
+              </div>
+            )}
 
             <button
               type="submit"

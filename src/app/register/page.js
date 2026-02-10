@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { register } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
-import ReCAPTCHA from "react-google-recaptcha";
 import ConfettiBurst from "../../components/ConfettiBurst";
+
+const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -68,12 +70,9 @@ export default function RegisterPage() {
       return;
     }
 
-    // Get reCAPTCHA token
-    const recaptchaToken = recaptchaRef.current?.getValue();
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'register/page.js:68',message:'recaptcha token checked',data:{hasRecaptchaToken:!!recaptchaToken},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    if (!recaptchaToken) {
+    // Get reCAPTCHA token (only required when enabled)
+    const recaptchaToken = recaptchaEnabled ? recaptchaRef.current?.getValue() : null;
+    if (recaptchaEnabled && !recaptchaToken) {
       setError("Please complete the reCAPTCHA verification");
       setLoading(false);
       return;
@@ -104,7 +103,7 @@ export default function RegisterPage() {
     } catch (err) {
       console.error("Registration error:", err);
       // Reset reCAPTCHA on error
-      recaptchaRef.current?.reset();
+      if (recaptchaEnabled) recaptchaRef.current?.reset();
 
       // Display backend or network errors if available
       if (err?.details?.errors && Array.isArray(err.details.errors)) {
@@ -347,12 +346,14 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="flex justify-center py-2">
-              <ReCAPTCHA
-                ref={recaptchaRef}
-                sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || ""}
-              />
-            </div>
+            {recaptchaEnabled && (
+              <div className="flex justify-center py-2">
+                <ReCAPTCHA
+                  ref={recaptchaRef}
+                  sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                />
+              </div>
+            )}
 
             <div className="flex items-start gap-2">
               <input
