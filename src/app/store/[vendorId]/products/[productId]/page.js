@@ -72,7 +72,7 @@ export default function ProductPage() {
 
   // Fetch available time slots when date is selected
   useEffect(() => {
-    if (!selectedDate || !product?.isService) {
+    if (!selectedDate || !product?.isService || !vendor?.id) {
       setAvailableSlots([]);
       return;
     }
@@ -84,7 +84,7 @@ export default function ProductPage() {
       try {
         const dateStr = selectedDate.toISOString().split('T')[0];
         const response = await fetch(
-          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vendors/${vendorId}/availabilities/time_slots?date=${dateStr}`
+          `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/vendors/${vendor.id}/availabilities/time_slots?date=${dateStr}`
         );
 
         if (!response.ok) {
@@ -102,7 +102,7 @@ export default function ProductPage() {
     };
 
     fetchTimeSlots();
-  }, [selectedDate, vendorId, product]);
+  }, [selectedDate, vendor?.id, product]);
 
   if (!product || !vendor) {
     return (
