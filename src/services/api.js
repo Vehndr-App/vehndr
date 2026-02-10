@@ -7,7 +7,14 @@ function getOrCreateCartToken() {
   let cartToken = window.localStorage?.getItem("vehndr_cart_token");
   if (!cartToken) {
     // Generate a new cart token (UUID v4)
-    cartToken = crypto.randomUUID();
+    // crypto.randomUUID() requires a secure context (HTTPS); fall back for HTTP / Android emulator
+    cartToken =
+      typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+        ? crypto.randomUUID()
+        : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+            const r = (Math.random() * 16) | 0;
+            return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+          });
     window.localStorage?.setItem("vehndr_cart_token", cartToken);
   }
   return cartToken;
