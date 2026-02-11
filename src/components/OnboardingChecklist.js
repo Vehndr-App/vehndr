@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "../contexts/AuthContext";
+import GuidanceModal from "./GuidanceModal";
 
 const CHECKLISTS = {
   vendor: [
@@ -14,6 +16,13 @@ const CHECKLISTS = {
       cta: "Update profile",
       icon: "📝",
       iconClass: "bg-[var(--violet-50)] text-[var(--violet-600)]",
+      guidanceTitle: "Store Profile Tips",
+      guidanceBullets: [
+        "Add a compelling business name and description",
+        "Upload a cover photo showing your work in action (not a logo!)",
+        "Include your location so organizers can find you",
+        "Select relevant categories for better visibility",
+      ],
     },
     {
       id: "vendor_storefront",
@@ -23,6 +32,13 @@ const CHECKLISTS = {
       cta: "Edit storefront",
       icon: "🎨",
       iconClass: "bg-[var(--info-50)] text-[var(--info-600)]",
+      guidanceTitle: "Storefront & POS",
+      guidanceBullets: [
+        "Add products and services attendees can buy",
+        "Set prices and add quality photos",
+        "Use for in-person sales, preorders, or both",
+        "Manage your full catalog in one place",
+      ],
     },
     {
       id: "vendor_offerings",
@@ -32,6 +48,13 @@ const CHECKLISTS = {
       cta: "Add offerings",
       icon: "🛍️",
       iconClass: "bg-[var(--coral-50)] text-[var(--coral-600)]",
+      guidanceTitle: "Event Offerings",
+      guidanceBullets: [
+        "This is how organizers book you for events",
+        "Choose: flat booth, hourly, trade, free + sales, or package",
+        "Think of it like a buyout or bar tab arrangement",
+        "Each option is explained on the offerings page",
+      ],
     },
     {
       id: "vendor_availability",
@@ -41,6 +64,13 @@ const CHECKLISTS = {
       cta: "Set dates",
       icon: "📅",
       iconClass: "bg-[var(--mint-50)] text-[var(--mint-600)]",
+      guidanceTitle: "Set Your Availability",
+      guidanceBullets: [
+        "Mark which days and hours you're available",
+        "Set recurring weekly schedules",
+        "Add or block specific dates",
+        "Organizers only see you when you're available",
+      ],
     },
     {
       id: "vendor_payments",
@@ -50,6 +80,13 @@ const CHECKLISTS = {
       cta: "Connect Stripe",
       icon: "💳",
       iconClass: "bg-[var(--amber-50)] text-[var(--amber-600)]",
+      guidanceTitle: "Connect Payments",
+      guidanceBullets: [
+        "Complete Stripe onboarding (takes ~5 minutes)",
+        "Accept cards, Apple Pay, and Tap to Pay",
+        "Get payouts directly to your bank account",
+        "Required to accept orders and get paid",
+      ],
     },
   ],
   coordinator: [
@@ -61,6 +98,12 @@ const CHECKLISTS = {
       cta: "Update profile",
       icon: "📝",
       iconClass: "bg-[var(--violet-50)] text-[var(--violet-600)]",
+      guidanceTitle: "Organizer Profile",
+      guidanceBullets: [
+        "Add your name and contact info",
+        "Write a brief bio about yourself",
+        "Helps vendors know who they're working with",
+      ],
     },
     {
       id: "coordinator_event",
@@ -70,6 +113,13 @@ const CHECKLISTS = {
       cta: "Create event",
       icon: "🎉",
       iconClass: "bg-[var(--magenta-50)] text-[var(--magenta-600)]",
+      guidanceTitle: "Create an Event",
+      guidanceBullets: [
+        "Set your event date, time, and location",
+        "Add a theme and description",
+        "Upload a cover photo to make it stand out",
+        "Then invite vendors and manage bookings",
+      ],
     },
     {
       id: "coordinator_budget",
@@ -79,6 +129,13 @@ const CHECKLISTS = {
       cta: "Set requirements",
       icon: "🧩",
       iconClass: "bg-[var(--mint-50)] text-[var(--mint-600)]",
+      guidanceTitle: "Vendor Requirements",
+      guidanceBullets: [
+        "Define budget ranges for vendors",
+        "Specify booth space requirements",
+        "Set timing and scheduling needs",
+        "Helps match you with the right vendors",
+      ],
     },
     {
       id: "coordinator_invites",
@@ -88,6 +145,13 @@ const CHECKLISTS = {
       cta: "Review vendors",
       icon: "📣",
       iconClass: "bg-[var(--coral-50)] text-[var(--coral-600)]",
+      guidanceTitle: "Invite Vendors",
+      guidanceBullets: [
+        "Browse recommended vendors for your event",
+        "Send booking requests to vendors you like",
+        "Review and manage incoming proposals",
+        "Approve or decline based on offerings",
+      ],
     },
     {
       id: "coordinator_publish",
@@ -97,6 +161,13 @@ const CHECKLISTS = {
       cta: "Publish event",
       icon: "🚀",
       iconClass: "bg-[var(--amber-50)] text-[var(--amber-600)]",
+      guidanceTitle: "Publish Your Event",
+      guidanceBullets: [
+        "Review your event details one more time",
+        "Confirm your vendors are set",
+        "Publish so attendees can find your event",
+        "Start accepting RSVPs and bookings",
+      ],
     },
   ],
 };
@@ -106,11 +177,13 @@ const getDismissKey = (role) => `vehndr_onboarding_dismissed_${role}`;
 
 export default function OnboardingChecklist({ role }) {
   const { user } = useAuth();
+  const router = useRouter();
   const resolvedRole = role || user?.role;
-  const checklist = CHECKLISTS[resolvedRole] || [];
+  const checklist = useMemo(() => CHECKLISTS[resolvedRole] || [], [resolvedRole]);
 
   const [completedMap, setCompletedMap] = useState({});
   const [isDismissed, setIsDismissed] = useState(false);
+  const [guidanceItemId, setGuidanceItemId] = useState(null);
 
   useEffect(() => {
     if (!resolvedRole || typeof window === "undefined") return;
@@ -155,37 +228,49 @@ export default function OnboardingChecklist({ role }) {
   }
 
   return (
-    <div className="card p-6 mb-6">
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--violet-600)]">
-            {resolvedRole === "vendor" ? "Vendor walkthrough" : "Organizer walkthrough"}
-          </p>
-          <h2 className="text-h3 text-[var(--gray-900)] mt-1">
-            Get booking-ready
+    <div className="card p-5 mb-6">
+      {/* Header with visual */}
+      <div className="flex items-center gap-4 mb-4">
+        {/* Checklist icon */}
+        <div className="w-12 h-12 rounded-[var(--radius-xl)] bg-gradient-to-br from-[var(--violet-500)] to-[var(--magenta-500)] flex items-center justify-center flex-shrink-0 shadow-sm">
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-h4 text-[var(--foreground)]">
+            Get Booking Ready!
           </h2>
-          <p className="text-sm text-[var(--gray-500)] mt-1">
-            Complete these steps to improve visibility and trust.
+          <p className="text-sm text-[var(--gray-500)] mt-0.5">
+            {resolvedRole === "vendor" 
+              ? "Complete these steps to start getting booked and paid for events!"
+              : "Set up your event to start inviting vendors!"
+            }
           </p>
         </div>
         <button
           type="button"
           onClick={handleDismiss}
-          className="text-xs text-[var(--gray-500)] hover:text-[var(--gray-700)]"
+          className="w-8 h-8 rounded-full bg-[var(--gray-100)] flex items-center justify-center text-[var(--gray-500)] hover:bg-[var(--gray-200)] hover:text-[var(--gray-700)] transition-colors flex-shrink-0"
+          aria-label="Dismiss checklist"
         >
-          Dismiss
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
-      <div className="flex items-center justify-between text-xs text-[var(--gray-500)] mb-3">
-        <span>{completion.done} of {completion.total} completed</span>
-        <span>{completion.percent}% ready</span>
-      </div>
-      <div className="h-2 rounded-full bg-[var(--gray-100)] overflow-hidden mb-5">
-        <div
-          className="h-full bg-[var(--violet-600)] transition-all"
-          style={{ width: `${completion.percent}%` }}
-        />
+      {/* Progress bar */}
+      <div className="flex items-center gap-3 mb-5">
+        <div className="flex-1 h-2 rounded-full bg-[var(--gray-100)] overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-[var(--violet-500)] to-[var(--magenta-500)] transition-all duration-300"
+            style={{ width: `${completion.percent}%` }}
+          />
+        </div>
+        <span className="text-xs font-semibold text-[var(--violet-600)] whitespace-nowrap">
+          {completion.done}/{completion.total}
+        </span>
       </div>
 
       <div className="space-y-3">
@@ -224,10 +309,27 @@ export default function OnboardingChecklist({ role }) {
               >
                 {item.icon || "✨"}
               </span>
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-[var(--gray-900)]">
-                  {item.title}
-                </p>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-[var(--gray-900)]">
+                    {item.title}
+                  </p>
+                  {item.guidanceTitle && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setGuidanceItemId(item.id);
+                      }}
+                      className="w-6 h-6 rounded-full bg-[var(--gray-100)] flex items-center justify-center text-[var(--gray-500)] hover:bg-[var(--violet-100)] hover:text-[var(--violet-600)] transition-colors flex-shrink-0"
+                      aria-label={`Learn more about ${item.title}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs text-[var(--gray-500)] mt-1">
                   {item.description}
                 </p>
@@ -245,6 +347,27 @@ export default function OnboardingChecklist({ role }) {
           );
         })}
       </div>
+
+      {guidanceItemId && (() => {
+        const item = checklist.find((i) => i.id === guidanceItemId);
+        if (!item?.guidanceTitle) return null;
+        return (
+          <GuidanceModal
+            isOpen={!!guidanceItemId}
+            onClose={() => setGuidanceItemId(null)}
+            title={item.guidanceTitle}
+            bullets={item.guidanceBullets}
+            primaryAction={{
+              label: item.cta,
+              onClick: () => router.push(item.href)
+            }}
+            secondaryAction={{
+              label: "Close",
+              onClick: () => setGuidanceItemId(null)
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }

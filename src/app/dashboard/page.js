@@ -175,45 +175,175 @@ function DashboardInner() {
     );
   }
 
+  const isNewVendor = orders.length === 0;
+
+  // Calculate onboarding progress (5 steps for vendor)
+  const onboardingSteps = 5;
+  const completedSteps = [
+    vendor?.heroImage, // cover photo
+    vendor?.description, // profile description
+    accountStatus?.chargesEnabled, // payments connected
+  ].filter(Boolean).length;
+  // We don't have direct access to offerings/availability count here, so estimate based on vendor profile completeness
+  const estimatedProgress = Math.round((completedSteps / onboardingSteps) * 100);
+
   return (
     <div className="min-h-screen bg-[var(--background)] pb-24">
-      {/* Header */}
-      <div className="bg-gradient-primary text-white px-4 pt-12 pb-8 safe-area-top">
-        <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <p className="text-white/70 text-sm">Welcome back</p>
-              <h1 className="text-h2 text-white">{vendor.name}</h1>
-            </div>
-            <Link href="/dashboard/settings" className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-            </Link>
-          </div>
-
-          {/* Today's Orders Card */}
-          <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1">
-                <p className="text-white/70 text-sm mb-3">Total Orders</p>
-                <div className="mb-2">
-                  <p className="text-4xl font-bold text-white leading-tight">{orders.length}</p>
-                </div>
-                <p className="text-white/60 text-sm">{todaysOrders.length} order{todaysOrders.length !== 1 ? 's' : ''} today</p>
-              </div>
-              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
-                <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+      {/* Header - New vendor vs Established */}
+      {isNewVendor ? (
+        <div className="safe-area-top">
+          {/* New Vendor Profile Card Header - Inspired by profile cards */}
+          <div className="relative">
+            {/* Cover Photo Area */}
+            <div className="h-32 bg-gradient-primary relative overflow-hidden">
+              {vendor?.heroImage ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={vendor.heroImage}
+                    alt=""
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/20 to-black/40" />
+                </>
+              ) : (
+                <div className="absolute inset-0 bg-gradient-vendor opacity-90" />
+              )}
+              
+              {/* Settings button */}
+              <Link 
+                href="/dashboard/settings" 
+                className="absolute top-4 right-4 w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center hover:bg-white/30 transition-colors z-10"
+              >
+                <svg className="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
+              </Link>
+            </div>
+
+            {/* Profile Content Card */}
+            <div className="px-4">
+              <div className="max-w-lg mx-auto">
+                <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] -mt-12 relative">
+                  {/* Avatar with Progress Ring */}
+                  <div className="flex flex-col items-center pt-14 pb-5 px-5">
+                    {/* Profile Photo - positioned to overlap cover, clickable to edit */}
+                    <Link 
+                      href="/dashboard/profile#profile-photo" 
+                      className="absolute -top-10 left-1/2 -translate-x-1/2 group"
+                      title="Add your profile photo"
+                    >
+                      {/* Progress ring background */}
+                      <svg className="w-20 h-20" viewBox="0 0 80 80">
+                        <circle
+                          cx="40"
+                          cy="40"
+                          r="36"
+                          fill="white"
+                          stroke="var(--gray-200)"
+                          strokeWidth="4"
+                        />
+                        <circle
+                          cx="40"
+                          cy="40"
+                          r="36"
+                          fill="none"
+                          stroke="url(#progressGradient)"
+                          strokeWidth="4"
+                          strokeLinecap="round"
+                          strokeDasharray={`${estimatedProgress * 2.26} 226`}
+                          transform="rotate(-90 40 40)"
+                        />
+                        <defs>
+                          <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stopColor="var(--violet-500)" />
+                            <stop offset="100%" stopColor="var(--magenta-500)" />
+                          </linearGradient>
+                        </defs>
+                      </svg>
+                      {/* Profile photo inside ring */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-full bg-[var(--violet-100)] flex items-center justify-center overflow-hidden relative">
+                          {vendor?.profileImage ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={vendor.profileImage} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <svg className="w-7 h-7 text-[var(--violet-400)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                          )}
+                          {/* Edit overlay on hover */}
+                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100 rounded-full">
+                            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+                    </Link>
+
+                    {/* Vendor Name */}
+                    <h1 className="text-h3 text-[var(--foreground)] text-center">{vendor.name}</h1>
+                    
+                    {/* Progress Label */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--violet-50)]">
+                        <div className="w-2 h-2 rounded-full bg-[var(--violet-500)]" />
+                        <span className="text-xs font-semibold text-[var(--violet-700)]">
+                          {estimatedProgress}% Setup
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Quick message */}
+                    <p className="text-sm text-[var(--gray-500)] text-center mt-3 max-w-xs">
+                      Complete the steps below to start getting booked!
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-gradient-primary text-white px-4 pt-12 pb-8 safe-area-top">
+          <div className="max-w-lg mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-white/70 text-sm">Welcome back</p>
+                <h1 className="text-h2 text-white">{vendor.name}</h1>
+              </div>
+              <Link href="/dashboard/settings" className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center hover:bg-white/30 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </Link>
+            </div>
 
-      <div className="px-4 -mt-6">
+            {/* Orders Card for established vendors */}
+            <div className="bg-white/15 backdrop-blur-sm rounded-2xl p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-white/70 text-sm mb-3">Total Orders</p>
+                  <div className="mb-2">
+                    <p className="text-4xl font-bold text-white leading-tight">{orders.length}</p>
+                  </div>
+                  <p className="text-white/60 text-sm">{todaysOrders.length} order{todaysOrders.length !== 1 ? 's' : ''} today</p>
+                </div>
+                <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0 mt-1">
+                  <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className={`px-4 ${isNewVendor ? 'mt-4' : '-mt-6'}`}>
         <div className="max-w-lg mx-auto">
           <OnboardingChecklist role="vendor" />
         </div>
