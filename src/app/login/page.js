@@ -9,7 +9,6 @@ import ConfettiBurst from "../../components/ConfettiBurst";
 
 const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
-import { registerPushNotifications, setupNotificationListeners } from "../../services/pushNotifications";
 
 
 export default function LoginPage() {
