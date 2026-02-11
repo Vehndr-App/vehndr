@@ -4,17 +4,35 @@ import { Capacitor } from "@capacitor/core";
 import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 import { api } from "./api";
 
+/** Default Android notification channel ID; must match backend and AndroidManifest meta-data. */
+const ANDROID_DEFAULT_CHANNEL_ID = "vehndr_default";
+
 /**
  * Register the current FCM token with the backend for the logged-in user.
  * No-op when not running in the native app (Capacitor WebView).
+ * On Android 13+, requests notification permission first; creates default channel on Android.
  */
 export async function registerPushToken() {
   if (typeof window === "undefined" || !Capacitor.isNativePlatform()) {
     return;
   }
   try {
+    const platform = Capacitor.getPlatform();
+
+    // Android 13+ requires runtime permission; otherwise notifications are blocked.
+    await FirebaseMessaging.requestPermissions();
+
+    // Android 8+: create default channel so FCM messages have a channel to display in.
+    if (platform === "android") {
+      await FirebaseMessaging.createChannel({
+        id: ANDROID_DEFAULT_CHANNEL_ID,
+        name: "General",
+        importance: 4, // High (sound + heads-up)
+        vibration: true,
+      });
+    }
+
     const { token } = await FirebaseMessaging.getToken();
-    const platform = Capacitor.getPlatform(); // "ios" | "android"
     await api("/api/device_tokens", {
       method: "POST",
       body: { token, platform },
