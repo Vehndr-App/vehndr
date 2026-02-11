@@ -294,6 +294,7 @@ export default function VendorProfile({ user, onSuccess }) {
     }
   };
 
+
   const handleGalleryDragEnd = async (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
