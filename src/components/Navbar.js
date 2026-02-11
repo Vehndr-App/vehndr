@@ -13,7 +13,7 @@ const getRoleLabel = (role) => {
 };
 
 export default function Navbar() {
-  const { user, clearUser } = useAuth();
+  const { user, clearUser, isImpersonating } = useAuth();
   const { totalItems } = useCart();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -63,7 +63,7 @@ export default function Navbar() {
   
   return (
     <>
-      <header className="w-full bg-white/95 backdrop-blur-xl sticky top-0 z-50 border-b border-[var(--gray-100)]">
+      <header className={`w-full bg-white/95 backdrop-blur-xl sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50 border-b border-[var(--gray-100)]`}>
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
           {/* Left: Back button or Logo */}
           <div className="flex items-center gap-3 min-w-0">

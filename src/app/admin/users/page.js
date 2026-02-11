@@ -40,6 +40,9 @@ export default function AdminUsersPage() {
   });
   const [creating, setCreating] = useState(false);
 
+  // Impersonation
+  const [impersonating, setImpersonating] = useState(null);
+
   // Send password email
   const [sendingPasswordEmail, setSendingPasswordEmail] = useState(null);
 
@@ -230,6 +233,30 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleImpersonate = async (user) => {
+    if (!confirm(`Impersonate ${user.name || user.email}? You will view the app as this user.`)) return;
+
+    try {
+      setImpersonating(user.id);
+      const res = await api(`/api/admin/users/${user.id}/impersonate`, {
+        method: "POST",
+      });
+      if (res.token) {
+        // Save admin token for later restoration
+        const currentToken = localStorage.getItem("vehndr_token");
+        localStorage.setItem("vehndr_admin_token", currentToken);
+        // Set impersonation token
+        localStorage.setItem("vehndr_token", res.token);
+        // Full page redirect to reset all state
+        window.location.href = "/";
+      }
+    } catch (err) {
+      console.error("Failed to impersonate user", err);
+      alert(err.message || "Failed to impersonate user");
+      setImpersonating(null);
+    }
+  };
+
   return (
     <div className="p-4 md:p-6">
       {/* Header */}
@@ -402,6 +429,15 @@ export default function AdminUsersPage() {
                         {new Date(user.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right">
+                        {user.role !== "admin" && (
+                          <button
+                            onClick={() => handleImpersonate(user)}
+                            disabled={impersonating === user.id}
+                            className="text-amber-600 hover:text-amber-700 text-sm font-medium mr-3 disabled:opacity-50"
+                          >
+                            {impersonating === user.id ? "..." : "Impersonate"}
+                          </button>
+                        )}
                         <button
                           onClick={() => handleSendPasswordEmail(user)}
                           disabled={sendingPasswordEmail === user.id}
@@ -472,6 +508,15 @@ export default function AdminUsersPage() {
                       </span>
                     </div>
                     <div className="flex gap-3">
+                      {user.role !== "admin" && (
+                        <button
+                          onClick={() => handleImpersonate(user)}
+                          disabled={impersonating === user.id}
+                          className="text-amber-600 font-medium disabled:opacity-50"
+                        >
+                          {impersonating === user.id ? "..." : "Impersonate"}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleSendPasswordEmail(user)}
                         disabled={sendingPasswordEmail === user.id}
