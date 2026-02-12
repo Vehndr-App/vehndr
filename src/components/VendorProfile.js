@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   DndContext,
   closestCenter,
@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { api } from "../services/api";
 import SmartImage from "./SmartImage";
 import ImageEditorModal from "./ImageEditorModal";
+import GuidanceModal from "./GuidanceModal";
 import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
 import {
   resizeImage,
@@ -39,7 +40,9 @@ export default function VendorProfile({ user, onSuccess }) {
     slug: '',
     description: '',
     location: '',
-    heroImage: null,
+    profileImage: null,           // Profile photo (the actual person)
+    profileImageUrl: '',
+    heroImage: null,              // Cover photo (business in action)
     heroImageUrl: '',
     galleryImages: [],           // New files to upload (File objects)
     existingGalleryImages: [],   // Existing images from server [{id, url}]
@@ -63,6 +66,33 @@ export default function VendorProfile({ user, onSuccess }) {
     targetId: null,
     isExisting: false
   });
+  const [showCoverPhotoTip, setShowCoverPhotoTip] = useState(false);
+  const coverPhotoFileInputRef = useRef(null);
+  const profilePhotoFileInputRef = useRef(null);
+
+  // Handle hash-based scroll and auto-trigger upload (e.g., from dashboard avatar click)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    
+    const hash = window.location.hash;
+    if (hash === "#profile-photo") {
+      // Small delay to ensure element is rendered
+      setTimeout(() => {
+        const element = document.getElementById("profile-photo");
+        if (element) {
+          element.scrollIntoView({ behavior: "smooth", block: "center" });
+          // Auto-trigger file input if no profile photo exists
+          if (!formData.profileImageUrl && !formData.profileImage) {
+            setTimeout(() => {
+              profilePhotoFileInputRef.current?.click();
+            }, 500);
+          }
+        }
+        // Clear hash from URL
+        window.history.replaceState(null, "", window.location.pathname);
+      }, 100);
+    }
+  }, [loading, formData.profileImageUrl, formData.profileImage]);
 
   const fetchVendor = useCallback(async () => {
     if (!user?.vendorId) {
@@ -82,6 +112,8 @@ export default function VendorProfile({ user, onSuccess }) {
         slug: vendorData.slug || '',
         description: vendorData.description || '',
         location: vendorData.location || '',
+        profileImage: null,
+        profileImageUrl: vendorData.profileImage || '',
         heroImage: null,
         heroImageUrl: vendorData.heroImage || '',
         galleryImages: [],
@@ -140,6 +172,14 @@ export default function VendorProfile({ user, onSuccess }) {
         formDataToSend.append('vendor[categories][]', category);
       });
 
+      // Add profile image if a new file was selected
+      if (formData.profileImage) {
+        formDataToSend.append('vendor[profile_image]', formData.profileImage);
+      } else if (vendor && vendor.profileImage && !formData.profileImageUrl) {
+        // Profile image was removed
+        formDataToSend.append('remove_profile_image', 'true');
+      }
+
       // Add hero image if a new file was selected
       if (formData.heroImage) {
         formDataToSend.append('vendor[hero_image]', formData.heroImage);
@@ -192,6 +232,8 @@ export default function VendorProfile({ user, onSuccess }) {
       // Update form data with new URLs
       setFormData(prev => ({
         ...prev,
+        profileImage: null,
+        profileImageUrl: resultData.profileImage || prev.profileImageUrl,
         heroImage: null,
         heroImageUrl: resultData.heroImage || prev.heroImageUrl,
         galleryImages: [],
@@ -293,6 +335,7 @@ export default function VendorProfile({ user, onSuccess }) {
       setSavingOrder(false);
     }
   };
+
 
   const handleGalleryDragEnd = async (event) => {
     const { active, over } = event;
@@ -453,8 +496,18 @@ export default function VendorProfile({ user, onSuccess }) {
           </h3>
         </div>
         
-        {/* Hero Image Preview */}
-        <div className="relative">
+        {/* Hero Image Preview - Clickable to upload cover photo */}
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined" && !localStorage.getItem("vehndr_cover_photo_tip_seen")) {
+              setShowCoverPhotoTip(true);
+            } else {
+              coverPhotoFileInputRef.current?.click();
+            }
+          }}
+          className="relative w-full text-left group"
+        >
           {heroUrl ? (
             <div className="aspect-[21/9] bg-[var(--gray-100)]">
               <SmartImage 
@@ -463,13 +516,33 @@ export default function VendorProfile({ user, onSuccess }) {
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              {/* Edit overlay on hover */}
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <div className="bg-white/90 rounded-full p-3 shadow-lg">
+                  <svg className="w-5 h-5 text-[var(--gray-700)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+              </div>
             </div>
           ) : (
-            <div className="aspect-[21/9] bg-gradient-primary" />
+            <div className="aspect-[21/9] bg-gradient-primary group-hover:opacity-90 transition-opacity relative">
+              {/* Upload prompt when no image */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-center text-white/80">
+                  <svg className="w-8 h-8 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <p className="text-sm font-medium">Tap to add cover photo</p>
+                </div>
+              </div>
+            </div>
           )}
           
           {/* Store Info Overlay */}
-          <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+          <div className="absolute bottom-0 left-0 right-0 p-4 text-white pointer-events-none">
             <h2 className="text-h2 text-white drop-shadow-lg">{formData.name || 'Your Business Name'}</h2>
             {formData.location && (
               <p className="text-sm text-white/80 mt-1 flex items-center gap-1">
@@ -481,7 +554,7 @@ export default function VendorProfile({ user, onSuccess }) {
               </p>
             )}
           </div>
-        </div>
+        </button>
 
         {/* Gallery Preview */}
         {allGalleryImages.length > 0 && (
@@ -628,12 +701,129 @@ export default function VendorProfile({ user, onSuccess }) {
           </div>
         </div>
 
+        {/* Profile Photo Card - Photo of the actual person */}
+        <div id="profile-photo" className="card bg-white p-5 scroll-mt-20">
+          <h3 className="text-h4 mb-2">Your Profile Photo</h3>
+          <p className="text-sm text-[var(--gray-500)] mb-4">
+            A photo of you, the vendor. This helps organizers and customers put a face to your business.
+          </p>
+
+          <div className="flex items-start gap-4">
+            {/* Current Profile Photo */}
+            <div className="relative flex-shrink-0">
+              <div className="w-24 h-24 rounded-full overflow-hidden bg-[var(--violet-100)] border-4 border-[var(--gray-100)]">
+                {(formData.profileImageUrl || formData.profileImage) ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={formData.profileImage ? URL.createObjectURL(formData.profileImage) : formData.profileImageUrl}
+                    alt="Profile photo"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <svg className="w-10 h-10 text-[var(--violet-300)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              {(formData.profileImageUrl || formData.profileImage) && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, profileImage: null, profileImageUrl: '' })}
+                  className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-[var(--gray-700)] text-white flex items-center justify-center hover:bg-[var(--gray-800)] transition-colors shadow-sm"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Upload Button */}
+            <div className="flex-1">
+              <input
+                ref={profilePhotoFileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={async (e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const typeCheck = validateFileType(file);
+                    if (!typeCheck.valid) {
+                      setError(typeCheck.message);
+                      return;
+                    }
+                    const sizeCheck = validateFileSize(file, 5);
+                    if (!sizeCheck.valid) {
+                      setError(sizeCheck.message);
+                      return;
+                    }
+                    setError(null);
+                    // Resize and set directly (no editor for profile photo)
+                    const resized = await resizeImage(file, 400, 400);
+                    setFormData(prev => ({ ...prev, profileImage: resized }));
+                  }
+                }}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => profilePhotoFileInputRef.current?.click()}
+                className="btn btn-secondary w-full justify-center"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                {(formData.profileImageUrl || formData.profileImage) ? 'Change Photo' : 'Upload Photo'}
+              </button>
+              <p className="text-xs text-[var(--gray-500)] mt-2 text-center">
+                JPG or PNG, max 5MB
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Hero Image Card */}
         <div className="card bg-white p-5">
           <h3 className="text-h4 mb-2">Cover Photo</h3>
           <p className="text-sm text-[var(--gray-500)] mb-4">
             This banner image appears at the top of your storefront (recommended: 1200×400px)
           </p>
+
+          {/* Cover Photo Recommendation - Good vs Bad Examples */}
+          <div className="mb-6 p-4 rounded-[var(--radius-xl)] bg-[var(--violet-50)] border border-[var(--violet-100)]">
+            <p className="text-sm font-medium text-[var(--foreground)] mb-3">
+              Use a photo of your business in action—not a logo. Professional quality helps attract bookings.
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="flex flex-col items-center">
+                <div className="w-full aspect-[2/1] rounded-lg overflow-hidden border-2 border-[var(--mint-500)] shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/onboarding/cover-good.svg"
+                    alt="Good example: business in action"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <p className="text-xs font-semibold text-[var(--mint-600)] mt-2">Good example</p>
+                <p className="text-xs text-[var(--gray-600)] text-center">Real setup, booth, or service in action</p>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="w-full aspect-[2/1] rounded-lg overflow-hidden border-2 border-[var(--gray-300)] shadow-sm opacity-80">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/onboarding/cover-bad.svg"
+                    alt="Bad example: logo only"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <p className="text-xs font-semibold text-[var(--gray-600)] mt-2">Avoid</p>
+                <p className="text-xs text-[var(--gray-600)] text-center">Logo only, blurry, or stock clip-art</p>
+              </div>
+            </div>
+          </div>
 
           {/* Current/Preview Image */}
           {(formData.heroImageUrl || formData.heroImage) && (
@@ -666,7 +856,40 @@ export default function VendorProfile({ user, onSuccess }) {
           )}
 
           {/* Upload Button */}
-          <label className="block">
+          <input
+            ref={coverPhotoFileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={async (e) => {
+              const file = e.target.files[0];
+              if (file) {
+                const typeCheck = validateFileType(file);
+                if (!typeCheck.valid) {
+                  setError(typeCheck.message);
+                  return;
+                }
+                const sizeCheck = validateFileSize(file, 10);
+                if (!sizeCheck.valid) {
+                  setError(sizeCheck.message);
+                  return;
+                }
+                setError(null);
+                openHeroEditor(URL.createObjectURL(file), file.name);
+              }
+            }}
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && !localStorage.getItem("vehndr_cover_photo_tip_seen")) {
+                setShowCoverPhotoTip(true);
+              } else {
+                coverPhotoFileInputRef.current?.click();
+              }
+            }}
+            className="w-full text-left"
+          >
             <div className="border-2 border-dashed border-[var(--gray-300)] rounded-xl p-6 text-center hover:border-[var(--violet-400)] hover:bg-[var(--violet-50)] transition-colors cursor-pointer">
               <div className="w-12 h-12 mx-auto rounded-full bg-[var(--violet-100)] flex items-center justify-center mb-3">
                 <svg className="w-6 h-6 text-[var(--violet-600)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -676,30 +899,25 @@ export default function VendorProfile({ user, onSuccess }) {
               <p className="font-medium text-[var(--foreground)]">Upload cover photo</p>
               <p className="text-sm text-[var(--gray-500)] mt-1">JPG, PNG or GIF up to 10MB</p>
             </div>
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={async (e) => {
-                const file = e.target.files[0];
-                if (file) {
-                  const typeCheck = validateFileType(file);
-                  if (!typeCheck.valid) {
-                    setError(typeCheck.message);
-                    return;
-                  }
-                  const sizeCheck = validateFileSize(file, 10);
-                  if (!sizeCheck.valid) {
-                    setError(sizeCheck.message);
-                    return;
-                  }
-                  setError(null);
-                  openHeroEditor(URL.createObjectURL(file), file.name);
-                }
-              }}
-              className="hidden"
-            />
-          </label>
+          </button>
         </div>
+
+        <GuidanceModal
+          isOpen={showCoverPhotoTip}
+          onClose={() => setShowCoverPhotoTip(false)}
+          title="Cover Photo Tips"
+          description="Use a photo of your business in action—not a logo. Show your booth, food truck, DJ setup, or service in progress. Professional quality helps attract more bookings."
+          primaryAction={{
+            label: "Got it",
+            onClick: () => {
+              if (typeof window !== "undefined") {
+                localStorage.setItem("vehndr_cover_photo_tip_seen", "true");
+              }
+              setShowCoverPhotoTip(false);
+              setTimeout(() => coverPhotoFileInputRef.current?.click(), 100);
+            }
+          }}
+        />
 
         {/* Gallery Images Card */}
         <div className="card bg-white p-5">
@@ -711,8 +929,11 @@ export default function VendorProfile({ user, onSuccess }) {
               </span>
             )}
           </div>
-          <p className="text-sm text-[var(--gray-500)] mb-4">
+          <p className="text-sm text-[var(--gray-500)] mb-2">
             Add photos to showcase your products, services, and workspace. Drag to reorder.
+          </p>
+          <p className="text-sm text-[var(--violet-600)] font-medium mb-4 px-3 py-2 rounded-lg bg-[var(--violet-50)] border border-[var(--violet-100)]">
+            Showcase your work, products, and setup. Mix close-ups and wide shots for best impact.
           </p>
 
           {/* Existing & New Gallery Images */}

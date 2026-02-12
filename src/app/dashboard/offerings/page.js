@@ -3,15 +3,41 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AuthGate from "../../../components/AuthGate";
+import GuidanceModal from "../../../components/GuidanceModal";
 import { api } from "../../../services/api";
 import { getCurrentUser } from "../../../services/auth";
 
 const OFFERING_TYPES = [
-  { value: "flat_booth", label: "Flat Booth" },
-  { value: "hourly", label: "Hourly (Book Vendor)" },
-  { value: "trade", label: "Trade for Exposure" },
-  { value: "free_with_sales", label: "Free + Sales Allowed" },
-  { value: "package", label: "Package" }
+  {
+    value: "flat_booth",
+    label: "Flat Booth",
+    description: "One fixed fee for your booth/space. Organizer pays once; you attend for the whole event.",
+    icon: "flat_booth"
+  },
+  {
+    value: "hourly",
+    label: "Hourly (Book Vendor)",
+    description: "Organizer pays per hour you're there. Good for DJs, photographers, bartenders.",
+    icon: "hourly"
+  },
+  {
+    value: "trade",
+    label: "Trade for Exposure",
+    description: "No fee; you get visibility at the event in exchange for your presence.",
+    icon: "trade"
+  },
+  {
+    value: "free_with_sales",
+    label: "Free + Sales Allowed",
+    description: "Free to book; you sell products/services on-site and keep the revenue.",
+    icon: "free_with_sales"
+  },
+  {
+    value: "package",
+    label: "Package",
+    description: "Bundled service (e.g., 4-hour DJ + lighting). Organizer pays one price for everything.",
+    icon: "package"
+  }
 ];
 
 export default function OfferingsPage() {
@@ -28,6 +54,7 @@ function OfferingsInner() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const [showIntroModal, setShowIntroModal] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     offeringType: "flat_booth",
@@ -125,12 +152,40 @@ function OfferingsInner() {
           <Link href="/dashboard" className="text-sm text-[var(--gray-500)] hover:text-[var(--gray-700)]">
             ← Back to Dashboard
           </Link>
-          <h1 className="text-h2 text-[var(--foreground)] mt-3">Event Offerings & Packages</h1>
-          <p className="text-sm text-[var(--gray-500)] mt-1">
-            Add booth, hourly, trade, free, or package offerings for event hosts.
-          </p>
+          <div className="flex items-start justify-between gap-4 mt-3">
+            <div className="flex items-start gap-3">
+              <div className="w-12 h-12 rounded-[var(--radius-xl)] bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/onboarding/offerings-hero.svg" alt="" className="w-8 h-8 object-contain" />
+              </div>
+              <div>
+              <h1 className="text-h2 text-[var(--foreground)]">Event Offerings & Packages</h1>
+              <p className="text-sm text-[var(--gray-600)] mt-1 max-w-xl">
+                Event organizers can book you for their event and pay a flat fee, hourly rate, or package—like a buyout or bar tab. Define how you want to be booked.
+              </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowIntroModal(true)}
+              className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center text-[var(--violet-600)] hover:bg-[var(--violet-200)] transition-colors flex-shrink-0"
+              aria-label="Learn more about event offerings"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
+
+      <GuidanceModal
+        isOpen={showIntroModal}
+        onClose={() => setShowIntroModal(false)}
+        title="What are Event Offerings?"
+        description="Event offerings are how organizers book you for their event. Think of it like a buyout or bar tab—they pay you to be there. You can charge a flat booth fee, hourly rate, trade for exposure, allow free booking with on-site sales, or offer bundled packages. Choose what works best for your business."
+        primaryAction={{ label: "Got it", onClick: () => setShowIntroModal(false) }}
+      />
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
         <form onSubmit={handleSubmit} className="card space-y-4">
@@ -153,19 +208,28 @@ function OfferingsInner() {
                 required
               />
             </div>
-            <div>
-              <label className="text-sm font-medium text-[var(--gray-600)]">Offering Type</label>
-              <select
-                value={formData.offeringType}
-                onChange={(e) => handleChange("offeringType", e.target.value)}
-                className="input mt-2"
-              >
-                {OFFERING_TYPES.map((type) => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
+            <div className="sm:col-span-2">
+              <label className="text-sm font-medium text-[var(--gray-600)] block mb-3">Offering Type</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {OFFERING_TYPES.map((type) => {
+                  const isSelected = formData.offeringType === type.value;
+                  return (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() => handleChange("offeringType", type.value)}
+                      className={`text-left p-4 rounded-[var(--radius-xl)] border-2 transition-all min-h-[80px] flex flex-col gap-1 ${
+                        isSelected
+                          ? "border-[var(--violet-600)] bg-[var(--violet-50)]"
+                          : "border-[var(--gray-200)] hover:border-[var(--violet-300)] hover:bg-[var(--violet-50)]/50"
+                      }`}
+                    >
+                      <span className="font-semibold text-[var(--foreground)]">{type.label}</span>
+                      <span className="text-xs text-[var(--gray-600)] line-clamp-2">{type.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
