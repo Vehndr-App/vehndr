@@ -605,6 +605,7 @@ function OrderCard({ order, onComplete, onRefund, isCompleting }) {
   const items = order.line_items || [];
   const refundStatus = order.refundStatus || order.refund_status;
   const paymentStatus = order.paymentStatus || order.payment_status;
+  const orderNotes = (order.notes || "").trim();
 
   return (
     <div className="card bg-white overflow-hidden">
@@ -676,6 +677,15 @@ function OrderCard({ order, onComplete, onRefund, isCompleting }) {
               <p>{order.customer?.email}</p>
             </div>
           </div>
+
+          {orderNotes && (
+            <div className="mb-4">
+              <p className="text-sm font-medium text-[var(--gray-700)] mb-2">Notes</p>
+              <p className="text-sm text-[var(--gray-600)] bg-white p-3 rounded-lg whitespace-pre-wrap">
+                {orderNotes}
+              </p>
+            </div>
+          )}
 
           {/* Line Items */}
           <div className="mb-4">
