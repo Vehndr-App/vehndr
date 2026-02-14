@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { Capacitor } from "@capacitor/core";
 import { EVENT_BESTIE_OPEN } from "../constants/eventBestie";
 
 const QUICK_PROMPTS = [
@@ -55,6 +56,12 @@ export default function EventBestie() {
   const [quizAnswers, setQuizAnswers] = useState({});
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const [isNativePlatform, setIsNativePlatform] = useState(null);
+
+  // Hide bubble when running as native app (iOS/Android via Capacitor)
+  useEffect(() => {
+    setIsNativePlatform(Capacitor.isNativePlatform());
+  }, []);
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -177,34 +184,41 @@ export default function EventBestie() {
     return recs;
   };
 
+  // On native (iOS/Android) we hide the bubble but still show the panel when opened (e.g. from support page)
+  if (isNativePlatform === null) return null;
+
+  const showBubble = !isNativePlatform;
+
   return (
     <>
-      {/* Floating Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`fixed bottom-20 right-4 z-[60] w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 ${
-          isOpen
-            ? "bg-[var(--gray-200)] rotate-0"
-            : "bg-gradient-to-br from-[var(--violet-500)] to-[var(--magenta-500)] hover:scale-110 hover:shadow-2xl"
-        }`}
-        aria-label={isOpen ? "Close chat" : "Open Event Bestie"}
-      >
-        {isOpen ? (
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gray-600)" strokeWidth="2">
-            <line x1="18" y1="6" x2="6" y2="18"/>
-            <line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        ) : (
-          <span className="text-2xl">✨</span>
-        )}
-      </button>
+      {/* Floating Button - hidden on native so support-page trigger is the only entry */}
+      {showBubble && (
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`fixed bottom-20 right-4 z-[60] w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 ${
+            isOpen
+              ? "bg-[var(--gray-200)] rotate-0"
+              : "bg-gradient-to-br from-[var(--violet-500)] to-[var(--magenta-500)] hover:scale-110 hover:shadow-2xl"
+          }`}
+          aria-label={isOpen ? "Close chat" : "Open Event Bestie"}
+        >
+          {isOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gray-600)" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          ) : (
+            <span className="text-2xl">✨</span>
+          )}
+        </button>
+      )}
 
-      {/* Pulse animation when closed */}
-      {!isOpen && (
+      {/* Pulse animation when closed - web only */}
+      {showBubble && !isOpen && (
         <span className="fixed bottom-20 right-4 z-[59] w-14 h-14 rounded-full bg-[var(--violet-500)] animate-ping opacity-30 pointer-events-none" />
       )}
 
-      {/* Chat Panel */}
+      {/* Chat Panel - always rendered so it can open from support page on native */}
       <div
         className={`fixed bottom-36 right-4 z-[60] w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-[var(--radius-2xl)] shadow-2xl overflow-hidden transition-all duration-300 ${
           isOpen
