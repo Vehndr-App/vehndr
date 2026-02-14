@@ -67,6 +67,13 @@ export default function EventBestie() {
     }
   }, [isOpen]);
 
+  // Open from support page (or anywhere) via custom event
+  useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener("vehndr-open-event-bestie", handler);
+    return () => window.removeEventListener("vehndr-open-event-bestie", handler);
+  }, []);
+
   const handleSend = async (messageText = input) => {
     if (!messageText.trim() || isLoading) return;
 
