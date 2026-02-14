@@ -176,7 +176,7 @@ export default function PrivacyPage() {
           <li>Opt out of marketing communications</li>
           <li>Restrict or object to certain processing</li>
         </ul>
-        <p>Requests can be submitted by contacting us at <strong>[support@vehndr.com]</strong>.</p>
+        <p>Requests can be submitted by contacting us at <strong>[admin@vehndr.com]</strong>.</p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           7. Cookies &amp; Tracking Technologies
