@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { EVENT_BESTIE_OPEN } from "../constants/eventBestie";
 
 const QUICK_PROMPTS = [
   { text: "Find me vendors 🔍", prompt: "Help me find vendors" },
@@ -70,8 +71,8 @@ export default function EventBestie() {
   // Open from support page (or anywhere) via custom event
   useEffect(() => {
     const handler = () => setIsOpen(true);
-    window.addEventListener("vehndr-open-event-bestie", handler);
-    return () => window.removeEventListener("vehndr-open-event-bestie", handler);
+    window.addEventListener(EVENT_BESTIE_OPEN, handler);
+    return () => window.removeEventListener(EVENT_BESTIE_OPEN, handler);
   }, []);
 
   const handleSend = async (messageText = input) => {

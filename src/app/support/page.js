@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { EVENT_BESTIE_OPEN } from "../../constants/eventBestie";
 
 const SUPPORT_EMAIL = "admin@vehndr.com";
-const EVENT_BESTIE_OPEN = "vehndr-open-event-bestie";
 
 function openChat() {
   if (typeof window !== "undefined") {
