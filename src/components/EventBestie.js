@@ -57,16 +57,51 @@ export default function EventBestie() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const [isNativePlatform, setIsNativePlatform] = useState(null);
+  const [viewportRect, setViewportRect] = useState(null);
 
   // Hide bubble when running as native app (iOS/Android via Capacitor)
   useEffect(() => {
     setIsNativePlatform(Capacitor.isNativePlatform());
   }, []);
 
+  // On native: track full visual viewport rect so panel covers only the visible area (keyboard doesn't push page)
+  useEffect(() => {
+    if (!isNativePlatform || typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    const update = () =>
+      setViewportRect({ top: vv.offsetTop, left: vv.offsetLeft, width: vv.width, height: vv.height });
+    update();
+    vv.addEventListener("resize", update);
+    vv.addEventListener("scroll", update);
+    return () => {
+      vv.removeEventListener("resize", update);
+      vv.removeEventListener("scroll", update);
+    };
+  }, [isNativePlatform]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // On native: when keyboard opens (viewport shrinks), scroll to bottom so chat tail + input stay visible
+  useEffect(() => {
+    if (!isNativePlatform || !isOpen || viewportRect == null) return;
+    const id = setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 150);
+    return () => clearTimeout(id);
+  }, [isNativePlatform, isOpen, viewportRect]);
+
+  // On native: lock body scroll while chat is open so the page doesn't move behind the overlay
+  useEffect(() => {
+    if (!isNativePlatform || !isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isNativePlatform, isOpen]);
 
   // Focus input when opened
   useEffect(() => {
@@ -218,16 +253,30 @@ export default function EventBestie() {
         <span className="fixed bottom-20 right-4 z-[59] w-14 h-14 rounded-full bg-[var(--violet-500)] animate-ping opacity-30 pointer-events-none" />
       )}
 
-      {/* Chat Panel - always rendered so it can open from support page on native */}
+      {/* Chat Panel - full-screen on native (positioned to visual viewport so keyboard doesn't push page), card on web */}
       <div
-        className={`fixed bottom-36 right-4 z-[60] w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-[var(--radius-2xl)] shadow-2xl overflow-hidden transition-all duration-300 ${
-          isOpen
-            ? "opacity-100 translate-y-0 pointer-events-auto"
-            : "opacity-0 translate-y-4 pointer-events-none"
-        }`}
+        className={
+          isNativePlatform
+            ? `fixed z-[60] flex flex-col bg-white transition-all duration-300 ${
+                isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
+              }`
+            : `fixed bottom-36 right-4 z-[60] w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-[var(--radius-2xl)] shadow-2xl overflow-hidden transition-all duration-300 ${
+                isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+              }`
+        }
+        style={
+          isNativePlatform && isOpen && viewportRect
+            ? {
+                top: viewportRect.top,
+                left: viewportRect.left,
+                width: viewportRect.width,
+                height: viewportRect.height,
+              }
+            : undefined
+        }
       >
         {/* Header */}
-        <div className="bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-500)] px-3 py-2.5 text-white">
+        <div className="bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-500)] px-3 py-2.5 text-white flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-base">
@@ -251,8 +300,14 @@ export default function EventBestie() {
           </div>
         </div>
 
-        {/* Messages */}
-        <div className="h-[260px] overflow-y-auto p-3 space-y-3 bg-[var(--gray-50)]">
+        {/* Messages - flex-1 on native so input stays in view when keyboard opens */}
+        <div
+          className={
+            isNativePlatform
+              ? "flex-1 min-h-0 overflow-y-auto p-3 space-y-3 bg-[var(--gray-50)]"
+              : "h-[260px] overflow-y-auto p-3 space-y-3 bg-[var(--gray-50)]"
+          }
+        >
           {messages.map((msg, idx) => (
             <div
               key={idx}
@@ -310,7 +365,7 @@ export default function EventBestie() {
         </div>
 
         {/* Quick Prompts */}
-        <div className="px-3 py-2 border-t border-[var(--gray-100)] bg-white">
+        <div className="px-3 py-2 border-t border-[var(--gray-100)] bg-white flex-shrink-0">
           <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
             {QUICK_PROMPTS.map((prompt, idx) => (
               <button
@@ -325,7 +380,7 @@ export default function EventBestie() {
         </div>
 
         {/* Input */}
-        <div className="p-2.5 border-t border-[var(--gray-100)] bg-white">
+        <div className="p-2.5 border-t border-[var(--gray-100)] bg-white flex-shrink-0">
           <div className="flex gap-2">
             <input
               ref={inputRef}
