@@ -277,6 +277,7 @@ function POSSystem() {
         setCheckoutLinkData({
           url: response.checkoutUrl,
           totalCents: response.totalCents,
+          taxCents: response.taxCents || 0,
           tipCents: response.tipCents
         });
         setShowCheckoutLinkModal(true);
@@ -464,7 +465,7 @@ function POSSystem() {
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
   const taxRate = 0.08;
-  const taxAmount = cartTotal * taxRate;
+  const taxAmount = Math.round(cartTotal * taxRate);
   const totalWithTax = cartTotal + taxAmount;
   const keypadAmount = parseInt(keypadValue || '0');
   const canAddCustomAmount = keypadAmount > 0
