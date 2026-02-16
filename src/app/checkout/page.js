@@ -27,6 +27,7 @@ export default function CheckoutPage() {
   const [clientSecrets, setClientSecrets] = useState({});
   const [paymentIntents, setPaymentIntents] = useState({});
   const [vendorTips, setVendorTips] = useState({});
+  const [vendorTaxes, setVendorTaxes] = useState({});
 
   const [vendorPickupDate, setVendorPickupDate] = useState({});
   const [vendorPickupTime, setVendorPickupTime] = useState({});
@@ -115,6 +116,10 @@ export default function CheckoutPage() {
         ...prev,
         [vendorId]: response.paymentIntentId
       }));
+      setVendorTaxes(prev => ({
+        ...prev,
+        [vendorId]: response.taxCents || 0
+      }));
     } catch (err) {
       setError(err.message || 'Failed to initialize payment');
     } finally {
@@ -183,6 +188,11 @@ export default function CheckoutPage() {
         delete updated[vendorId];
         return updated;
       });
+      setVendorTaxes(prev => {
+        const updated = { ...prev };
+        delete updated[vendorId];
+        return updated;
+      });
 
       // Redirect to success page with order ID
       const orderId = response.orderId;
@@ -209,8 +219,9 @@ export default function CheckoutPage() {
 
   const calculateVendorTotal = (vendorId) => {
     const subtotal = calculateVendorSubtotal(vendorId);
+    const tax = vendorTaxes[vendorId] || 0;
     const tip = vendorTips[vendorId] || 0;
-    return subtotal + tip;
+    return subtotal + tax + tip;
   };
 
   const vendorIds = Object.keys(vendorCarts);
@@ -531,6 +542,14 @@ export default function CheckoutPage() {
                         <span className="text-[var(--gray-600)]">Tip</span>
                         <span className="font-medium text-[var(--violet-600)]">
                           ${((vendorTips[vendorId] || 0) / 100).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
+                    {(vendorTaxes[vendorId] || 0) > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-[var(--gray-600)]">Tax</span>
+                        <span className="font-medium">
+                          ${((vendorTaxes[vendorId] || 0) / 100).toFixed(2)}
                         </span>
                       </div>
                     )}
