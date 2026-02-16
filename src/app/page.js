@@ -400,7 +400,7 @@ function VendorCard({ vendor, index }) {
       className="group flex-shrink-0 w-[200px] sm:w-[220px]"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      {/* Image */}
+      {/* Cover Image (Business in action) */}
       <div className="relative aspect-[4/3] rounded-[var(--radius-xl)] overflow-hidden mb-2 shadow-[var(--shadow-card)] group-hover:shadow-[var(--shadow-card-hover)] transition-all">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -421,6 +421,24 @@ function VendorCard({ vendor, index }) {
             {vendor.rating}
           </div>
         )}
+
+        {/* Vendor Profile Photo (The actual person) */}
+        <div className="absolute bottom-2 right-2 w-9 h-9 rounded-full border-2 border-white shadow-md overflow-hidden bg-[var(--violet-100)]">
+          {vendor.profileImage ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={vendor.profileImage}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <svg className="w-5 h-5 text-[var(--violet-400)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Info */}

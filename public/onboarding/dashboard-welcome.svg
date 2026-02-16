@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80" fill="none">
+  <!-- Friendly "Get started" checklist illustration -->
+  <defs>
+    <linearGradient id="dashGrad" x1="0" y1="0" x2="120" y2="80">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="50%" stop-color="#C026D3"/>
+      <stop offset="100%" stop-color="#F472B6"/>
+    </linearGradient>
+  </defs>
+  <!-- Checkmark circle -->
+  <circle cx="40" cy="30" r="20" fill="url(#dashGrad)" opacity="0.3"/>
+  <circle cx="40" cy="30" r="14" fill="white" opacity="0.9"/>
+  <path d="M34 30l4 4 8-10" stroke="#10B981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Pending items -->
+  <circle cx="40" cy="52" r="8" fill="white" opacity="0.5"/>
+  <circle cx="40" cy="52" r="6" stroke="white" stroke-width="1.5" fill="none"/>
+  <circle cx="40" cy="68" r="8" fill="white" opacity="0.5"/>
+  <circle cx="40" cy="68" r="6" stroke="white" stroke-width="1.5" fill="none"/>
+  <!-- Sparkle -->
+  <path d="M95 25l2 4 4 2-4 2-2 4-2-4-4-2 4-2 2-4z" fill="#F59E0B" opacity="0.9"/>
+</svg>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 60" fill="none">
+  <!-- Good example: booth/vendor in action - warm scene -->
+  <rect width="120" height="60" fill="url(#goodGrad)" rx="6"/>
+  <defs>
+    <linearGradient id="goodGrad" x1="0" y1="0" x2="120" y2="60">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="50%" stop-color="#C026D3"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+  </defs>
+  <!-- Booth silhouette -->
+  <rect x="20" y="15" width="80" height="30" rx="3" fill="white" opacity="0.2"/>
+  <rect x="28" y="22" width="30" height="16" rx="2" fill="white" opacity="0.4"/>
+  <!-- Checkmark badge -->
+  <circle cx="95" cy="15" r="10" fill="#10B981"/>
+  <path d="M90 15l3 3 6-6" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <text x="60" y="52" text-anchor="middle" fill="white" font-size="6" font-weight="600" opacity="0.9">Business in action</text>
+</svg>
