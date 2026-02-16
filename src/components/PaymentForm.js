@@ -282,7 +282,7 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
           </span>
         ) : (
           <>
-            Pay ${vendorName} ${(totalCents / 100).toFixed(2)}
+            Pay ${(totalCents / 100).toFixed(2)}
             {tipCents > 0 && (
               <span className="text-sm opacity-80 ml-1">
                 (incl. ${(tipCents / 100).toFixed(2)} tip)

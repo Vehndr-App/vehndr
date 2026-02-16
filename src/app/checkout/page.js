@@ -5,6 +5,7 @@ import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useState, useEffect } from 'react';
 import { api } from '../../services/api';
+import { getVendorProfile } from '../../services/vendors';
 import { useRouter } from 'next/navigation';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
@@ -52,8 +53,8 @@ export default function CheckoutPage() {
         const details = {};
         await Promise.all(
           vendorIds.map(async (vendorId) => {
-            const vendor = await api(`/api/vendors/${vendorId}`);
-            details[vendorId] = vendor;
+            const vendor = await getVendorProfile(vendorId);
+            if (vendor) details[vendorId] = vendor;
           })
         );
         setVendorDetails(details);
@@ -224,6 +225,20 @@ export default function CheckoutPage() {
     return subtotal + tax + tip;
   };
 
+  // Prefer human-readable vendor name; if API returns an id/slug (e.g. vendor_xxx), show "Vendor"
+  const getVendorDisplayName = (vendor, vendorId) => {
+    const name = vendor?.name?.trim();
+    if (!name) return 'Vendor';
+    if (name === vendorId || /^vendor[_\-]/i.test(name)) return 'Vendor';
+    return name;
+  };
+
+  // Vendor main icon (same as cart): hero image or profile image, support camelCase or snake_case from API
+  const getVendorImageUrl = (vendor) => {
+    if (!vendor) return null;
+    return vendor.heroImage || vendor.profileImage || vendor.hero_image_url || vendor.profile_image_url || vendor.image_url || null;
+  };
+
   const vendorIds = Object.keys(vendorCarts);
   const stripeKeyMissing = !stripePromise;
 
@@ -326,21 +341,21 @@ export default function CheckoutPage() {
                 {/* Vendor Header */}
                 <div className="flex items-center justify-between p-4 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
                   <div className="flex items-center gap-3">
-                    {vendor?.heroImage ? (
+                    {getVendorImageUrl(vendor) ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
                       <img 
-                        src={vendor.heroImage} 
-                        alt={vendor.name}
+                        src={getVendorImageUrl(vendor)} 
+                        alt={getVendorDisplayName(vendor, vendorId)}
                         className="w-10 h-10 rounded-full object-cover"
                       />
                     ) : (
                       <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                        {vendor?.name?.charAt(0) || 'V'}
+                        {getVendorDisplayName(vendor, vendorId).charAt(0)}
                       </div>
                     )}
                     <div>
                       <h2 className="font-semibold text-[var(--gray-900)]">
-                        {vendor?.name || `Vendor ${vendorId}`}
+                        {getVendorDisplayName(vendor, vendorId)}
                       </h2>
                       {vendor?.location && (
                         <p className="text-xs text-[var(--gray-500)]">{vendor.location}</p>
@@ -580,7 +595,7 @@ export default function CheckoutPage() {
                           }}
                         >
                           <PaymentForm
-                            vendorName={vendor?.name || 'Vendor'}
+                            vendorName={getVendorDisplayName(vendor, vendorId)}
                             totalCents={total}
                             tipCents={vendorTips[vendorId] || 0}
                             onSuccess={(paymentIntent, accountData) => handlePaymentSuccess(vendorId, paymentIntent, accountData)}
