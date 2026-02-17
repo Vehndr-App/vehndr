@@ -276,6 +276,7 @@ function POSSystem() {
       if (response.success) {
         setCheckoutLinkData({
           url: response.checkoutUrl,
+          subtotalCents: response.subtotalCents || 0,
           totalCents: response.totalCents,
           taxCents: response.taxCents || 0,
           tipCents: response.tipCents
@@ -464,7 +465,7 @@ function POSSystem() {
   // Calculations
   const cartTotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
   const cartItemCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-  const taxRate = 0.08;
+  const taxRate = 0.0625;
   const taxAmount = Math.round(cartTotal * taxRate);
   const totalWithTax = cartTotal + taxAmount;
   const keypadAmount = parseInt(keypadValue || '0');
@@ -691,7 +692,9 @@ function POSSystem() {
       {showCheckoutLinkModal && checkoutLinkData && (
         <CheckoutLinkModal
           checkoutUrl={checkoutLinkData.url}
+          subtotalCents={checkoutLinkData.subtotalCents}
           totalCents={checkoutLinkData.totalCents}
+          taxCents={checkoutLinkData.taxCents}
           tipCents={checkoutLinkData.tipCents}
           vendorName={vendor?.name}
           onComplete={handleCheckoutLinkComplete}
@@ -1081,7 +1084,7 @@ function CartPanel({
               <span className="font-medium">${(cartTotal / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-600)]">Tax (8%)</span>
+              <span className="text-[var(--gray-600)]">Tax</span>
               <span className="font-medium">${(taxAmount / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xl font-bold pt-2 border-t border-[var(--gray-200)]">
@@ -1899,7 +1902,9 @@ function CashPaymentModal({
 // Checkout Link Modal Component
 function CheckoutLinkModal({
   checkoutUrl,
+  subtotalCents = 0,
   totalCents,
+  taxCents = 0,
   tipCents = 0,
   vendorName,
   onComplete,
@@ -1967,11 +1972,17 @@ function CheckoutLinkModal({
             <p className="text-4xl font-bold text-[var(--gray-900)]">
               ${(totalCents / 100).toFixed(2)}
             </p>
-            {tipCents > 0 && (
-              <p className="text-sm text-[var(--violet-600)] mt-1">
-                Includes ${(tipCents / 100).toFixed(2)} tip
+            <div className="mt-3 space-y-1 text-sm">
+              <p className="text-[var(--gray-600)]">
+                Subtotal ${(subtotalCents / 100).toFixed(2)}
               </p>
-            )}
+              <p className="text-[var(--gray-600)]">
+                Tax ${(taxCents / 100).toFixed(2)}
+              </p>
+              <p className="text-[var(--violet-600)]">
+                Tip ${(tipCents / 100).toFixed(2)}
+              </p>
+            </div>
           </div>
 
           {/* QR Code */}

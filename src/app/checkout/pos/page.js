@@ -61,6 +61,7 @@ function POSCheckoutContent() {
       if (response.success) {
         setCheckoutData(prev => ({
           ...prev,
+          taxCents: response.taxCents ?? prev?.taxCents ?? 0,
           tipCents: response.tipCents,
           totalCents: response.totalCents
         }));
@@ -215,6 +216,12 @@ function POSCheckoutContent() {
               <span className="text-[var(--gray-600)]">Subtotal</span>
               <span className="font-medium">${(checkoutData.subtotalCents / 100).toFixed(2)}</span>
             </div>
+            {(checkoutData.taxCents || 0) > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-600)]">Tax</span>
+                <span className="font-medium">${((checkoutData.taxCents || 0) / 100).toFixed(2)}</span>
+              </div>
+            )}
             {tipCents > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--gray-600)]">Tip</span>
@@ -226,7 +233,7 @@ function POSCheckoutContent() {
             <div className="flex justify-between pt-2 border-t border-[var(--gray-200)]">
               <span className="font-semibold text-[var(--gray-700)]">Total</span>
               <span className="text-2xl font-bold text-[var(--gray-900)]">
-                ${((checkoutData.subtotalCents + tipCents) / 100).toFixed(2)}
+                ${(checkoutData.totalCents / 100).toFixed(2)}
               </span>
             </div>
           </div>
@@ -269,7 +276,7 @@ function POSCheckoutContent() {
             >
               <PaymentForm
                 vendorName={checkoutData.vendorName}
-                totalCents={checkoutData.subtotalCents + tipCents}
+                totalCents={checkoutData.totalCents}
                 tipCents={tipCents}
                 onSuccess={handlePaymentSuccess}
                 onError={handlePaymentError}
