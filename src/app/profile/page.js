@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { api } from "../../services/api";
+import { logout } from "../../services/auth";
 import ImageEditorModal from "../../components/ImageEditorModal";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, clearUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(null);
   const [error, setError] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -65,6 +68,25 @@ export default function ProfilePage() {
       setProfileImagePreview(user.avatarUrl);
     }
   }, [user, router]);
+
+  // Handle Escape key to close delete modal
+  useEffect(() => {
+    if (!showDeleteModal) return;
+
+    const handleEscape = (e) => {
+      if (e.key === "Escape" && !deleting) {
+        setShowDeleteModal(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [showDeleteModal, deleting]);
 
   const openEditor = (imageSrc, fileName = "profile.jpg") => {
     setEditorState({ isOpen: true, imageSrc, fileName });
@@ -121,6 +143,27 @@ export default function ProfilePage() {
       setError(err.message || "Failed to update profile");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    setError(null);
+
+    try {
+      await api("/api/auth/delete_account", {
+        method: "DELETE",
+      });
+
+      // Clear user data and logout
+      clearUser();
+      await logout();
+      
+      // Redirect to login page
+      router.push("/login");
+    } catch (err) {
+      setError(err.message || "Failed to delete account. Please try again.");
+      setDeleting(false);
     }
   };
 
@@ -394,6 +437,21 @@ export default function ProfilePage() {
             )}
           </button>
         </form>
+
+        {/* Delete Account Section */}
+        <div className="mt-8 bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] p-6">
+          <h2 className="text-lg font-semibold text-[var(--gray-900)] mb-2">Account Settings</h2>
+          <p className="text-sm text-[var(--gray-600)] mb-4">
+            Delete your account and all associated data.
+          </p>
+          <button
+            type="button"
+            onClick={() => setShowDeleteModal(true)}
+            className="px-4 py-2 border border-[var(--gray-300)] text-[var(--gray-700)] rounded-[var(--radius-lg)] font-medium hover:bg-[var(--gray-50)] transition-colors"
+          >
+            Delete Account
+          </button>
+        </div>
       </div>
       <ImageEditorModal
         isOpen={editorState.isOpen}
@@ -406,6 +464,84 @@ export default function ProfilePage() {
           setProfileImagePreview(URL.createObjectURL(editedFile));
         }}
       />
+
+      {/* Delete Account Confirmation Modal */}
+      {showDeleteModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !deleting) {
+              setShowDeleteModal(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-md rounded-[var(--radius-xl)] bg-white p-6 shadow-xl">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto rounded-full bg-red-100 flex items-center justify-center mb-4">
+                <svg
+                  className="w-8 h-8 text-red-600"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-[var(--gray-900)] mb-2">
+                Delete Your Account?
+              </h2>
+              <p className="text-sm text-[var(--gray-600)] mb-4">
+                This action cannot be undone. This will permanently delete your account and remove all of your data from our servers.
+              </p>
+              <div className="bg-red-50 border border-red-200 rounded-[var(--radius-lg)] p-4 text-left">
+                <p className="text-sm font-medium text-red-800 mb-2">What will be deleted:</p>
+                <ul className="text-xs text-red-700 space-y-1 list-disc list-inside">
+                  <li>Your profile information</li>
+                  <li>All your orders and transaction history</li>
+                  <li>Your saved favorites and preferences</li>
+                  <li>Any associated vendor or coordinator data</li>
+                </ul>
+              </div>
+              <p className="text-xs text-red-600 font-medium mt-4">
+                ⚠️ Data retrieval will be impossible after deletion
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="flex-1 px-4 py-3 border border-[var(--gray-300)] rounded-[var(--radius-lg)] text-[var(--gray-700)] font-medium hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex-1 px-4 py-3 bg-red-600 text-white rounded-[var(--radius-lg)] font-medium hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleting ? (
+                  <>
+                    <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                      <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+                    </svg>
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete Account"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
