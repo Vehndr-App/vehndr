@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense, useCallback } from 'react';
+import { useState, useEffect, Suspense, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { api } from '../../../services/api';
 import { loadStripe } from '@stripe/stripe-js';
@@ -21,6 +21,7 @@ function POSCheckoutContent() {
   const [tipCents, setTipCents] = useState(0);
   const [updatingTip, setUpdatingTip] = useState(false);
   const [currentClientSecret, setCurrentClientSecret] = useState(null);
+  const latestTipCentsRef = useRef(0);
 
   const paymentIntentId = searchParams.get('pi');
   const initialClientSecret = searchParams.get('cs');
@@ -36,7 +37,9 @@ function POSCheckoutContent() {
       try {
         const data = await api(`/api/checkout/pos_link/${paymentIntentId}`);
         setCheckoutData(data);
-        setTipCents(data.tipCents || 0);
+        const initialTip = data.tipCents || 0;
+        latestTipCentsRef.current = initialTip;
+        setTipCents(initialTip);
         setCurrentClientSecret(data.clientSecret || initialClientSecret);
       } catch (err) {
         setError(err.message || 'Failed to load checkout');
@@ -48,32 +51,59 @@ function POSCheckoutContent() {
     fetchCheckoutDetails();
   }, [paymentIntentId, initialClientSecret]);
 
+  const syncTipToPaymentIntent = useCallback(async (nextTipCents) => {
+    const response = await api(`/api/checkout/pos_link/${paymentIntentId}/tip`, {
+      method: 'PATCH',
+      body: { tip_cents: nextTipCents }
+    });
+
+    if (!response.success) {
+      throw new Error('Failed to update tip');
+    }
+
+    setCheckoutData(prev => ({
+      ...prev,
+      taxCents: response.taxCents ?? prev?.taxCents ?? 0,
+      tipCents: response.tipCents,
+      totalCents: response.totalCents
+    }));
+
+    return response;
+  }, [paymentIntentId]);
+
   const handleTipChange = useCallback(async (newTipCents) => {
+    latestTipCentsRef.current = newTipCents;
     setTipCents(newTipCents);
     setUpdatingTip(true);
 
     try {
-      const response = await api(`/api/checkout/pos_link/${paymentIntentId}/tip`, {
-        method: 'PATCH',
-        body: { tip_cents: newTipCents }
-      });
-
-      if (response.success) {
-        setCheckoutData(prev => ({
-          ...prev,
-          taxCents: response.taxCents ?? prev?.taxCents ?? 0,
-          tipCents: response.tipCents,
-          totalCents: response.totalCents
-        }));
-      }
+      const response = await syncTipToPaymentIntent(newTipCents);
+      latestTipCentsRef.current = response.tipCents;
+      setTipCents(response.tipCents);
     } catch (err) {
       console.error('Failed to update tip:', err);
       // Revert tip on error
-      setTipCents(checkoutData?.tipCents || 0);
+      const previousTip = checkoutData?.tipCents || 0;
+      latestTipCentsRef.current = previousTip;
+      setTipCents(previousTip);
     } finally {
       setUpdatingTip(false);
     }
-  }, [paymentIntentId, checkoutData?.tipCents]);
+  }, [syncTipToPaymentIntent, checkoutData?.tipCents]);
+
+  const ensureTipSyncedBeforePayment = useCallback(async () => {
+    setUpdatingTip(true);
+    try {
+      const response = await syncTipToPaymentIntent(latestTipCentsRef.current);
+      latestTipCentsRef.current = response.tipCents;
+      setTipCents(response.tipCents);
+    } catch (err) {
+      setError(err.message || 'Failed to update tip');
+      throw err;
+    } finally {
+      setUpdatingTip(false);
+    }
+  }, [syncTipToPaymentIntent]);
 
   const handlePaymentSuccess = async (paymentIntent) => {
     try {
@@ -278,6 +308,8 @@ function POSCheckoutContent() {
                 vendorName={checkoutData.vendorName}
                 totalCents={checkoutData.totalCents}
                 tipCents={tipCents}
+                disabled={updatingTip}
+                beforeConfirm={ensureTipSyncedBeforePayment}
                 onSuccess={handlePaymentSuccess}
                 onError={handlePaymentError}
               />

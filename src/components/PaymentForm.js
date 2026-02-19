@@ -4,7 +4,15 @@ import { useState, useCallback } from 'react';
 import { PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../services/api';
 
-export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSuccess, onError }) {
+export default function PaymentForm({
+  vendorName,
+  totalCents,
+  tipCents = 0,
+  onSuccess,
+  onError,
+  disabled = false,
+  beforeConfirm
+}) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
@@ -75,6 +83,11 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
       return;
     }
 
+    if (disabled) {
+      setErrorMessage('Updating total, please wait a moment and try again.');
+      return;
+    }
+
     if (!email || !name) {
       setErrorMessage('Please enter your email and name');
       return;
@@ -88,6 +101,10 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
     setErrorMessage(null);
 
     try {
+      if (beforeConfirm) {
+        await beforeConfirm();
+      }
+
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
@@ -261,7 +278,7 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
 
       <button
         type="submit"
-        disabled={!stripe || !paymentElementReady || isProcessing}
+        disabled={!stripe || !paymentElementReady || isProcessing || disabled}
         className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {!paymentElementReady ? (
@@ -279,6 +296,14 @@ export default function PaymentForm({ vendorName, totalCents, tipCents = 0, onSu
               <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
             </svg>
             Processing...
+          </span>
+        ) : disabled ? (
+          <span className="flex items-center justify-center gap-2">
+            <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+            </svg>
+            Updating total...
           </span>
         ) : (
           <>

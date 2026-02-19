@@ -65,9 +65,8 @@ function POSSystem() {
   const [showCheckoutLinkModal, setShowCheckoutLinkModal] = useState(false);
   const [checkoutLinkData, setCheckoutLinkData] = useState(null);
   const [checkoutLinkLoading, setCheckoutLinkLoading] = useState(false);
+  const [finalizingCheckoutLink, setFinalizingCheckoutLink] = useState(false);
 
-  // Tip screen state
-  const [showTipScreen, setShowTipScreen] = useState(false);
   const [currentTip, setCurrentTip] = useState(0);
   const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
 
@@ -210,7 +209,9 @@ function POSSystem() {
     }
   };
 
-  // Checkout - show tip screen for cash, generate link directly for card
+  // Checkout flow:
+  // - Card: generate a checkout link and let the customer add tip on their device
+  // - Cash: process in POS without a vendor-side tip selection screen
   const handleCharge = async () => {
     if (cart.length === 0) return;
     if (totalWithTax > MAX_CHARGE_CENTS) {
@@ -224,22 +225,8 @@ function POSSystem() {
       return;
     }
 
-    // For cash, show tip screen for customer to add tip
-    setShowTipScreen(true);
-  };
-
-  // Called after customer selects tip (only for cash now)
-  const handleTipConfirmed = async (tipCents) => {
-    if (tipCents < 0) return;
-    if (totalWithTax + tipCents > MAX_CHARGE_CENTS) {
-      setLimitError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
-      return;
-    }
-
-    setCurrentTip(tipCents);
-    setShowTipScreen(false);
-
-    // For cash payments, show the cash modal
+    // For cash, open cash modal directly (no tip screen)
+    setCurrentTip(0);
     setCashReceived('0');
     setShowCashModal(true);
   };
@@ -276,6 +263,7 @@ function POSSystem() {
       if (response.success) {
         setCheckoutLinkData({
           url: response.checkoutUrl,
+          paymentIntentId: response.paymentIntentId,
           subtotalCents: response.subtotalCents || 0,
           totalCents: response.totalCents,
           taxCents: response.taxCents || 0,
@@ -294,25 +282,48 @@ function POSSystem() {
   };
 
   // Handle checkout link modal close (after sale complete or cancel)
-  const handleCheckoutLinkComplete = () => {
-    setShowCheckoutLinkModal(false);
-    setCheckoutLinkData(null);
-    setCurrentTip(0);
-    setShowSuccess(true);
-    setLastOrderTotal(checkoutLinkData?.totalCents || 0);
+  const handleCheckoutLinkComplete = async () => {
+    if (!checkoutLinkData?.paymentIntentId) {
+      alert("Missing checkout link details. Please reopen the checkout link.");
+      return;
+    }
 
-    setTimeout(() => {
-      setShowSuccess(false);
-      clearCart();
-    }, 2500);
+    setFinalizingCheckoutLink(true);
+
+    try {
+      const response = await api(`/api/checkout/pos_link/${checkoutLinkData.paymentIntentId}/confirm`, {
+        method: "POST"
+      });
+
+      if (!response.success) {
+        throw new Error(response.message || "Payment not confirmed yet");
+      }
+
+      setShowCheckoutLinkModal(false);
+      setCheckoutLinkData(null);
+      setCurrentTip(0);
+      setShowSuccess(true);
+      setLastOrderTotal(response.totalCents ?? checkoutLinkData.totalCents ?? 0);
+
+      setTimeout(() => {
+        setShowSuccess(false);
+        clearCart();
+      }, 2500);
+    } catch (error) {
+      console.error("Checkout link confirmation error:", error);
+      alert(`Payment is not complete yet: ${error.message}`);
+    } finally {
+      setFinalizingCheckoutLink(false);
+    }
   };
 
   const handleCheckoutLinkCancel = () => {
+    if (finalizingCheckoutLink) return;
     setShowCheckoutLinkModal(false);
     setCheckoutLinkData(null);
   };
 
-  // Process the actual payment (called directly for non-cash, or after cash modal confirmation)
+  // Process the in-person cash payment after cash modal confirmation
   const processPayment = async (tipCents = currentTip) => {
     setProcessing(true);
 
@@ -678,16 +689,6 @@ function POSSystem() {
         />
       )}
 
-      {/* Customer Tip Screen */}
-      {showTipScreen && (
-        <CustomerTipScreen
-          subtotalCents={cartTotal}
-          taxCents={taxAmount}
-          onConfirm={handleTipConfirmed}
-          onSkip={() => handleTipConfirmed(0)}
-        />
-      )}
-
       {/* Checkout Link Modal */}
       {showCheckoutLinkModal && checkoutLinkData && (
         <CheckoutLinkModal
@@ -699,6 +700,7 @@ function POSSystem() {
           vendorName={vendor?.name}
           onComplete={handleCheckoutLinkComplete}
           onCancel={handleCheckoutLinkCancel}
+          processing={finalizingCheckoutLink}
         />
       )}
 
@@ -1558,159 +1560,6 @@ function SortableProductImage({ id, item, onEdit, onRemove }) {
   );
 }
 
-// Customer Tip Screen Component (customer-facing, full screen)
-function CustomerTipScreen({ subtotalCents, taxCents, onConfirm, onSkip }) {
-  const [selectedTip, setSelectedTip] = useState(null);
-  const [customAmount, setCustomAmount] = useState('');
-  const [isCustom, setIsCustom] = useState(false);
-
-  const totalBeforeTip = subtotalCents + taxCents;
-  const maxTipCents = Math.max(0, MAX_CHARGE_CENTS - totalBeforeTip);
-
-  const tipPresets = [
-    { percent: 15, label: '15%' },
-    { percent: 18, label: '18%' },
-    { percent: 20, label: '20%' },
-    { percent: 25, label: '25%' },
-  ];
-
-  const tipCents = isCustom
-    ? Math.min(
-        Math.max(0, Math.round(parseFloat(customAmount || '0') * 100) || 0),
-        maxTipCents
-      )
-    : selectedTip !== null
-      ? Math.min(
-          Math.max(0, Math.round(subtotalCents * (selectedTip / 100))),
-          maxTipCents
-        )
-      : 0;
-
-  const handlePreset = (percent) => {
-    const presetCents = Math.round(subtotalCents * (percent / 100));
-    if (presetCents > maxTipCents) return;
-    setSelectedTip(percent);
-    setCustomAmount('');
-    setIsCustom(false);
-  };
-
-  const handleCustom = (value) => {
-    if (value.startsWith('-')) return;
-    const nextCents = Math.round(parseFloat(value || '0') * 100) || 0;
-    if (nextCents > maxTipCents) {
-      setCustomAmount((maxTipCents / 100).toFixed(2));
-    } else {
-      setCustomAmount(value);
-    }
-    setSelectedTip(null);
-    setIsCustom(true);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-white flex flex-col safe-area-top safe-area-bottom">
-      {/* Header */}
-      <div className="bg-gradient-primary text-white p-6 text-center">
-        <p className="text-lg opacity-80 mb-1">Your Total</p>
-        <p className="text-5xl font-bold tracking-tight">${(totalBeforeTip / 100).toFixed(2)}</p>
-      </div>
-
-      {/* Tip Selection */}
-      <div className="flex-1 p-6 flex flex-col overflow-y-auto">
-        <h2 className="text-2xl font-bold text-center text-[var(--foreground)] mb-6">
-          Would you like to add a tip?
-        </h2>
-
-        {/* Preset Buttons */}
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {tipPresets.map(({ percent, label }) => {
-            const tipAmount = Math.round(subtotalCents * (percent / 100));
-            const isSelected = selectedTip === percent && !isCustom;
-            const isDisabled = tipAmount > maxTipCents;
-            return (
-              <button
-                key={percent}
-                disabled={isDisabled}
-                onClick={() => handlePreset(percent)}
-                className={`p-5 rounded-2xl text-center transition-all ${
-                  isSelected
-                    ? 'bg-[var(--violet-600)] text-white shadow-lg scale-[1.02]'
-                    : 'bg-[var(--gray-100)] text-[var(--gray-800)] hover:bg-[var(--gray-200)]'
-                } ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                <p className="text-3xl font-bold mb-1">{label}</p>
-                <p className={`text-sm ${isSelected ? 'opacity-80' : 'text-[var(--gray-500)]'}`}>
-                  ${(tipAmount / 100).toFixed(2)}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Custom Amount */}
-        <div className="mb-6">
-          <button
-            onClick={() => setIsCustom(true)}
-            className={`w-full p-4 rounded-2xl text-center font-semibold transition-all mb-3 ${
-              isCustom
-                ? 'bg-[var(--violet-600)] text-white'
-                : 'bg-[var(--gray-100)] text-[var(--gray-600)]'
-            }`}
-          >
-            Custom Amount
-          </button>
-          {isCustom && (
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-[var(--gray-500)]">$</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={customAmount}
-                onChange={(e) => handleCustom(e.target.value)}
-                placeholder="0.00"
-                autoFocus
-                className="w-full h-16 pl-10 pr-4 rounded-2xl bg-[var(--gray-100)] text-2xl font-bold text-center focus:ring-2 focus:ring-[var(--violet-500)] focus:bg-white transition-all"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Total with Tip */}
-        {tipCents > 0 && (
-          <div className="bg-[var(--violet-50)] rounded-2xl p-4 mb-6 text-center">
-            <p className="text-sm text-[var(--violet-600)] mb-1">New Total</p>
-            <p className="text-4xl font-bold text-[var(--violet-700)]">
-              ${((totalBeforeTip + tipCents) / 100).toFixed(2)}
-            </p>
-          </div>
-        )}
-
-        <div className="mt-auto space-y-3">
-          <button
-            onClick={() => onConfirm(tipCents)}
-            className="w-full h-16 rounded-2xl bg-[var(--success)] text-white font-bold text-xl shadow-lg active:scale-[0.98] transition-transform"
-          >
-            {tipCents > 0
-              ? `Add $${(tipCents / 100).toFixed(2)} Tip`
-              : 'Continue Without Tip'
-            }
-          </button>
-          <button
-            onClick={onSkip}
-            className="w-full h-12 rounded-2xl text-[var(--gray-500)] font-medium hover:bg-[var(--gray-100)] transition-colors"
-          >
-            No tip
-          </button>
-        </div>
-
-        <p className="text-xs text-[var(--gray-400)] text-center mt-4">
-          100% of tips go directly to your service provider
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // Cash Payment Modal Component
 function CashPaymentModal({
   totalDue,
@@ -1908,7 +1757,8 @@ function CheckoutLinkModal({
   tipCents = 0,
   vendorName,
   onComplete,
-  onCancel
+  onCancel,
+  processing = false
 }) {
   const [copied, setCopied] = useState(false);
   const [shareStatus, setShareStatus] = useState(null);
@@ -1958,6 +1808,7 @@ function CheckoutLinkModal({
             <h2 className="text-xl font-bold">Checkout Link</h2>
             <button
               onClick={onCancel}
+              disabled={processing}
               className="w-10 h-10 rounded-xl bg-[var(--gray-100)] flex items-center justify-center"
             >
               <svg className="w-5 h-5 text-[var(--gray-600)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2005,6 +1856,7 @@ function CheckoutLinkModal({
           <div className="space-y-3">
             <button
               onClick={handleShare}
+              disabled={processing}
               className="w-full h-14 rounded-xl bg-[var(--violet-600)] text-white font-semibold flex items-center justify-center gap-2 hover:bg-[var(--violet-700)] transition-colors"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -2019,6 +1871,7 @@ function CheckoutLinkModal({
 
             <button
               onClick={handleCopy}
+              disabled={processing}
               className="w-full h-14 rounded-xl border-2 border-[var(--gray-200)] text-[var(--gray-700)] font-semibold flex items-center justify-center gap-2 hover:bg-[var(--gray-50)] transition-colors"
             >
               {copied ? (
@@ -2041,15 +1894,17 @@ function CheckoutLinkModal({
             <div className="flex gap-3 pt-2">
               <button
                 onClick={onCancel}
+                disabled={processing}
                 className="flex-1 h-12 rounded-xl bg-[var(--gray-100)] text-[var(--gray-600)] font-semibold hover:bg-[var(--gray-200)] transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={onComplete}
+                disabled={processing}
                 className="flex-1 h-12 rounded-xl bg-[var(--success)] text-white font-semibold hover:bg-[var(--success)]/90 transition-colors"
               >
-                Done
+                {processing ? "Confirming..." : "Done"}
               </button>
             </div>
           </div>
