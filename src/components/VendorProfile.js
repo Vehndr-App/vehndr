@@ -40,6 +40,7 @@ export default function VendorProfile({ user, onSuccess }) {
     slug: '',
     description: '',
     location: '',
+    collectTax: true,
     profileImage: null,           // Profile photo (the actual person)
     profileImageUrl: '',
     heroImage: null,              // Cover photo (business in action)
@@ -112,6 +113,7 @@ export default function VendorProfile({ user, onSuccess }) {
         slug: vendorData.slug || '',
         description: vendorData.description || '',
         location: vendorData.location || '',
+        collectTax: vendorData.collectTax !== false,
         profileImage: null,
         profileImageUrl: vendorData.profileImage || '',
         heroImage: null,
@@ -166,6 +168,7 @@ export default function VendorProfile({ user, onSuccess }) {
       formDataToSend.append('vendor[slug]', normalizedSlug || '');
       formDataToSend.append('vendor[description]', formData.description);
       formDataToSend.append('vendor[location]', formData.location);
+      formDataToSend.append('vendor[collect_tax]', formData.collectTax ? 'true' : 'false');
 
       // Add categories as an array
       formData.categories.forEach(category => {
@@ -232,6 +235,7 @@ export default function VendorProfile({ user, onSuccess }) {
       // Update form data with new URLs
       setFormData(prev => ({
         ...prev,
+        collectTax: resultData.collectTax !== false,
         profileImage: null,
         profileImageUrl: resultData.profileImage || prev.profileImageUrl,
         heroImage: null,
@@ -696,6 +700,25 @@ export default function VendorProfile({ user, onSuccess }) {
                   )}
                   <span className="hidden sm:inline">Use My Location</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Tax Setting */}
+            <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--gray-50)] border border-[var(--gray-200)]">
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="collectTax"
+                  checked={formData.collectTax}
+                  onChange={(e) => setFormData({ ...formData, collectTax: e.target.checked })}
+                  className="w-5 h-5 mt-0.5 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+                />
+                <label htmlFor="collectTax" className="flex-1 cursor-pointer">
+                  <div className="font-medium text-[var(--gray-900)]">Collect sales tax at checkout</div>
+                  <div className="text-xs text-[var(--gray-500)] mt-1">
+                    When enabled, customers are charged tax during checkout. Turn off if your business should not collect tax through Vehndr.
+                  </div>
+                </label>
               </div>
             </div>
           </div>
