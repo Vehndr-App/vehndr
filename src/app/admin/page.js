@@ -1011,12 +1011,9 @@ function RecentSaleCard({ sale, palette }) {
         backgroundColor: palette.rowBackground,
       }}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
         <p className="text-sm font-semibold truncate" style={{ color: palette.text }}>
           {sale.vendorName || "Unknown vendor"}
-        </p>
-        <p className="text-sm font-semibold" style={{ color: palette.positiveText }}>
-          {formatCurrency(sale.total)}
         </p>
       </div>
       <div className="flex items-center justify-between gap-2 mt-1">
