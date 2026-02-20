@@ -3,6 +3,7 @@
 import AuthGate from "../../components/AuthGate";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export default function AdminLayout({ children }) {
   return (
@@ -14,6 +15,7 @@ export default function AdminLayout({ children }) {
 
 function AdminLayoutInner({ children }) {
   const pathname = usePathname();
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const navItems = [
     { href: "/admin", label: "Dashboard", icon: DashboardIcon },
@@ -24,15 +26,27 @@ function AdminLayoutInner({ children }) {
   return (
     <div className="min-h-screen bg-[var(--background)]">
       {/* Desktop Sidebar */}
-      <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0">
+      <aside
+        className={`hidden md:flex md:flex-col md:fixed md:inset-y-0 transition-[width] duration-200 ${
+          isSidebarCollapsed ? "md:w-20" : "md:w-64"
+        }`}
+      >
         <div className="flex-1 flex flex-col min-h-0 bg-[var(--gray-900)]">
           <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
-            <div className="flex items-center flex-shrink-0 px-4">
-              <Link href="/admin" className="text-white text-xl font-bold">
-                Vehndr Admin
+            <div
+              className={`flex items-center flex-shrink-0 px-3 ${
+                isSidebarCollapsed ? "justify-center" : "justify-start"
+              }`}
+            >
+              <Link
+                href="/admin"
+                className={`text-white font-bold ${isSidebarCollapsed ? "text-lg" : "text-xl"}`}
+                title="Vehndr Admin"
+              >
+                {isSidebarCollapsed ? "VA" : "Vehndr Admin"}
               </Link>
             </div>
-            <nav className="mt-8 flex-1 px-2 space-y-1">
+            <nav className="mt-8 flex-1 space-y-1 px-2">
               {navItems.map((item) => {
                 const isActive = pathname === item.href ||
                   (item.href !== "/admin" && pathname.startsWith(item.href));
@@ -40,29 +54,63 @@ function AdminLayoutInner({ children }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group flex items-center px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${
+                    title={isSidebarCollapsed ? item.label : undefined}
+                    className={`group flex items-center py-2.5 text-sm font-medium rounded-lg transition-colors ${
                       isActive
                         ? "bg-[var(--violet-600)] text-white"
                         : "text-[var(--gray-300)] hover:bg-[var(--gray-800)] hover:text-white"
+                    } ${isSidebarCollapsed ? "justify-center px-2" : "px-3"} ${
+                      isSidebarCollapsed ? "" : "text-sm"
                     }`}
                   >
-                    <item.icon className={`mr-3 h-5 w-5 ${isActive ? "text-white" : "text-[var(--gray-400)] group-hover:text-white"}`} />
-                    {item.label}
+                    <item.icon
+                      className={`h-5 w-5 ${isActive ? "text-white" : "text-[var(--gray-400)] group-hover:text-white"} ${
+                        isSidebarCollapsed ? "" : "mr-3"
+                      }`}
+                    />
+                    {!isSidebarCollapsed && item.label}
                   </Link>
                 );
               })}
             </nav>
           </div>
-          <div className="flex-shrink-0 flex border-t border-[var(--gray-800)] p-4">
-            <Link href="/" className="flex items-center text-[var(--gray-400)] hover:text-white text-sm">
-              <svg className="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div
+            className={`flex-shrink-0 flex border-t border-[var(--gray-800)] ${
+              isSidebarCollapsed ? "justify-center p-3" : "p-4"
+            }`}
+          >
+            <Link
+              href="/"
+              title={isSidebarCollapsed ? "Back to Vehndr" : undefined}
+              className={`flex items-center text-[var(--gray-400)] hover:text-white text-sm ${
+                isSidebarCollapsed ? "justify-center" : ""
+              }`}
+            >
+              <svg
+                className={`w-5 h-5 ${isSidebarCollapsed ? "" : "mr-2"}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
               </svg>
-              Back to Vehndr
+              {!isSidebarCollapsed && "Back to Vehndr"}
             </Link>
           </div>
         </div>
       </aside>
+
+      {/* Desktop Sidebar Toggle */}
+      <button
+        type="button"
+        onClick={() => setIsSidebarCollapsed((current) => !current)}
+        className="hidden md:flex fixed top-6 -translate-x-1/2 z-40 h-9 w-9 items-center justify-center rounded-full border border-[var(--gray-700)] bg-[var(--gray-900)] text-[var(--gray-200)] hover:text-white hover:border-[var(--gray-500)] shadow-lg transition-[left,border-color,color] duration-200"
+        style={{ left: isSidebarCollapsed ? "5rem" : "16rem" }}
+        aria-label={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      >
+        <SidebarToggleIcon collapsed={isSidebarCollapsed} />
+      </button>
 
       {/* Mobile Header */}
       <div className="md:hidden bg-[var(--gray-900)] text-white px-4 py-3 flex items-center justify-between">
@@ -99,12 +147,38 @@ function AdminLayoutInner({ children }) {
       </div>
 
       {/* Main Content */}
-      <div className="md:pl-64 flex flex-col flex-1">
+      <div
+        className={`flex flex-col flex-1 transition-[padding] duration-200 ${
+          isSidebarCollapsed ? "md:pl-20" : "md:pl-64"
+        }`}
+      >
         <main className="flex-1 pb-20 md:pb-0">
           {children}
         </main>
       </div>
     </div>
+  );
+}
+
+function SidebarToggleIcon({ collapsed }) {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      {collapsed ? (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.8}
+          d="M9 5l7 7-7 7"
+        />
+      ) : (
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={1.8}
+          d="M15 19l-7-7 7-7"
+        />
+      )}
+    </svg>
   );
 }
 
