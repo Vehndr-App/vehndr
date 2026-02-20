@@ -22,6 +22,7 @@ export default function BottomNav() {
   const { totalItems } = useCart();
   const { user } = useAuth();
   const [favoritesCount, setFavoritesCount] = useState(0);
+  const isAdminRoute = pathname?.startsWith("/admin");
 
   // Track favorites count
   useEffect(() => {
@@ -76,6 +77,11 @@ export default function BottomNav() {
       { href: user ? '/profile' : '/login', label: user ? 'Profile' : 'Login', icon: ProfileIcon },
     ];
   };
+
+  // Admin pages have their own navigation and should not show the global bottom nav.
+  if (isAdminRoute) {
+    return null;
+  }
 
   const navItems = getNavItems();
 
