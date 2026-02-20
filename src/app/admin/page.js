@@ -736,12 +736,14 @@ function LaunchLeaderboard({ launch, darkMode, onToggleDarkMode }) {
           palette={palette}
         />
         <LaunchMetricCard
-          title="Sales Velocity"
+          title="Averaging one sale every"
           value={
             pulse.averageMinutesBetweenSales !== null &&
             pulse.averageMinutesBetweenSales !== undefined
-              ? `${pulse.averageMinutesBetweenSales}m`
-              : "--"
+              ? `${pulse.averageMinutesBetweenSales} minute${
+                  Number(pulse.averageMinutesBetweenSales) === 1 ? "" : "s"
+                }`
+              : "-- minutes"
           }
           subtitle={`${formatNumber(pulse.lastHourSalesCount)} sales in last hour`}
           color="amber"
