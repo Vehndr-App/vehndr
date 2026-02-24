@@ -13,7 +13,19 @@ import PaymentForm from '../../components/PaymentForm';
 import TipSelector from '../../components/TipSelector';
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
+const stripePromiseCache = new Map();
+const getStripePromiseForAccount = (stripeAccountId) => {
+  if (!stripePublishableKey || !stripeAccountId) return null;
+
+  if (!stripePromiseCache.has(stripeAccountId)) {
+    stripePromiseCache.set(
+      stripeAccountId,
+      loadStripe(stripePublishableKey, { stripeAccount: stripeAccountId })
+    );
+  }
+
+  return stripePromiseCache.get(stripeAccountId);
+};
 const MAX_CHARGE_CENTS = 5000000;
 const MAX_CHARGE_LABEL = "$50,000.00";
 
@@ -27,6 +39,7 @@ export default function CheckoutPage() {
   const [loadingVendors, setLoadingVendors] = useState(true);
   const [clientSecrets, setClientSecrets] = useState({});
   const [paymentIntents, setPaymentIntents] = useState({});
+  const [vendorStripeAccountIds, setVendorStripeAccountIds] = useState({});
   const [vendorTips, setVendorTips] = useState({});
   const [vendorTaxes, setVendorTaxes] = useState({});
 
@@ -108,6 +121,15 @@ export default function CheckoutPage() {
         }
       });
 
+      const vendorStripeAccountId =
+        response.vendorStripeAccountId ||
+        vendorDetails[vendorId]?.stripeAccountId ||
+        vendorDetails[vendorId]?.stripe_account_id;
+
+      if (!vendorStripeAccountId) {
+        throw new Error('Vendor payment account is unavailable. Please try again.');
+      }
+
       // Store the client secret and payment intent ID for this vendor
       setClientSecrets(prev => ({
         ...prev,
@@ -116,6 +138,10 @@ export default function CheckoutPage() {
       setPaymentIntents(prev => ({
         ...prev,
         [vendorId]: response.paymentIntentId
+      }));
+      setVendorStripeAccountIds(prev => ({
+        ...prev,
+        [vendorId]: vendorStripeAccountId
       }));
       setVendorTaxes(prev => ({
         ...prev,
@@ -133,7 +159,8 @@ export default function CheckoutPage() {
     try {
       // Build request body
       const requestBody = {
-        paymentIntentId: paymentIntent.id
+        paymentIntentId: paymentIntent.id,
+        vendorId
       };
 
       // Add account creation data if present
@@ -240,7 +267,7 @@ export default function CheckoutPage() {
   };
 
   const vendorIds = Object.keys(vendorCarts);
-  const stripeKeyMissing = !stripePromise;
+  const stripeKeyMissing = !stripePublishableKey;
 
   if (vendorIds.length === 0) {
     return (
@@ -335,6 +362,11 @@ export default function CheckoutPage() {
             const canCheckout = vendor?.stripeReadyForCheckout !== false;
             const isProcessing = loading && activeVendor === vendorId;
             const hasPhysicalItems = items.some(item => !item.isService);
+            const vendorStripeAccountId =
+              vendorStripeAccountIds[vendorId] ||
+              vendor?.stripeAccountId ||
+              vendor?.stripe_account_id;
+            const vendorStripePromise = getStripePromiseForAccount(vendorStripeAccountId);
 
             return (
               <div key={vendorId} className="card p-0 overflow-hidden">
@@ -578,9 +610,9 @@ export default function CheckoutPage() {
 
                   {canCheckout ? (
                     clientSecrets[vendorId] ? (
-                      stripePromise ? (
+                      vendorStripePromise ? (
                         <Elements
-                          stripe={stripePromise}
+                          stripe={vendorStripePromise}
                           options={{
                             clientSecret: clientSecrets[vendorId],
                             appearance: {
@@ -605,7 +637,7 @@ export default function CheckoutPage() {
                       ) : (
                         <div className="text-center p-3 bg-[var(--amber-50)] border border-[var(--amber-200)] rounded-[var(--radius-lg)]">
                           <p className="text-sm text-[var(--amber-700)]">
-                            Stripe key is missing. Checkout is temporarily unavailable.
+                            Vendor payment account is unavailable. Please try again.
                           </p>
                         </div>
                       )

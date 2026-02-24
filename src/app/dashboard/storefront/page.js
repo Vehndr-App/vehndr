@@ -292,7 +292,8 @@ function POSSystem() {
 
     try {
       const response = await api(`/api/checkout/pos_link/${checkoutLinkData.paymentIntentId}/confirm`, {
-        method: "POST"
+        method: "POST",
+        body: { vendor_id: vendor.id }
       });
 
       if (!response.success) {
