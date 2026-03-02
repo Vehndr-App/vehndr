@@ -255,14 +255,6 @@ export default function PaymentForm({
       {/* Payment Element */}
       <PaymentElement
         onReady={() => setPaymentElementReady(true)}
-        onLoadError={(event) => {
-          const message =
-            event?.error?.message ||
-            'Payment form failed to load. Please refresh and try again.';
-          setPaymentElementReady(false);
-          setErrorMessage(message);
-          if (onError) onError(event?.error || new Error(message));
-        }}
         options={{
           wallets: {
             applePay: 'auto',

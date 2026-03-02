@@ -9,19 +9,7 @@ import PaymentForm from '../../../components/PaymentForm';
 import TipSelector from '../../../components/TipSelector';
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-const stripePromiseCache = new Map();
-const getStripePromiseForAccount = (stripeAccountId) => {
-  if (!stripePublishableKey || !stripeAccountId) return null;
-
-  if (!stripePromiseCache.has(stripeAccountId)) {
-    stripePromiseCache.set(
-      stripeAccountId,
-      loadStripe(stripePublishableKey, { stripeAccount: stripeAccountId })
-    );
-  }
-
-  return stripePromiseCache.get(stripeAccountId);
-};
+const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
 const MAX_CHARGE_CENTS = 5000000;
 
 function POSCheckoutContent() {
@@ -37,7 +25,6 @@ function POSCheckoutContent() {
 
   const paymentIntentId = searchParams.get('pi');
   const initialClientSecret = searchParams.get('cs');
-  const vendorId = searchParams.get('vendor_id') || searchParams.get('vendorId');
 
   useEffect(() => {
     const fetchCheckoutDetails = async () => {
@@ -47,17 +34,8 @@ function POSCheckoutContent() {
         return;
       }
 
-      if (!vendorId) {
-        setError('Invalid checkout link');
-        setLoading(false);
-        return;
-      }
-
       try {
-        const data = await api(`/api/checkout/pos_link/${paymentIntentId}?vendor_id=${encodeURIComponent(vendorId || '')}`);
-        if (!data.vendorStripeAccountId) {
-          throw new Error('Vendor payment account is unavailable.');
-        }
+        const data = await api(`/api/checkout/pos_link/${paymentIntentId}`);
         setCheckoutData(data);
         const initialTip = data.tipCents || 0;
         latestTipCentsRef.current = initialTip;
@@ -71,12 +49,12 @@ function POSCheckoutContent() {
     };
 
     fetchCheckoutDetails();
-  }, [paymentIntentId, initialClientSecret, vendorId]);
+  }, [paymentIntentId, initialClientSecret]);
 
   const syncTipToPaymentIntent = useCallback(async (nextTipCents) => {
     const response = await api(`/api/checkout/pos_link/${paymentIntentId}/tip`, {
       method: 'PATCH',
-      body: { tip_cents: nextTipCents, vendor_id: vendorId }
+      body: { tip_cents: nextTipCents }
     });
 
     if (!response.success) {
@@ -91,7 +69,7 @@ function POSCheckoutContent() {
     }));
 
     return response;
-  }, [paymentIntentId, vendorId]);
+  }, [paymentIntentId]);
 
   const handleTipChange = useCallback(async (newTipCents) => {
     latestTipCentsRef.current = newTipCents;
@@ -127,12 +105,11 @@ function POSCheckoutContent() {
     }
   }, [syncTipToPaymentIntent]);
 
-  const handlePaymentSuccess = async (_paymentIntent) => {
+  const handlePaymentSuccess = async (paymentIntent) => {
     try {
       // Confirm the order on the backend
       const response = await api(`/api/checkout/pos_link/${paymentIntentId}/confirm`, {
-        method: 'POST',
-        body: { vendor_id: vendorId }
+        method: 'POST'
       });
 
       if (response.success) {
@@ -196,8 +173,7 @@ function POSCheckoutContent() {
     );
   }
 
-  const stripeKeyMissing = !stripePublishableKey;
-  const vendorStripePromise = getStripePromiseForAccount(checkoutData?.vendorStripeAccountId);
+  const stripeKeyMissing = !stripePromise;
 
   return (
     <div className="min-h-screen bg-[var(--gray-50)]">
@@ -310,17 +286,11 @@ function POSCheckoutContent() {
               Payment processing is temporarily unavailable.
             </p>
           </div>
-        ) : !vendorStripePromise ? (
-          <div className="bg-[var(--amber-50)] border border-[var(--amber-200)] rounded-2xl p-4 text-center">
-            <p className="text-[var(--amber-700)]">
-              Vendor payment account is unavailable.
-            </p>
-          </div>
         ) : currentClientSecret ? (
           <div className="bg-white rounded-2xl shadow-sm border border-[var(--gray-200)] p-4">
             <h2 className="font-semibold text-[var(--gray-900)] mb-4">Payment Details</h2>
             <Elements
-              stripe={vendorStripePromise}
+              stripe={stripePromise}
               options={{
                 clientSecret: currentClientSecret,
                 appearance: {
