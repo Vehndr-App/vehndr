@@ -22,6 +22,7 @@ function POSCheckoutContent() {
   const [updatingTip, setUpdatingTip] = useState(false);
   const [currentClientSecret, setCurrentClientSecret] = useState(null);
   const latestTipCentsRef = useRef(0);
+  const fetchElementsUpdatesRef = useRef(null);
 
   const paymentIntentId = searchParams.get('pi');
   const initialClientSecret = searchParams.get('cs');
@@ -67,6 +68,13 @@ function POSCheckoutContent() {
       tipCents: response.tipCents,
       totalCents: response.totalCents
     }));
+
+    // Refresh the Stripe Elements cache so Apple Pay reads the updated amount.
+    // Apple Pay opens its native sheet without going through the form's onSubmit,
+    // so beforeConfirm never runs for wallet payments — the fetch must happen here.
+    if (fetchElementsUpdatesRef.current) {
+      await fetchElementsUpdatesRef.current();
+    }
 
     return response;
   }, [paymentIntentId]);
@@ -312,6 +320,7 @@ function POSCheckoutContent() {
                 beforeConfirm={ensureTipSyncedBeforePayment}
                 onSuccess={handlePaymentSuccess}
                 onError={handlePaymentError}
+                onFetchUpdates={(fn) => { fetchElementsUpdatesRef.current = fn; }}
               />
             </Elements>
           </div>

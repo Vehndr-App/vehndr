@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../services/api';
 
@@ -11,7 +11,8 @@ export default function PaymentForm({
   onSuccess,
   onError,
   disabled = false,
-  beforeConfirm
+  beforeConfirm,
+  onFetchUpdates,
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -28,6 +29,16 @@ export default function PaymentForm({
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [passwordError, setPasswordError] = useState(null);
+
+  // Expose elements.fetchUpdates to the parent so it can refresh the
+  // PaymentElement's cached PaymentIntent amount (e.g. after a tip change).
+  // This is required for Apple Pay, which reads the amount before the form's
+  // onSubmit handler runs — so beforeConfirm() is never called for wallet payments.
+  useEffect(() => {
+    if (onFetchUpdates && elements) {
+      onFetchUpdates(() => elements.fetchUpdates());
+    }
+  }, [elements, onFetchUpdates]);
 
   const checkEmailExists = useCallback(async (emailToCheck) => {
     if (!emailToCheck || !emailToCheck.includes('@')) {
@@ -103,6 +114,8 @@ export default function PaymentForm({
     try {
       if (beforeConfirm) {
         await beforeConfirm();
+        // Refresh the Elements cache so confirmPayment uses the updated amount.
+        await elements.fetchUpdates();
       }
 
       const { error, paymentIntent } = await stripe.confirmPayment({
