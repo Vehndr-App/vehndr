@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 
-const CUSTOM_TIP_DEBOUNCE_MS = 600;
+const CUSTOM_TIP_DEBOUNCE_MS = 1000;
 
 const TIP_PRESETS = [
   { percent: 15, label: '15%' },
