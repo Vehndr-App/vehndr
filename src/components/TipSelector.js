@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+
+const CUSTOM_TIP_DEBOUNCE_MS = 600;
 
 const TIP_PRESETS = [
   { percent: 15, label: '15%' },
@@ -14,6 +16,20 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
   const [customAmount, setCustomAmount] = useState('');
   const [isCustom, setIsCustom] = useState(false);
   const maxTipCents = maxTotalCents !== null ? Math.max(0, maxTotalCents - subtotalCents) : null;
+
+  // Debounced custom tip cents — only fire onTipChange after the user stops typing.
+  const [pendingCustomCents, setPendingCustomCents] = useState(null);
+  const debounceTimer = useRef(null);
+
+  useEffect(() => {
+    if (pendingCustomCents === null) return;
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(() => {
+      onTipChange(pendingCustomCents);
+      setPendingCustomCents(null);
+    }, CUSTOM_TIP_DEBOUNCE_MS);
+    return () => clearTimeout(debounceTimer.current);
+  }, [pendingCustomCents, onTipChange]);
 
   const tipCents = useMemo(() => {
     if (isCustom) {
@@ -33,6 +49,8 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
     if (maxTipCents !== null && presetCents > maxTipCents) {
       return;
     }
+    clearTimeout(debounceTimer.current);
+    setPendingCustomCents(null);
     setIsCustom(false);
     setCustomAmount('');
     setSelectedPreset(percent);
@@ -40,6 +58,8 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
   };
 
   const handleNoTip = () => {
+    clearTimeout(debounceTimer.current);
+    setPendingCustomCents(null);
     setIsCustom(false);
     setCustomAmount('');
     setSelectedPreset(null);
@@ -58,11 +78,11 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
     const safeCents = isNaN(cents) ? 0 : Math.max(0, cents);
     if (maxTipCents !== null && safeCents > maxTipCents) {
       setCustomAmount((maxTipCents / 100).toFixed(2));
-      onTipChange(maxTipCents);
+      setPendingCustomCents(maxTipCents);
       return;
     }
     setCustomAmount(value);
-    onTipChange(safeCents);
+    setPendingCustomCents(safeCents);
   };
 
   return (
