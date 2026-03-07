@@ -4,11 +4,14 @@ import AuthGate from "../../components/AuthGate";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
+import { AdminTimezoneProvider, useAdminTimezone, TIMEZONE_OPTIONS } from "../../contexts/AdminTimezoneContext";
 
 export default function AdminLayout({ children }) {
   return (
     <AuthGate allowedRoles={['admin']}>
-      <AdminLayoutInner>{children}</AdminLayoutInner>
+      <AdminTimezoneProvider>
+        <AdminLayoutInner>{children}</AdminLayoutInner>
+      </AdminTimezoneProvider>
     </AuthGate>
   );
 }
@@ -16,11 +19,14 @@ export default function AdminLayout({ children }) {
 function AdminLayoutInner({ children }) {
   const pathname = usePathname();
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const { timezone, setTimezone } = useAdminTimezone();
 
   const navItems = [
     { href: "/admin", label: "Dashboard", icon: DashboardIcon },
     { href: "/admin/users", label: "Users", icon: UsersIcon },
+    { href: "/admin/vendors", label: "Vendors", icon: VendorsIcon },
     { href: "/admin/orders", label: "Orders", icon: OrdersIcon },
+    { href: "/admin/fees", label: "Fees", icon: FeesIcon },
   ];
 
   return (
@@ -73,6 +79,33 @@ function AdminLayoutInner({ children }) {
                 );
               })}
             </nav>
+
+            {/* Timezone Picker */}
+            {!isSidebarCollapsed && (
+              <div className="px-3 pb-2 mt-4">
+                <div className="border-t border-[var(--gray-800)] pt-4">
+                  <p className="text-xs font-medium text-[var(--gray-500)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <ClockIcon className="w-3.5 h-3.5" />
+                    Timezone
+                  </p>
+                  <select
+                    value={timezone}
+                    onChange={(e) => setTimezone(e.target.value)}
+                    className="w-full px-2 py-1.5 text-xs bg-[var(--gray-800)] text-[var(--gray-200)] border border-[var(--gray-700)] rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--violet-500)] focus:border-[var(--violet-500)] cursor-pointer"
+                  >
+                    {TIMEZONE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                    {/* If browser tz isn't in our list, add it as an option */}
+                    {!TIMEZONE_OPTIONS.find((o) => o.value === timezone) && (
+                      <option value={timezone}>{timezone}</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
           <div
             className={`flex-shrink-0 flex border-t border-[var(--gray-800)] ${
@@ -117,11 +150,28 @@ function AdminLayoutInner({ children }) {
         <Link href="/admin" className="text-lg font-bold">
           Vehndr Admin
         </Link>
-        <Link href="/" className="text-[var(--gray-400)] hover:text-white text-sm">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
-          </svg>
-        </Link>
+        <div className="flex items-center gap-3">
+          {/* Mobile timezone picker */}
+          <select
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            className="text-xs bg-[var(--gray-800)] text-[var(--gray-200)] border border-[var(--gray-700)] rounded px-1.5 py-1 focus:outline-none max-w-[120px]"
+          >
+            {TIMEZONE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+            {!TIMEZONE_OPTIONS.find((o) => o.value === timezone) && (
+              <option value={timezone}>{timezone}</option>
+            )}
+          </select>
+          <Link href="/" className="text-[var(--gray-400)] hover:text-white text-sm">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
+            </svg>
+          </Link>
+        </div>
       </div>
 
       {/* Mobile Bottom Navigation */}
@@ -182,6 +232,14 @@ function SidebarToggleIcon({ collapsed }) {
   );
 }
 
+function ClockIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+}
+
 function DashboardIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -202,6 +260,22 @@ function OrdersIcon({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+    </svg>
+  );
+}
+
+function VendorsIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  );
+}
+
+function FeesIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   );
 }
