@@ -256,7 +256,7 @@ export default function AdminFeesPage() {
         <div className="mb-5">
           <h2 className="text-base font-semibold text-[var(--gray-900)]">Vendor Fee Rates</h2>
           <p className="text-xs text-[var(--gray-500)] mt-0.5">
-            Custom fee rates set per vendor. To edit or delete a rate, visit the vendor&apos;s page.
+            Custom fee rates set per vendor. To create, edit or delete a rate, visit the vendor&apos;s page.
           </p>
         </div>
 
