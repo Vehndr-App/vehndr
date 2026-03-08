@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { api } from "../../../services/api";
 
 export default function AdminOrdersPage() {
@@ -270,17 +271,19 @@ export default function AdminOrdersPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <div>
-                          <p className="font-medium text-[var(--foreground)]">
-                            {order.customerName || "Guest"}
-                          </p>
-                          <p className="text-sm text-[var(--gray-500)]">
-                            {order.customerEmail}
-                          </p>
-                        </div>
+                        <p className="font-medium text-[var(--foreground)]">
+                          {order.customerName || "Guest"}
+                        </p>
+                        <p className="text-sm text-[var(--gray-500)]">{order.customerEmail}</p>
                       </td>
                       <td className="px-4 py-3 text-[var(--gray-600)]">
-                        {order.vendorName || "Unknown"}
+                        {order.vendorId ? (
+                          <Link href={`/admin/vendors/${order.vendorId}`} className="text-[var(--violet-600)] hover:underline">
+                            {order.vendorName || "Unknown"}
+                          </Link>
+                        ) : (
+                          order.vendorName || "Unknown"
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <div>
@@ -338,9 +341,7 @@ export default function AdminOrdersPage() {
                       <p className="font-medium text-[var(--foreground)]">
                         {order.customerName || "Guest"}
                       </p>
-                      <p className="text-sm text-[var(--gray-500)]">
-                        {order.customerEmail}
-                      </p>
+                      <p className="text-sm text-[var(--gray-500)]">{order.customerEmail}</p>
                     </div>
                     <p className="font-semibold text-[var(--foreground)]">
                       ${order.total?.toFixed(2)}
@@ -364,8 +365,14 @@ export default function AdminOrdersPage() {
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[var(--gray-500)]">
-                      {order.vendorName} -{" "}
-                      {new Date(order.createdAt).toLocaleDateString()}
+                      {order.vendorId ? (
+                        <Link href={`/admin/vendors/${order.vendorId}`} className="text-[var(--violet-600)] hover:underline">
+                          {order.vendorName}
+                        </Link>
+                      ) : (
+                        order.vendorName
+                      )}{" "}
+                      &mdash; {new Date(order.createdAt).toLocaleDateString()}
                     </span>
                     <button
                       onClick={() => openStatusModal(order)}
