@@ -692,10 +692,6 @@ function LaunchLeaderboard({ launch, darkMode, onToggleDarkMode }) {
               value={formatNumber(todaySales.count)}
             />
             <LaunchPill
-              label={`Revenue (${windowHours}h)`}
-              value={formatCurrency(todaySales.total)}
-            />
-            <LaunchPill
               label="Active Vendors"
               value={formatNumber(todaySales.activeVendors)}
             />
@@ -716,16 +712,6 @@ function LaunchLeaderboard({ launch, darkMode, onToggleDarkMode }) {
             `previous ${windowHours}h`
           )}
           color="violet"
-          palette={palette}
-        />
-        <LaunchMetricCard
-          title={`Revenue (${windowHours}h)`}
-          value={formatCurrency(todaySales.total)}
-          subtitle={formatPercentDelta(
-            pulse.revenueVsPreviousWindowPct,
-            `previous ${windowHours}h`
-          )}
-          color="emerald"
           palette={palette}
         />
         <LaunchMetricCard
