@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { AdminTimezoneProvider, useAdminTimezone, TIMEZONE_OPTIONS } from "../../contexts/AdminTimezoneContext";
+import { api } from "../../services/api";
 
 export default function AdminLayout({ children }) {
   return (
@@ -27,6 +28,7 @@ function AdminLayoutInner({ children }) {
     { href: "/admin/vendors", label: "Vendors", icon: VendorsIcon },
     { href: "/admin/orders", label: "Orders", icon: OrdersIcon },
     { href: "/admin/fees", label: "Fees", icon: FeesIcon },
+    { label: "Background Jobs", icon: JobsIcon, action: "openJobsDashboard" },
   ];
 
   return (
@@ -54,8 +56,17 @@ function AdminLayoutInner({ children }) {
             </div>
             <nav className="mt-8 flex-1 space-y-1 px-2">
               {navItems.map((item) => {
-                const isActive = pathname === item.href ||
-                  (item.href !== "/admin" && pathname.startsWith(item.href));
+                const isActive = item.href && (pathname === item.href ||
+                  (item.href !== "/admin" && pathname.startsWith(item.href)));
+                if (item.action === "openJobsDashboard") {
+                  return (
+                    <OpenJobsDashboardLink
+                      key="background-jobs"
+                      item={item}
+                      isSidebarCollapsed={isSidebarCollapsed}
+                    />
+                  );
+                }
                 return (
                   <Link
                     key={item.href}
@@ -178,6 +189,15 @@ function AdminLayoutInner({ children }) {
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--gray-200)] z-50">
         <nav className="flex justify-around py-2">
           {navItems.map((item) => {
+            if (item.action === "openJobsDashboard") {
+              return (
+                <OpenJobsDashboardLink
+                  key="background-jobs"
+                  item={item}
+                  mobile
+                />
+              );
+            }
             const isActive = pathname === item.href ||
               (item.href !== "/admin" && pathname.startsWith(item.href));
             return (
@@ -277,5 +297,53 @@ function FeesIcon({ className }) {
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
+  );
+}
+
+function JobsIcon({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+    </svg>
+  );
+}
+
+function OpenJobsDashboardLink({ item, isSidebarCollapsed, mobile }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  const handleOpen = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    try {
+      const { url } = await api("/api/admin/jobs_dashboard_url");
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      setError(err?.message || "Failed to open Background Jobs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const baseClass = mobile
+    ? "flex flex-col items-center px-3 py-1 text-[var(--gray-500)] disabled:opacity-50"
+    : `group flex items-center py-2.5 text-sm font-medium rounded-lg transition-colors text-[var(--gray-300)] hover:bg-[var(--gray-800)] hover:text-white disabled:opacity-50 ${isSidebarCollapsed ? "justify-center px-2" : "px-3"}`;
+
+  const iconClass = mobile ? "h-6 w-6" : `h-5 w-5 text-[var(--gray-400)] group-hover:text-white ${isSidebarCollapsed ? "" : "mr-3"}`;
+
+  return (
+    <button
+      type="button"
+      onClick={handleOpen}
+      disabled={loading}
+      title={isSidebarCollapsed && !mobile ? item.label : undefined}
+      className={baseClass}
+    >
+      <item.icon className={iconClass} />
+      {!mobile && !isSidebarCollapsed && item.label}
+      {mobile && <span className="text-xs mt-1">{item.label}</span>}
+      {error && <span className="sr-only">{error}</span>}
+    </button>
   );
 }
