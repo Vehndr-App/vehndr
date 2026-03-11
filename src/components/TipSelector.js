@@ -158,9 +158,10 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
             step="0.01"
             value={customAmount}
             onChange={handleCustomChange}
+            onWheel={(e) => e.currentTarget.blur()}
             disabled={disabled}
             placeholder="0.00"
-            className="w-full h-12 pl-8 pr-4 rounded-xl bg-[var(--gray-100)] border-0 text-[var(--foreground)] placeholder:text-[var(--gray-400)] focus:ring-2 focus:ring-[var(--violet-500)] focus:bg-white transition-all disabled:opacity-50"
+            className="w-full h-12 pl-8 pr-4 rounded-xl bg-[var(--gray-100)] border-0 text-[var(--foreground)] placeholder:text-[var(--gray-400)] focus:ring-2 focus:ring-[var(--violet-500)] focus:bg-white transition-all disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
           />
         </div>
       )}
