@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useCart } from '../../contexts/CartContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '../../services/api';
 import { getVendorProfile } from '../../services/vendors';
 import { useRouter } from 'next/navigation';
@@ -20,34 +20,34 @@ const MAX_CHARGE_LABEL = "$50,000.00";
 export default function CheckoutPage() {
   const { vendorCarts, totalItems, allItems, clearVendorCart, updateQuantity, removeItem } = useCart();
   const { refreshUser } = useAuth();
-  const [loading, setLoading] = useState(false);
-  const [activeVendor, setActiveVendor] = useState(null);
-  const [error, setError] = useState(null);
   const [vendorDetails, setVendorDetails] = useState({});
   const [loadingVendors, setLoadingVendors] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Per-vendor payment intent state
   const [clientSecrets, setClientSecrets] = useState({});
-  const [paymentIntents, setPaymentIntents] = useState({});
-  const [vendorTips, setVendorTips] = useState({});
+  const [paymentIntentIds, setPaymentIntentIds] = useState({});
+  const [initializingVendors, setInitializingVendors] = useState({});
   const [vendorTaxes, setVendorTaxes] = useState({});
 
+  // Per-vendor user-input state
+  const [vendorTips, setVendorTips] = useState({});
+  const [vendorNotes, setVendorNotes] = useState({});
   const [vendorPickupDate, setVendorPickupDate] = useState({});
   const [vendorPickupTime, setVendorPickupTime] = useState({});
-  const [vendorNotes, setVendorNotes] = useState({});
-  const [vendorPickupAt, setVendorPickupAt] = useState({});
+
+  // Track debounce timers for tip updates
+  const tipUpdateTimers = useRef({});
 
   const router = useRouter();
 
-  // Calculate grand total
   const grandTotal = allItems.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
-  // Fetch vendor details for all vendors in cart
+  // ─── Fetch vendor details ────────────────────────────────────────────────
   useEffect(() => {
     const fetchVendorDetails = async () => {
       const vendorIds = Object.keys(vendorCarts);
-      if (vendorIds.length === 0) {
-        setLoadingVendors(false);
-        return;
-      }
+      if (vendorIds.length === 0) { setLoadingVendors(false); return; }
 
       try {
         const details = {};
@@ -64,79 +64,88 @@ export default function CheckoutPage() {
         setLoadingVendors(false);
       }
     };
-
     fetchVendorDetails();
   }, [vendorCarts]);
 
-  const handleTipChange = (vendorId, tipCents) => {
-    setVendorTips(prev => ({
-      ...prev,
-      [vendorId]: tipCents
-    }));
-  };
+  // ─── Create PaymentIntents on load (once vendors are known) ─────────────
+  useEffect(() => {
+    if (loadingVendors) return;
 
-  const handleNotesChange = (vendorId, notes) => {
-    setVendorNotes(prev => ({
-      ...prev,
-      [vendorId]: notes
-    }));
-  };
+    const vendorIds = Object.keys(vendorCarts);
+    vendorIds.forEach((vendorId) => {
+      // Skip if already initialized or currently initializing
+      if (clientSecrets[vendorId] || initializingVendors[vendorId]) return;
+      const vendor = vendorDetails[vendorId];
+      if (!vendor || vendor.stripeReadyForCheckout === false) return;
 
-  const handleCheckout = async (vendorId) => {
-    setLoading(true);
-    setActiveVendor(vendorId);
+      initializePaymentIntent(vendorId, 0);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingVendors, vendorDetails]);
+
+  // ─── Initialize a PaymentIntent for a vendor ────────────────────────────
+  const initializePaymentIntent = useCallback(async (vendorId, tipCents) => {
+    setInitializingVendors(prev => ({ ...prev, [vendorId]: true }));
     setError(null);
 
     try {
-      const tipCents = vendorTips[vendorId] || 0;
-      const notes = vendorNotes[vendorId] || '';
-      const total = calculateVendorSubtotal(vendorId) + tipCents;
-      if (total > MAX_CHARGE_CENTS) {
-        setError(`Maximum charge is ${MAX_CHARGE_LABEL}.`);
-        setLoading(false);
-        setActiveVendor(null);
-        return;
-      }
-
-      // Create PaymentIntent for custom checkout using cart items on server
       const response = await api('/api/checkout/payment_intent', {
         method: 'POST',
         body: {
-          vendorId: vendorId,
-          tipCents: tipCents,
-          notes: notes.trim() || null
-        }
+          vendorId,
+          tipCents,
+          notes: null,
+        },
       });
 
-      // Store the client secret and payment intent ID for this vendor
-      setClientSecrets(prev => ({
-        ...prev,
-        [vendorId]: response.clientSecret
-      }));
-      setPaymentIntents(prev => ({
-        ...prev,
-        [vendorId]: response.paymentIntentId
-      }));
-      setVendorTaxes(prev => ({
-        ...prev,
-        [vendorId]: response.taxCents || 0
-      }));
+      setClientSecrets(prev => ({ ...prev, [vendorId]: response.clientSecret }));
+      setPaymentIntentIds(prev => ({ ...prev, [vendorId]: response.paymentIntentId }));
+      setVendorTaxes(prev => ({ ...prev, [vendorId]: response.taxCents || 0 }));
     } catch (err) {
       setError(err.message || 'Failed to initialize payment');
     } finally {
-      setLoading(false);
-      setActiveVendor(null);
+      setInitializingVendors(prev => ({ ...prev, [vendorId]: false }));
     }
-  };
+  }, []);
 
+  // ─── Update tip on existing PaymentIntent (debounced) ───────────────────
+  const updateTipOnIntent = useCallback(async (vendorId, tipCents) => {
+    const paymentIntentId = paymentIntentIds[vendorId];
+    if (!paymentIntentId) return;
+
+    try {
+      await api('/api/checkout/update_tip', {
+        method: 'PATCH',
+        body: { paymentIntentId, tipCents },
+      });
+    } catch (err) {
+      console.error('Failed to update tip on payment intent:', err);
+      // Non-fatal: the PaymentForm will use the correct total from our local state
+    }
+  }, [paymentIntentIds]);
+
+  // ─── Tip change handler ──────────────────────────────────────────────────
+  const handleTipChange = useCallback((vendorId, tipCents) => {
+    setVendorTips(prev => ({ ...prev, [vendorId]: tipCents }));
+
+    // Debounce the Stripe PaymentIntent update by 600 ms
+    if (tipUpdateTimers.current[vendorId]) {
+      clearTimeout(tipUpdateTimers.current[vendorId]);
+    }
+    tipUpdateTimers.current[vendorId] = setTimeout(() => {
+      updateTipOnIntent(vendorId, tipCents);
+    }, 600);
+  }, [updateTipOnIntent]);
+
+  // ─── Notes / pickup handlers ─────────────────────────────────────────────
+  const handleNotesChange = (vendorId, notes) =>
+    setVendorNotes(prev => ({ ...prev, [vendorId]: notes }));
+
+  // ─── Payment success/error ───────────────────────────────────────────────
   const handlePaymentSuccess = async (vendorId, paymentIntent, accountData = {}) => {
     try {
-      // Build request body
-      const requestBody = {
-        paymentIntentId: paymentIntent.id
-      };
+      const requestBody = { paymentIntentId: paymentIntent.id };
 
-      // Add account creation data if present
       if (accountData.createAccount && accountData.password) {
         requestBody.createAccount = true;
         requestBody.password = accountData.password;
@@ -149,133 +158,81 @@ export default function CheckoutPage() {
         requestBody.pickupAt = `${pickupDate}T${pickupTime}`;
       }
 
-      console.log('=== Checkout Debug ===');
-      console.log('accountData received:', accountData);
-      console.log('requestBody being sent:', { ...requestBody, password: requestBody.password ? '[REDACTED]' : undefined });
-
-      // Confirm payment with backend
       const response = await api('/api/checkout/confirm_payment', {
         method: 'POST',
-        body: requestBody
+        body: requestBody,
       });
 
-      console.log('Response from confirm_payment:', response);
-
-      // Handle account creation - store token and refresh auth state
       if (response.token && response.accountCreated) {
         localStorage.setItem('vehndr_token', response.token);
         await refreshUser();
       }
 
-      // Clear vendor cart from local state
-      if (clearVendorCart) {
-        clearVendorCart(vendorId);
-      }
+      clearVendorCart?.(vendorId);
 
-      // Clear the client secret for this vendor
-      setClientSecrets(prev => {
-        const updated = { ...prev };
-        delete updated[vendorId];
-        return updated;
-      });
+      setClientSecrets(prev => { const u = { ...prev }; delete u[vendorId]; return u; });
+      setPaymentIntentIds(prev => { const u = { ...prev }; delete u[vendorId]; return u; });
+      setVendorTaxes(prev => { const u = { ...prev }; delete u[vendorId]; return u; });
 
-      setVendorPickupDate(prev => {
-        const updated = { ...prev };
-        delete updated[vendorId];
-        return updated;
-      });
-      setVendorPickupTime(prev => {
-        const updated = { ...prev };
-        delete updated[vendorId];
-        return updated;
-      });
-      setVendorTaxes(prev => {
-        const updated = { ...prev };
-        delete updated[vendorId];
-        return updated;
-      });
-
-      // Redirect to success page with order ID
-      const orderId = response.orderId;
-      router.push(`/checkout/success?vendor_id=${vendorId}&order_id=${orderId}`);
+      router.push(`/checkout/success?vendor_id=${vendorId}&order_id=${response.orderId}`);
     } catch (err) {
       setError(err.message || 'Failed to confirm payment');
     }
   };
 
-  const handlePaymentError = (vendorId, error) => {
-    setError(error.message || 'Payment failed');
-    // Clear the client secret so user can try again
-    setClientSecrets(prev => {
-      const updated = { ...prev };
-      delete updated[vendorId];
-      return updated;
-    });
+  const handlePaymentError = (vendorId, err) => {
+    setError(err.message || 'Payment failed');
   };
 
-  const calculateVendorSubtotal = (vendorId) => {
-    const items = vendorCarts[vendorId] || [];
-    return items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  };
+  // ─── Helpers ─────────────────────────────────────────────────────────────
+  const calculateVendorSubtotal = (vendorId) =>
+    (vendorCarts[vendorId] || []).reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  const calculateVendorTotal = (vendorId) => {
-    const subtotal = calculateVendorSubtotal(vendorId);
-    const tax = vendorTaxes[vendorId] || 0;
-    const tip = vendorTips[vendorId] || 0;
-    return subtotal + tax + tip;
-  };
+  const calculateVendorTotal = (vendorId) =>
+    calculateVendorSubtotal(vendorId) +
+    (vendorTaxes[vendorId] || 0) +
+    (vendorTips[vendorId] || 0);
 
-  // Prefer human-readable vendor name; if API returns an id/slug (e.g. vendor_xxx), show "Vendor"
   const getVendorDisplayName = (vendor, vendorId) => {
     const name = vendor?.name?.trim();
-    if (!name) return 'Vendor';
-    if (name === vendorId || /^vendor[_\-]/i.test(name)) return 'Vendor';
+    if (!name || name === vendorId || /^vendor[_\-]/i.test(name)) return 'Vendor';
     return name;
   };
 
-  // Vendor main icon (same as cart): hero image or profile image, support camelCase or snake_case from API
-  const getVendorImageUrl = (vendor) => {
-    if (!vendor) return null;
-    return vendor.heroImage || vendor.profileImage || vendor.hero_image_url || vendor.profile_image_url || vendor.image_url || null;
-  };
+  const getVendorImageUrl = (vendor) =>
+    vendor?.heroImage || vendor?.profileImage ||
+    vendor?.hero_image_url || vendor?.profile_image_url ||
+    vendor?.image_url || null;
 
   const vendorIds = Object.keys(vendorCarts);
   const stripeKeyMissing = !stripePromise;
 
+  // ─── Empty cart ──────────────────────────────────────────────────────────
   if (vendorIds.length === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 sm:px-6 py-12">
         <div className="text-center py-16">
           <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[var(--gray-100)] flex items-center justify-center">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="21" r="1"/>
-              <circle cx="20" cy="21" r="1"/>
+              <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
               <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
             </svg>
           </div>
           <h1 className="text-2xl font-bold text-[var(--gray-900)] mb-2">Your cart is empty</h1>
           <p className="text-[var(--gray-500)] mb-6">Add some items to your cart before checking out.</p>
-          <Link
-            href="/vendors"
-            className="btn btn-gradient inline-flex"
-          >
-            Browse Vendors
-          </Link>
+          <Link href="/vendors" className="btn btn-gradient inline-flex">Browse Vendors</Link>
         </div>
       </div>
     );
   }
 
+  // ─── Main render ─────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-6">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="font-display text-2xl sm:text-3xl tracking-tight text-[var(--gray-900)]">
-          Checkout
-        </h1>
-        <p className="text-[var(--gray-500)] text-sm mt-1">
-          Review your order and complete payment
-        </p>
+        <h1 className="font-display text-2xl sm:text-3xl tracking-tight text-[var(--gray-900)]">Checkout</h1>
+        <p className="text-[var(--gray-500)] text-sm mt-1">Review your order and complete payment</p>
       </div>
 
       {/* Order Summary Banner */}
@@ -293,16 +250,12 @@ export default function CheckoutPage() {
               <p className="text-sm font-medium text-[var(--gray-900)]">
                 {totalItems} item{totalItems !== 1 ? 's' : ''} from {vendorIds.length} vendor{vendorIds.length !== 1 ? 's' : ''}
               </p>
-              <p className="text-xs text-[var(--gray-500)]">
-                Guest checkout available
-              </p>
+              <p className="text-xs text-[var(--gray-500)]">Guest checkout available</p>
             </div>
           </div>
           <div className="text-right">
             <p className="text-xs text-[var(--gray-500)]">Total</p>
-            <p className="text-xl font-bold text-[var(--gray-900)]">
-              ${(grandTotal / 100).toFixed(2)}
-            </p>
+            <p className="text-xl font-bold text-[var(--gray-900)]">${(grandTotal / 100).toFixed(2)}</p>
           </div>
         </div>
       </div>
@@ -323,17 +276,19 @@ export default function CheckoutPage() {
       <div className="space-y-6">
         {loadingVendors ? (
           <div className="card p-12 text-center">
-            <div className="animate-spin w-8 h-8 border-2 border-[var(--violet-600)] border-t-transparent rounded-full mx-auto mb-3"></div>
+            <div className="animate-spin w-8 h-8 border-2 border-[var(--violet-600)] border-t-transparent rounded-full mx-auto mb-3" />
             <p className="text-[var(--gray-500)]">Loading vendor information...</p>
           </div>
         ) : (
           vendorIds.map((vendorId) => {
             const items = vendorCarts[vendorId];
             const vendor = vendorDetails[vendorId];
+            const subtotal = calculateVendorSubtotal(vendorId);
             const total = calculateVendorTotal(vendorId);
             const isOverLimit = total > MAX_CHARGE_CENTS;
             const canCheckout = vendor?.stripeReadyForCheckout !== false;
-            const isProcessing = loading && activeVendor === vendorId;
+            const isInitializing = initializingVendors[vendorId];
+            const hasSecret = !!clientSecrets[vendorId];
             const hasPhysicalItems = items.some(item => !item.isService);
 
             return (
@@ -342,9 +297,9 @@ export default function CheckoutPage() {
                 <div className="flex items-center justify-between p-4 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
                   <div className="flex items-center gap-3">
                     {getVendorImageUrl(vendor) ? (
-                      /* eslint-disable-next-line @next/next/no-img-element */
-                      <img 
-                        src={getVendorImageUrl(vendor)} 
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={getVendorImageUrl(vendor)}
                         alt={getVendorDisplayName(vendor, vendorId)}
                         className="w-10 h-10 rounded-full object-cover"
                       />
@@ -354,12 +309,8 @@ export default function CheckoutPage() {
                       </div>
                     )}
                     <div>
-                      <h2 className="font-semibold text-[var(--gray-900)]">
-                        {getVendorDisplayName(vendor, vendorId)}
-                      </h2>
-                      {vendor?.location && (
-                        <p className="text-xs text-[var(--gray-500)]">{vendor.location}</p>
-                      )}
+                      <h2 className="font-semibold text-[var(--gray-900)]">{getVendorDisplayName(vendor, vendorId)}</h2>
+                      {vendor?.location && <p className="text-xs text-[var(--gray-500)]">{vendor.location}</p>}
                     </div>
                   </div>
                   {!canCheckout && (
@@ -373,113 +324,86 @@ export default function CheckoutPage() {
                 <div className="divide-y divide-[var(--gray-100)]">
                   {items.map((item, index) => (
                     <div key={index} className="flex gap-4 p-4">
-                      {/* Product Image */}
                       <div className="flex-shrink-0">
                         {item.image ? (
-                          /* eslint-disable-next-line @next/next/no-img-element */
-                          <img 
-                            src={item.image} 
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={item.image}
                             alt={item.name}
                             className="w-16 h-16 sm:w-20 sm:h-20 rounded-[var(--radius-lg)] object-cover bg-[var(--gray-100)]"
                           />
                         ) : (
                           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--violet-100)] to-[var(--magenta-100)] flex items-center justify-center">
-                            <span className="text-2xl">
-                              {item.isService ? '✨' : '📦'}
-                            </span>
+                            <span className="text-2xl">{item.isService ? '✨' : '📦'}</span>
                           </div>
                         )}
                       </div>
-
-                      {/* Item Details */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-sm text-[var(--gray-900)] line-clamp-2">
-                          {item.name}
-                        </h3>
-                        
-                        {/* Options */}
+                        <h3 className="font-semibold text-sm text-[var(--gray-900)] line-clamp-2">{item.name}</h3>
                         {item.options && Object.keys(item.options).length > 0 && (
                           <p className="text-xs text-[var(--gray-500)] mt-1">
                             {Object.entries(item.options).map(([key, value]) => (
-                              <span key={key} className="mr-2">
-                                {key}: <span className="font-medium">{value}</span>
-                              </span>
+                              <span key={key} className="mr-2">{key}: <span className="font-medium">{value}</span></span>
                             ))}
                           </p>
                         )}
-
                         <div className="flex items-center gap-3 mt-2">
-                          {/* Quantity Controls */}
                           {!item.options?.timeSlot && (
                             <div className="flex items-center gap-1 bg-[var(--gray-100)] rounded-full p-0.5">
                               <button
                                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
                                 disabled={item.quantity <= 1}
                                 className="w-6 h-6 rounded-full hover:bg-[var(--gray-200)] flex items-center justify-center text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-                                aria-label="Decrease quantity"
                               >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                   <line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
                               </button>
-                              <span className="text-sm font-medium text-[var(--gray-900)] min-w-[24px] text-center">
-                                {item.quantity}
-                              </span>
+                              <span className="text-sm font-medium text-[var(--gray-900)] min-w-[24px] text-center">{item.quantity}</span>
                               <button
                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
                                 className="w-6 h-6 rounded-full hover:bg-[var(--gray-200)] flex items-center justify-center text-[var(--gray-600)] transition-colors"
-                                aria-label="Increase quantity"
                               >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <line x1="12" y1="5" x2="12" y2="19"/>
-                                  <line x1="5" y1="12" x2="19" y2="12"/>
+                                  <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
                                 </svg>
                               </button>
                             </div>
                           )}
                           {item.options?.timeSlot && (
-                            <span className="text-xs text-[var(--gray-500)] bg-[var(--gray-100)] px-2 py-0.5 rounded-full">
-                              Qty: {item.quantity}
-                            </span>
+                            <span className="text-xs text-[var(--gray-500)] bg-[var(--gray-100)] px-2 py-0.5 rounded-full">Qty: {item.quantity}</span>
                           )}
-                          <span className="text-xs text-[var(--gray-400)]">
-                            ${(item.price / 100).toFixed(2)} each
-                          </span>
+                          <span className="text-xs text-[var(--gray-400)]">${(item.price / 100).toFixed(2)} each</span>
                           <button
                             onClick={() => removeItem(vendorId, item.id)}
                             className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[var(--error)] hover:text-red-700 hover:bg-red-50 transition-colors"
                             aria-label="Remove item"
-                            title="Remove"
                           >
                             <span aria-hidden="true">×</span>
                           </button>
                         </div>
                       </div>
-
-                      {/* Price */}
                       <div className="text-right flex-shrink-0">
-                        <p className="font-semibold text-[var(--gray-900)]">
-                          ${((item.price * item.quantity) / 100).toFixed(2)}
-                        </p>
+                        <p className="font-semibold text-[var(--gray-900)]">${((item.price * item.quantity) / 100).toFixed(2)}</p>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {/* Tip Selector */}
-                {canCheckout && !clientSecrets[vendorId] && (
+                {canCheckout && (
                   <div className="p-4 border-t border-[var(--gray-100)]">
                     <TipSelector
-                      subtotalCents={calculateVendorSubtotal(vendorId)}
+                      subtotalCents={subtotal}
                       onTipChange={(tipCents) => handleTipChange(vendorId, tipCents)}
-                      disabled={!!clientSecrets[vendorId]}
+                      disabled={isInitializing}
                       maxTotalCents={MAX_CHARGE_CENTS}
                     />
                   </div>
                 )}
 
                 {/* Order Notes */}
-                {canCheckout && !clientSecrets[vendorId] && (
+                {canCheckout && (
                   <div className="p-4 border-t border-[var(--gray-100)]">
                     <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
                       Order Notes <span className="text-[var(--gray-400)] font-normal">(optional)</span>
@@ -492,14 +416,12 @@ export default function CheckoutPage() {
                       maxLength={500}
                       className="w-full px-3 py-2 border border-[var(--gray-200)] rounded-[var(--radius-lg)] text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-400)] focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:border-transparent resize-none"
                     />
-                    <p className="text-xs text-[var(--gray-400)] mt-1 text-right">
-                      {(vendorNotes[vendorId] || '').length}/500
-                    </p>
+                    <p className="text-xs text-[var(--gray-400)] mt-1 text-right">{(vendorNotes[vendorId] || '').length}/500</p>
                   </div>
                 )}
 
                 {/* Pickup Date/Time */}
-                {hasPhysicalItems && canCheckout && !clientSecrets[vendorId] && (
+                {hasPhysicalItems && canCheckout && (
                   <div className="p-4 border-t border-[var(--gray-100)]">
                     <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
                       Pickup date &amp; time <span className="text-[var(--gray-400)] font-normal">(optional)</span>
@@ -510,13 +432,7 @@ export default function CheckoutPage() {
                         <input
                           type="date"
                           value={vendorPickupDate[vendorId] || ''}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setVendorPickupDate(prev => ({
-                              ...prev,
-                              [vendorId]: value
-                            }));
-                          }}
+                          onChange={(e) => setVendorPickupDate(prev => ({ ...prev, [vendorId]: e.target.value }))}
                           className="mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
                         />
                       </div>
@@ -525,13 +441,7 @@ export default function CheckoutPage() {
                         <input
                           type="time"
                           value={vendorPickupTime[vendorId] || ''}
-                          onChange={(event) => {
-                            const value = event.target.value;
-                            setVendorPickupTime(prev => ({
-                              ...prev,
-                              [vendorId]: value
-                            }));
-                          }}
+                          onChange={(e) => setVendorPickupTime(prev => ({ ...prev, [vendorId]: e.target.value }))}
                           className="mt-1 w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
                         />
                       </div>
@@ -542,90 +452,78 @@ export default function CheckoutPage() {
                   </div>
                 )}
 
-                {/* Vendor Footer */}
+                {/* Vendor Footer — Totals + Payment Form */}
                 <div className="p-4 bg-[var(--gray-50)] border-t border-[var(--gray-100)]">
                   {/* Totals Breakdown */}
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-[var(--gray-600)]">Subtotal</span>
-                      <span className="font-medium">
-                        ${(calculateVendorSubtotal(vendorId) / 100).toFixed(2)}
-                      </span>
+                      <span className="font-medium">${(subtotal / 100).toFixed(2)}</span>
                     </div>
                     {(vendorTips[vendorId] || 0) > 0 && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-[var(--gray-600)]">Tip</span>
-                        <span className="font-medium text-[var(--violet-600)]">
-                          ${((vendorTips[vendorId] || 0) / 100).toFixed(2)}
-                        </span>
+                        <span className="font-medium text-[var(--violet-600)]">${((vendorTips[vendorId] || 0) / 100).toFixed(2)}</span>
                       </div>
                     )}
                     {(vendorTaxes[vendorId] || 0) > 0 && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-[var(--gray-600)]">Tax</span>
-                        <span className="font-medium">
-                          ${((vendorTaxes[vendorId] || 0) / 100).toFixed(2)}
-                        </span>
+                        <span className="font-medium">${((vendorTaxes[vendorId] || 0) / 100).toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between pt-2 border-t border-[var(--gray-200)]">
                       <span className="font-medium text-[var(--gray-700)]">Total</span>
-                      <span className="text-xl font-bold text-[var(--gray-900)]">
-                        ${(total / 100).toFixed(2)}
-                      </span>
+                      <span className="text-xl font-bold text-[var(--gray-900)]">${(total / 100).toFixed(2)}</span>
                     </div>
                   </div>
 
                   {canCheckout ? (
-                    clientSecrets[vendorId] ? (
-                      stripePromise ? (
+                    stripeKeyMissing ? (
+                      <div className="text-center p-3 bg-[var(--amber-50)] border border-[var(--amber-200)] rounded-[var(--radius-lg)]">
+                        <p className="text-sm text-[var(--amber-700)]">Stripe key is missing. Checkout is temporarily unavailable.</p>
+                      </div>
+                    ) : isInitializing ? (
+                      /* Loading skeleton while PaymentIntent is being created */
+                      <div className="space-y-3 animate-pulse">
+                        <div className="h-10 bg-[var(--gray-200)] rounded-[var(--radius-lg)]" />
+                        <div className="h-10 bg-[var(--gray-200)] rounded-[var(--radius-lg)]" />
+                        <div className="h-12 bg-[var(--gray-200)] rounded-[var(--radius-lg)]" />
+                      </div>
+                    ) : hasSecret ? (
+                      isOverLimit ? (
+                        <p className="text-sm text-[var(--error)] text-center">Maximum charge is {MAX_CHARGE_LABEL}.</p>
+                      ) : (
                         <Elements
                           stripe={stripePromise}
                           options={{
                             clientSecret: clientSecrets[vendorId],
                             appearance: {
                               theme: 'stripe',
-                              variables: {
-                                colorPrimary: '#7C3AED',
-                                borderRadius: '8px',
-                              }
+                              variables: { colorPrimary: '#7C3AED', borderRadius: '8px' },
                             },
                             loader: 'auto',
-                            paymentMethodOrder: ['apple_pay', 'google_pay', 'card']
+                            paymentMethodOrder: ['apple_pay', 'google_pay', 'card'],
                           }}
                         >
                           <PaymentForm
                             vendorName={getVendorDisplayName(vendor, vendorId)}
                             totalCents={total}
                             tipCents={vendorTips[vendorId] || 0}
-                            onSuccess={(paymentIntent, accountData) => handlePaymentSuccess(vendorId, paymentIntent, accountData)}
-                            onError={(error) => handlePaymentError(vendorId, error)}
+                            onSuccess={(paymentIntent, accountData) =>
+                              handlePaymentSuccess(vendorId, paymentIntent, accountData)
+                            }
+                            onError={(err) => handlePaymentError(vendorId, err)}
                           />
                         </Elements>
-                      ) : (
-                        <div className="text-center p-3 bg-[var(--amber-50)] border border-[var(--amber-200)] rounded-[var(--radius-lg)]">
-                          <p className="text-sm text-[var(--amber-700)]">
-                            Stripe key is missing. Checkout is temporarily unavailable.
-                          </p>
-                        </div>
                       )
                     ) : (
+                      /* PaymentIntent failed to initialize — offer retry */
                       <button
-                        onClick={() => handleCheckout(vendorId)}
-                        disabled={loading || isOverLimit}
-                        className="w-full btn btn-gradient h-12 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => initializePaymentIntent(vendorId, vendorTips[vendorId] || 0)}
+                        className="w-full btn btn-gradient h-12 text-base"
                       >
-                        {isProcessing ? (
-                          <span className="flex items-center justify-center gap-2">
-                            <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
-                              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-                            </svg>
-                            Initializing...
-                          </span>
-                        ) : (
-                          `Continue to Payment`
-                        )}
+                        Retry Payment Setup
                       </button>
                     )
                   ) : (
@@ -634,11 +532,6 @@ export default function CheckoutPage() {
                         This vendor hasn&apos;t completed their payment setup yet.
                       </p>
                     </div>
-                  )}
-                  {isOverLimit && (
-                    <p className="text-sm text-[var(--error)] mt-3">
-                      Maximum charge is {MAX_CHARGE_LABEL}.
-                    </p>
                   )}
                 </div>
               </div>

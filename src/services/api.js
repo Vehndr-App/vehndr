@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 function getOrCreateCartToken() {
   if (typeof window === "undefined") return null;
