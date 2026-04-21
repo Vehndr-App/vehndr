@@ -8,6 +8,16 @@ import SmartImage from "../../../components/SmartImage";
 import Link from "next/link";
 import { getStorefrontUrl } from "../../../utils/storefrontLinks";
 
+function clampFocalPoint(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 50;
+  return Math.min(Math.max(numeric, 0), 100);
+}
+
+function getHeroObjectPosition(vendor) {
+  return `${clampFocalPoint(vendor?.heroFocalX)}% ${clampFocalPoint(vendor?.heroFocalY)}%`;
+}
+
 export default function StorefrontPage() {
   const { vendorId } = useParams();
   const [vendor, setVendor] = useState(null);
@@ -53,6 +63,7 @@ export default function StorefrontPage() {
   const productCount = products.filter(p => !p.isService).length;
   const serviceCount = products.filter(p => p.isService).length;
   const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
+  const heroObjectPosition = useMemo(() => getHeroObjectPosition(vendor), [vendor]);
 
   const handleShare = async (event) => {
     event?.stopPropagation();
@@ -109,6 +120,7 @@ export default function StorefrontPage() {
             src={vendor.heroImage}
             alt={vendor.name}
             className="absolute inset-0 w-full h-full object-cover"
+            style={{ objectPosition: heroObjectPosition }}
             fallbackClassName="bg-gradient-primary"
           />
         ) : (

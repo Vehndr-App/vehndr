@@ -29,6 +29,18 @@ import {
   validateFileType
 } from "../utils/imageResize";
 
+const DEFAULT_HERO_FOCAL_POINT = { x: 50, y: 50 };
+
+function clampFocalPoint(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 50;
+  return Math.min(Math.max(numeric, 0), 100);
+}
+
+function getHeroObjectPosition(focalX, focalY) {
+  return `${clampFocalPoint(focalX)}% ${clampFocalPoint(focalY)}%`;
+}
+
 export default function VendorProfile({ user, onSuccess }) {
   const slugPattern = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   const [vendor, setVendor] = useState(null);
@@ -45,6 +57,8 @@ export default function VendorProfile({ user, onSuccess }) {
     profileImageUrl: '',
     heroImage: null,              // Cover photo (business in action)
     heroImageUrl: '',
+    heroFocalX: DEFAULT_HERO_FOCAL_POINT.x,
+    heroFocalY: DEFAULT_HERO_FOCAL_POINT.y,
     galleryImages: [],           // New files to upload (File objects)
     existingGalleryImages: [],   // Existing images from server [{id, url}]
     categories: []
@@ -118,6 +132,8 @@ export default function VendorProfile({ user, onSuccess }) {
         profileImageUrl: vendorData.profileImage || '',
         heroImage: null,
         heroImageUrl: vendorData.heroImage || '',
+        heroFocalX: vendorData.heroFocalX ?? DEFAULT_HERO_FOCAL_POINT.x,
+        heroFocalY: vendorData.heroFocalY ?? DEFAULT_HERO_FOCAL_POINT.y,
         galleryImages: [],
         // Use galleryImagesData if available (has id+url), fallback to galleryImages URLs
         existingGalleryImages: vendorData.galleryImagesData ||
@@ -190,6 +206,8 @@ export default function VendorProfile({ user, onSuccess }) {
         // Hero image was removed (had one before, now empty, no new one selected)
         formDataToSend.append('remove_hero_image', 'true');
       }
+      formDataToSend.append('vendor[hero_focal_x]', clampFocalPoint(formData.heroFocalX).toString());
+      formDataToSend.append('vendor[hero_focal_y]', clampFocalPoint(formData.heroFocalY).toString());
 
       const newGalleryItems = galleryItems.filter((item) => !item.isExisting);
       const existingGalleryItems = galleryItems.filter((item) => item.isExisting);
@@ -240,6 +258,8 @@ export default function VendorProfile({ user, onSuccess }) {
         profileImageUrl: resultData.profileImage || prev.profileImageUrl,
         heroImage: null,
         heroImageUrl: resultData.heroImage || prev.heroImageUrl,
+        heroFocalX: resultData.heroFocalX ?? prev.heroFocalX,
+        heroFocalY: resultData.heroFocalY ?? prev.heroFocalY,
         galleryImages: [],
         slug: resultData.slug || prev.slug,
         existingGalleryImages: resultData.galleryImagesData ||
@@ -480,6 +500,7 @@ export default function VendorProfile({ user, onSuccess }) {
     const heroUrl = formData.heroImage
       ? URL.createObjectURL(formData.heroImage)
       : formData.heroImageUrl;
+    const heroObjectPosition = getHeroObjectPosition(formData.heroFocalX, formData.heroFocalY);
 
     // Filter out any null/undefined URLs
     const allGalleryImages = galleryItems.map((item) => item.url).filter((url) => url);
@@ -518,6 +539,7 @@ export default function VendorProfile({ user, onSuccess }) {
                 src={heroUrl} 
                 alt="Hero preview" 
                 className="w-full h-full object-cover"
+                style={{ objectPosition: heroObjectPosition }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
               {/* Edit overlay on hover */}
@@ -857,6 +879,7 @@ export default function VendorProfile({ user, onSuccess }) {
                   src={formData.heroImage ? URL.createObjectURL(formData.heroImage) : formData.heroImageUrl}
                   alt="Cover photo"
                   className="w-full h-full object-cover"
+                  style={{ objectPosition: getHeroObjectPosition(formData.heroFocalX, formData.heroFocalY) }}
                 />
               </div>
               <button
@@ -868,7 +891,13 @@ export default function VendorProfile({ user, onSuccess }) {
               </button>
               <button
                 type="button"
-                onClick={() => setFormData({ ...formData, heroImage: null, heroImageUrl: '' })}
+                onClick={() => setFormData({
+                  ...formData,
+                  heroImage: null,
+                  heroImageUrl: '',
+                  heroFocalX: DEFAULT_HERO_FOCAL_POINT.x,
+                  heroFocalY: DEFAULT_HERO_FOCAL_POINT.y
+                })}
                 className="absolute top-2 right-2 w-8 h-8 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -876,6 +905,21 @@ export default function VendorProfile({ user, onSuccess }) {
                 </svg>
               </button>
             </div>
+          )}
+
+          {(formData.heroImageUrl || formData.heroImage) && (
+            <FocalPointPicker
+              imageSrc={formData.heroImage ? URL.createObjectURL(formData.heroImage) : formData.heroImageUrl}
+              focalX={formData.heroFocalX}
+              focalY={formData.heroFocalY}
+              onChange={({ x, y }) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  heroFocalX: x,
+                  heroFocalY: y
+                }))
+              }
+            />
           )}
 
           {/* Upload Button */}
@@ -897,6 +941,11 @@ export default function VendorProfile({ user, onSuccess }) {
                   return;
                 }
                 setError(null);
+                setFormData((prev) => ({
+                  ...prev,
+                  heroFocalX: DEFAULT_HERO_FOCAL_POINT.x,
+                  heroFocalY: DEFAULT_HERO_FOCAL_POINT.y
+                }));
                 openHeroEditor(URL.createObjectURL(file), file.name);
               }
             }}
@@ -1199,6 +1248,98 @@ export default function VendorProfile({ user, onSuccess }) {
           );
         }}
       />
+    </div>
+  );
+}
+
+function FocalPointPicker({ imageSrc, focalX, focalY, onChange }) {
+  const pickerRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
+  const x = clampFocalPoint(focalX);
+  const y = clampFocalPoint(focalY);
+
+  const updateFocalPoint = (event) => {
+    const bounds = pickerRef.current?.getBoundingClientRect();
+    if (!bounds) return;
+
+    onChange?.({
+      x: clampFocalPoint(((event.clientX - bounds.left) / bounds.width) * 100),
+      y: clampFocalPoint(((event.clientY - bounds.top) / bounds.height) * 100)
+    });
+  };
+
+  const handlePointerDown = (event) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setDragging(true);
+    updateFocalPoint(event);
+  };
+
+  const handlePointerMove = (event) => {
+    if (!dragging) return;
+    updateFocalPoint(event);
+  };
+
+  const handlePointerEnd = () => {
+    setDragging(false);
+  };
+
+  const handleKeyDown = (event) => {
+    const step = event.shiftKey ? 10 : 2;
+    const updates = {
+      ArrowLeft: { x: clampFocalPoint(x - step), y },
+      ArrowRight: { x: clampFocalPoint(x + step), y },
+      ArrowUp: { x, y: clampFocalPoint(y - step) },
+      ArrowDown: { x, y: clampFocalPoint(y + step) }
+    };
+    const nextPoint = updates[event.key];
+    if (!nextPoint) return;
+
+    event.preventDefault();
+    onChange?.(nextPoint);
+  };
+
+  return (
+    <div className="mb-4 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-3">
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <span className="text-sm font-semibold text-[var(--foreground)]">Banner focal point</span>
+        <span className="text-xs text-[var(--gray-500)]">{Math.round(x)}% / {Math.round(y)}%</span>
+      </div>
+      <div
+        ref={pickerRef}
+        role="slider"
+        tabIndex={0}
+        aria-label="Banner focal point"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(x)}
+        aria-valuetext={`${Math.round(x)} percent from left, ${Math.round(y)} percent from top`}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onKeyDown={handleKeyDown}
+        className="relative aspect-[3/1] overflow-hidden rounded-lg bg-[var(--gray-200)] touch-none cursor-crosshair"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={imageSrc}
+          alt=""
+          draggable={false}
+          className="w-full h-full object-cover select-none"
+          style={{ objectPosition: getHeroObjectPosition(x, y) }}
+        />
+        <div className="absolute inset-0 bg-black/10 pointer-events-none" />
+        <div
+          className="absolute w-9 h-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-black/35 shadow-lg pointer-events-none"
+          style={{ left: `${x}%`, top: `${y}%` }}
+        >
+          <div className="absolute left-1/2 top-1/2 h-2 w-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white" />
+        </div>
+      </div>
+      <p className="mt-2 text-xs text-[var(--gray-500)]">
+        Tap or drag the marker to keep the main subject visible on the storefront banner.
+      </p>
     </div>
   );
 }
