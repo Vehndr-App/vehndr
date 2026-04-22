@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor-community/stripe": "^8.1.1",
+    "@capacitor-community/stripe-terminal": "^8.1.1",
     "@capacitor-firebase/messaging": "^8.0.1",
     "@capacitor/core": "^8.0.2",
     "@dnd-kit/core": "^6.3.1",

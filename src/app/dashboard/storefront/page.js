@@ -3,6 +3,8 @@
 import AuthGate from "../../../components/AuthGate";
 import { getCurrentUser } from "../../../services/auth";
 import { api } from "../../../services/api";
+import { isTerminalAvailable } from "../../../services/terminal";
+import TapToPayModal from "../../../components/TapToPayModal";
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   DndContext,
@@ -60,6 +62,9 @@ function POSSystem() {
   // Cash payment modal state
   const [showCashModal, setShowCashModal] = useState(false);
   const [cashReceived, setCashReceived] = useState('0');
+
+  // Tap to Pay modal state
+  const [showTapToPayModal, setShowTapToPayModal] = useState(false);
 
   // Checkout link modal state
   const [showCheckoutLinkModal, setShowCheckoutLinkModal] = useState(false);
@@ -225,10 +230,26 @@ function POSSystem() {
       return;
     }
 
+    // For Tap to Pay, open the terminal modal
+    if (paymentMethod === 'tap') {
+      setShowTapToPayModal(true);
+      return;
+    }
+
     // For cash, open cash modal directly (no tip screen)
     setCurrentTip(0);
     setCashReceived('0');
     setShowCashModal(true);
+  };
+
+  const handleTapToPaySuccess = (totalCents) => {
+    setShowTapToPayModal(false);
+    setLastOrderTotal(totalCents);
+    setShowSuccess(true);
+    setTimeout(() => {
+      setShowSuccess(false);
+      clearCart();
+    }, 2500);
   };
 
   // Generate checkout link for customer payment
@@ -662,6 +683,7 @@ function POSSystem() {
             onCharge={handleCharge}
             processing={processing}
             limitError={limitError}
+            showTapToPay={isTerminalAvailable()}
           />
         </div>
       </div>
@@ -672,6 +694,17 @@ function POSSystem() {
           product={editingProduct}
           onSave={handleSaveProduct}
           onClose={() => { setShowAddModal(false); setEditingProduct(null); }}
+        />
+      )}
+
+      {/* Tap to Pay Modal */}
+      {showTapToPayModal && (
+        <TapToPayModal
+          cart={cart}
+          totalCents={totalWithTax}
+          vendorId={vendor?.id}
+          onSuccess={handleTapToPaySuccess}
+          onCancel={() => setShowTapToPayModal(false)}
         />
       )}
 
@@ -1015,20 +1048,21 @@ function KeypadPanel({ value, onKeyPress, customItemName, setCustomItemName, onA
 }
 
 // Cart Panel Component
-function CartPanel({ 
-  cart, 
-  onUpdateQuantity, 
-  onRemove, 
-  onClear, 
-  cartTotal, 
-  taxAmount, 
-  totalWithTax, 
+function CartPanel({
+  cart,
+  onUpdateQuantity,
+  onRemove,
+  onClear,
+  cartTotal,
+  taxAmount,
+  totalWithTax,
   cartItemCount,
   paymentMethod,
   setPaymentMethod,
   onCharge,
   processing,
-  limitError
+  limitError,
+  showTapToPay,
 }) {
   return (
     <div className="flex-1 flex flex-col h-full">
@@ -1099,7 +1133,7 @@ function CartPanel({
           )}
 
           {/* Payment Methods */}
-          <div className="grid grid-cols-2 gap-2">
+          <div className={`grid gap-2 ${showTapToPay ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <PaymentMethodButton
               active={paymentMethod === 'card'}
               onClick={() => setPaymentMethod('card')}
@@ -1120,6 +1154,18 @@ function CartPanel({
               }
               label="Cash"
             />
+            {showTapToPay && (
+              <PaymentMethodButton
+                active={paymentMethod === 'tap'}
+                onClick={() => setPaymentMethod('tap')}
+                icon={
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 16.5C8.5 16.5 7 15 7 12s1.5-4.5 1.5-4.5M10.5 14.5C10.5 14.5 9.5 13.5 9.5 12s1-2.5 1-2.5M13 12a1 1 0 1 1-2 0 1 1 0 0 1 2 0zM15.5 14.5C15.5 14.5 16.5 13.5 16.5 12s-1-2.5-1-2.5M17.5 16.5C17.5 16.5 19 15 19 12s-1.5-4.5-1.5-4.5" />
+                  </svg>
+                }
+                label="Tap"
+              />
+            )}
           </div>
 
           {/* Charge Button */}
