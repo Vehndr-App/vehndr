@@ -1,13 +1,11 @@
 import { Plus_Jakarta_Sans, DM_Sans, Outfit } from "next/font/google";
+import dynamic from "next/dynamic";
 import "./globals.css";
 import Navbar from "../components/Navbar";
-import ImpersonationBanner from "../components/ImpersonationBanner";
-import BottomNav from "../components/BottomNav";
-import EventBestie from "../components/EventBestie";
-import Footer from "../components/Footer";
-import { CartProvider } from "../contexts/CartContext";
-import { AuthProvider } from "../contexts/AuthContext";
+import ClientShell from "../components/ClientShell";
 import { Analytics } from "@vercel/analytics/next"
+
+const Footer = dynamic(() => import("../components/Footer"));
 // Primary body font - Plus Jakarta Sans (clean, modern, highly legible)
 const jakarta = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700", "800"],
@@ -71,16 +69,11 @@ export default function RootLayout({ children }) {
       <body
         className={`${jakarta.variable} ${outfit.variable} ${dmSans.variable} antialiased`}
       >
-        <AuthProvider>
-          <CartProvider>
-            <ImpersonationBanner />
+        <ClientShell>
             <Navbar />
             <main className="min-h-screen pb-20">{children}</main>
             <Footer />
-            <BottomNav />
-            <EventBestie />
-          </CartProvider>
-        </AuthProvider>
+        </ClientShell>
         <Analytics />
       </body>
     </html>

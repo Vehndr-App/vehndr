@@ -5,8 +5,10 @@ import { useParams } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import ProductCard from "../../../components/ProductCard";
 import SmartImage from "../../../components/SmartImage";
+import ProposalModal from "../../../components/ProposalModal";
 import Link from "next/link";
 import { getStorefrontUrl } from "../../../utils/storefrontLinks";
+import { useAuth } from "../../../contexts/AuthContext";
 
 export default function StorefrontPage() {
   const { vendorId } = useParams();
@@ -17,6 +19,9 @@ export default function StorefrontPage() {
   const [showGallery, setShowGallery] = useState(false);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [shareStatus, setShareStatus] = useState(null);
+  const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [authWallOpen, setAuthWallOpen] = useState(false);
+  const { user } = useAuth();
 
   useEffect(() => {
     (async () => {
@@ -53,6 +58,11 @@ export default function StorefrontPage() {
   const productCount = products.filter(p => !p.isService).length;
   const serviceCount = products.filter(p => p.isService).length;
   const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
+
+  function handleBookClick() {
+    if (!user) { setAuthWallOpen(true); return; }
+    setInquiryOpen(true);
+  }
 
   const handleShare = async (event) => {
     event?.stopPropagation();
@@ -167,6 +177,13 @@ export default function StorefrontPage() {
                 </div>
                 
                 <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleBookClick}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-black rounded-full text-xs font-semibold hover:bg-white/90 transition-colors"
+                  >
+                    Request to Book
+                  </button>
                   <button
                     type="button"
                     onClick={handleShare}
@@ -323,6 +340,12 @@ export default function StorefrontPage() {
               </div>
             </div>
             <div className="flex gap-2">
+              <button
+                onClick={handleBookClick}
+                className="btn bg-black text-white h-9 px-4 text-sm rounded-full hover:opacity-90 transition-opacity"
+              >
+                Request to Book
+              </button>
               <button className="btn bg-gradient-primary text-white h-9 px-4 text-sm rounded-full">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
                   <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
@@ -333,6 +356,56 @@ export default function StorefrontPage() {
           </div>
         </div>
       </div>
+
+      {/* Proposal Modal */}
+      <ProposalModal
+        vendor={vendor}
+        isOpen={inquiryOpen}
+        onClose={() => setInquiryOpen(false)}
+      />
+
+      {/* Auth Wall */}
+      {authWallOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" onClick={() => setAuthWallOpen(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-sm bg-white rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 rounded-2xl mb-5 flex items-center justify-center" style={{ background: "var(--gradient-vendor)" }}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </div>
+            <h2 className="text-xl font-bold text-[var(--gray-900)] mb-2">Create an account to book</h2>
+            <p className="text-sm text-[var(--gray-500)] mb-7 leading-relaxed">
+              Sign up or log in to send a booking request to {vendor?.name ?? "this vendor"}.
+            </p>
+            <div className="flex flex-col gap-3 w-full">
+              <Link
+                href={`/register?redirect=/store/${vendorId}`}
+                className="w-full py-3 rounded-2xl text-white font-semibold text-sm text-center"
+                style={{ background: "var(--gradient-vendor)" }}
+              >
+                Create account
+              </Link>
+              <Link
+                href={`/login?redirect=/store/${vendorId}`}
+                className="w-full py-3 rounded-2xl border border-[var(--gray-200)] text-[var(--gray-700)] font-semibold text-sm text-center hover:bg-[var(--gray-50)] transition-colors"
+              >
+                Log in
+              </Link>
+            </div>
+            <button
+              onClick={() => setAuthWallOpen(false)}
+              className="mt-5 text-xs text-[var(--gray-400)] hover:text-[var(--gray-600)] transition-colors"
+            >
+              Maybe later
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Full Screen Gallery Modal */}
       {showGallery && allImages.length > 0 && (

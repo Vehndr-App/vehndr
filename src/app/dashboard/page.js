@@ -469,6 +469,7 @@ function DashboardInner() {
           <div className="card bg-white p-0 overflow-hidden">
             <MenuLink href="/dashboard/products" icon={<ItemsIcon />} label="Items & Services" />
             <MenuLink href="/dashboard/offerings" icon={<OfferingsMenuIcon />} label="Event Offerings" />
+            <MenuLink href="/dashboard/inquiries" icon={<RequestsMenuIcon />} label="Inquiries" />
             <MenuLink href="/dashboard/requests" icon={<RequestsMenuIcon />} label="Event Requests" />
             <MenuLink href="/dashboard/orders" icon={<OrdersMenuIcon />} label="Orders" badge={pendingOrders.length > 0 ? pendingOrders.length : null} />
             <MenuLink href="/dashboard/transactions" icon={<TransactionsMenuIcon />} label="Transactions" />
