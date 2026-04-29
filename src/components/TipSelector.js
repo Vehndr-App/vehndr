@@ -11,10 +11,10 @@ const TIP_PRESETS = [
   { percent: 25, label: '25%' },
 ];
 
-export default function TipSelector({ subtotalCents, onTipChange, disabled = false, maxTotalCents = null }) {
+export default function TipSelector({ subtotalCents, onTipChange, disabled = false, maxTotalCents = null, initialCents = 0 }) {
   const [selectedPreset, setSelectedPreset] = useState(null);
-  const [customAmount, setCustomAmount] = useState('');
-  const [isCustom, setIsCustom] = useState(false);
+  const [customAmount, setCustomAmount] = useState(initialCents > 0 ? (initialCents / 100).toFixed(2) : '');
+  const [isCustom, setIsCustom] = useState(initialCents > 0);
   const maxTipCents = maxTotalCents !== null ? Math.max(0, maxTotalCents - subtotalCents) : null;
 
   // Debounced custom tip cents — only fire onTipChange after the user stops typing.

@@ -16,6 +16,95 @@ function formatPrice(cents) {
   }).format(cents / 100);
 }
 
+function fmtExact(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+// ─── Fee helpers ──────────────────────────────────────────────────────────────
+const OF_TAX    = 0.0825;
+const OF_COORD  = 0.10;
+const OF_ST_PCT = 0.029;
+const OF_ST_FIX = 30;
+
+function ofTax(b)             { return Math.round(b * OF_TAX); }
+function ofCoord(b)           { return Math.round(b * OF_COORD); }
+function ofPreStripe(b, tip=0){ return b + ofTax(b) + ofCoord(b) + tip; }
+function ofGrossTotal(b, tip=0){ return Math.ceil((ofPreStripe(b, tip) + OF_ST_FIX) / (1 - OF_ST_PCT)); }
+function ofStripe(b, tip=0)   { return ofGrossTotal(b, tip) - ofPreStripe(b, tip); }
+
+function CostBreakdown({ offer, tipCents = 0 }) {
+  const base       = offer.totalPriceCents;
+  const tip        = tipCents ?? 0;
+  const coord      = ofCoord(base);
+  const tax        = ofTax(base);
+  const stripe     = ofStripe(base, tip);
+  const total      = ofGrossTotal(base, tip);
+  const hasDeposit = offer.depositCents > 0;
+  const depTotal   = hasDeposit ? ofGrossTotal(offer.depositCents) : 0;
+
+  return (
+    <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-[var(--violet-100)] flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-[11px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">What you&apos;ll pay at checkout</p>
+      </div>
+      <div className="px-4 py-3 space-y-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">Base service</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coord)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
+          <span className="font-semibold text-[var(--gray-800)]">~{fmtExact(stripe)}</span>
+        </div>
+        {tip > 0 ? (
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Tip (100% to vendor)</span>
+            <span className="font-semibold text-[var(--violet-700)]">{formatPrice(tip)}</span>
+          </div>
+        ) : (
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-500)]">Tip</span>
+            <span className="text-[var(--gray-400)] italic">Optional at checkout</span>
+          </div>
+        )}
+        <div className="pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+          <div className="flex justify-between">
+            <span className="text-xs font-bold text-[var(--violet-800)]">
+              {hasDeposit ? "Full booking total" : "Est. total due"}
+            </span>
+            <span className="text-sm font-bold text-[var(--gray-900)]">{fmtExact(total)}</span>
+          </div>
+          {hasDeposit && (
+            <div className="flex justify-between mt-1">
+              <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
+              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depTotal)}</span>
+            </div>
+          )}
+          {tip === 0 && (
+            <p className="text-[10px] text-[var(--violet-500)] mt-1.5">
+              + any tip you add · tip goes 100% to vendor
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -52,7 +141,7 @@ function getExpiryInfo(expiresAt) {
 
 // ─── Active Offer Card ────────────────────────────────────────────────────────
 
-function OfferCard({ offer, inquiryId, onAccept, onDecline, onRequestChanges, accepting, declining }) {
+function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, accepting, declining }) {
   const isExpired = offer.expiresAt && new Date(offer.expiresAt) < new Date();
   const isPending = offer.status === "pending" && !isExpired;
   const expiryInfo = getExpiryInfo(offer.expiresAt);
@@ -153,6 +242,13 @@ function OfferCard({ offer, inquiryId, onAccept, onDecline, onRequestChanges, ac
           </div>
         )}
       </div>
+
+      {/* Cost breakdown for pending cash offers */}
+      {isPending && offer.proposalType === "cash" && (
+        <div className="px-5 pb-4">
+          <CostBreakdown offer={offer} tipCents={tipCents} />
+        </div>
+      )}
 
       {/* Actions */}
       {isPending && (
@@ -485,6 +581,7 @@ export default function OfferPage() {
             )}
             <OfferCard
               offer={activeOffer}
+              tipCents={inquiry?.tipCents ?? 0}
               inquiryId={inquiryId}
               onAccept={handleAccept}
               onDecline={handleDecline}

@@ -51,6 +51,16 @@ function matchTab(inq, tab) {
   return true;
 }
 
+// ─── Fee helpers (mirrors MarketplacePricing) ─────────────────────────────────
+
+const FEE_TAX_RATE     = 0.0825;
+const FEE_COORD_RATE   = 0.10;
+const FEE_STRIPE_RATE  = 0.029;
+const FEE_STRIPE_FIXED = 30;
+
+function feePreStripe(base, tip = 0)  { return base + Math.round(base * FEE_TAX_RATE) + Math.round(base * FEE_COORD_RATE) + tip; }
+function feeGrossTotal(base, tip = 0) { return Math.ceil((feePreStripe(base, tip) + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE)); }
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(raw) {
@@ -91,7 +101,12 @@ function ProposalRow({ inquiry, index, onDelete }) {
   const needsAction = inquiry.status === "actions_needed";
   const isPaid    = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
 
-  const badgeLabel  = hasOffer ? `Offer · ${formatPrice(offer.totalPriceCents)}` : isBooked ? `Booked · ${formatPrice(offer?.totalPriceCents)}` : meta.label;
+  const tip = inquiry.tipCents ?? 0;
+  const badgeLabel  = hasOffer
+    ? `Offer · ${formatPrice(feeGrossTotal(offer.totalPriceCents ?? 0, tip))}`
+    : isBooked
+    ? `Booked · ${formatPrice(feeGrossTotal(offer?.totalPriceCents ?? 0, tip))}`
+    : meta.label;
   const badgeColor  = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
 
   return (

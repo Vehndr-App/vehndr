@@ -7,6 +7,90 @@ import AuthGate from "../../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../../services/inquiries";
 import { createOffer, updateOffer } from "../../../../../../services/offers";
 
+// ─── Fee helpers (mirrors MarketplacePricing) ─────────────────────────────────
+
+const MP_TAX    = 0.0825;
+const MP_COORD  = 0.10;
+const MP_VENDOR = 0.10;
+const MP_ST_PCT = 0.029;
+const MP_ST_FIX = 30; // cents
+
+function mp$fmt(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+function mpCalcTax(b)        { return Math.round(b * MP_TAX); }
+function mpCalcCoord(b)      { return Math.round(b * MP_COORD); }
+function mpCalcPreStripe(b)  { return b + mpCalcTax(b) + mpCalcCoord(b); }
+function mpCalcGrossTotal(b) { return Math.ceil((mpCalcPreStripe(b) + MP_ST_FIX) / (1 - MP_ST_PCT)); }
+function mpCalcStripe(b)     { return mpCalcGrossTotal(b) - mpCalcPreStripe(b); }
+function mpCalcPayout(b)     { return Math.round(b * (1 - MP_VENDOR)); }
+
+function VendorFeePreview({ totalPrice }) {
+  const base = Math.round(Number(totalPrice) * 100);
+  if (!base || base <= 0) return null;
+
+  const coord      = mpCalcCoord(base);
+  const tax        = mpCalcTax(base);
+  const stripe     = mpCalcStripe(base);
+  const custTotal  = mpCalcGrossTotal(base);
+  const payout     = mpCalcPayout(base);
+
+  return (
+    <div className="rounded-xl border border-[var(--gray-200)] overflow-hidden text-xs">
+      {/* Customer's view */}
+      <div className="px-3.5 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-200)]">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--gray-500)] mb-2">Customer pays</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-600)]">Your service price</span>
+            <span className="font-semibold text-[var(--gray-800)]">{mp$fmt(base)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+            <span className="text-[var(--gray-700)]">{mp$fmt(coord)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-500)]">Sales tax (8.25%)</span>
+            <span className="text-[var(--gray-700)]">{mp$fmt(tax)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-500)]">Processing fee (Stripe)</span>
+            <span className="text-[var(--gray-700)]">~{mp$fmt(stripe)}</span>
+          </div>
+          <div className="flex justify-between font-bold pt-1 border-t border-[var(--gray-200)]">
+            <span className="text-[var(--gray-800)]">Customer total</span>
+            <span className="text-[var(--gray-900)]">~{mp$fmt(custTotal)}</span>
+          </div>
+        </div>
+      </div>
+      {/* Vendor's payout */}
+      <div className="px-3.5 py-2.5">
+        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--gray-500)] mb-2">Your payout</p>
+        <div className="space-y-1">
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-600)]">Your service price</span>
+            <span className="font-semibold text-[var(--gray-800)]">{mp$fmt(base)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+            <span className="text-[var(--error,#ef4444)]">-{mp$fmt(Math.round(base * MP_VENDOR))}</span>
+          </div>
+          <div className="flex justify-between font-bold pt-1 border-t border-[var(--gray-200)]">
+            <span className="text-[var(--gray-800)]">Est. your payout</span>
+            <span className="text-[var(--mint-700,#15803d)]">{mp$fmt(payout)}</span>
+          </div>
+        </div>
+        <p className="text-[10px] text-[var(--gray-400)] mt-2 leading-relaxed">
+          Customer pays the Stripe processing fee. Tips go 100% to you.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 const PROPOSAL_TYPES = [
   {
     value: "cash",
@@ -231,6 +315,11 @@ function NewProposalInner() {
               />
             </div>
           </div>
+
+          {/* Fee breakdown — cash offers only */}
+          {proposalType === "cash" && totalPrice && Number(totalPrice) > 0 && (
+            <VendorFeePreview totalPrice={totalPrice} />
+          )}
 
           {/* Deposit toggle — only for Paid (cash) */}
           {proposalType === "cash" && (

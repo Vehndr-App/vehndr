@@ -46,6 +46,82 @@ const COORDINATOR_TYPES = [
   },
 ];
 
+// ─── Fee estimate helpers (mirrors MarketplacePricing) ───────────────────────
+
+const FEE_TAX_RATE     = 0.0825;
+const FEE_COORD_RATE   = 0.10;
+const FEE_STRIPE_RATE  = 0.029;
+const FEE_STRIPE_FIXED = 30; // cents
+
+function feeBase(dollars)              { return Math.round(Number(dollars) * 100); }
+function feeTax(base)                  { return Math.round(base * FEE_TAX_RATE); }
+function feeCoord(base)                { return Math.round(base * FEE_COORD_RATE); }
+function feePreStripe(base, tip = 0)   { return base + feeTax(base) + feeCoord(base) + tip; }
+function feeGrossTotal(base, tip = 0)  {
+  const pre = feePreStripe(base, tip);
+  return Math.ceil((pre + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE));
+}
+function feeStripeToCustomer(base, tip = 0) { return feeGrossTotal(base, tip) - feePreStripe(base, tip); }
+
+function formatFee(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+function FeeEstimateCard({ budgetDollars, tipDollars }) {
+  const base = feeBase(budgetDollars);
+  if (!base || base <= 0) return null;
+  const tip    = feeBase(tipDollars) || 0;
+  const coord  = feeCoord(base);
+  const tax    = feeTax(base);
+  const stripe = feeStripeToCustomer(base, tip);
+  const total  = feeGrossTotal(base, tip);
+
+  return (
+    <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
+      <div className="px-4 py-2.5 border-b border-[var(--violet-100)] flex items-center gap-2">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-[11px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated cost breakdown</p>
+      </div>
+      <div className="px-4 py-3 space-y-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">Your budget (base)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatFee(base)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatFee(coord)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatFee(tax)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
+          <span className="font-semibold text-[var(--gray-800)]">~{formatFee(stripe)}</span>
+        </div>
+        {tip > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Tip (100% to vendor)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatFee(tip)}</span>
+          </div>
+        )}
+        <div className="flex justify-between text-xs font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+          <span className="text-[var(--violet-900)]">Est. grand total</span>
+          <span className="text-[var(--violet-900)]">~{formatFee(total)}</span>
+        </div>
+        <p className="text-[10px] text-[var(--violet-500)] leading-relaxed pt-0.5">
+          Estimate based on your budget. The vendor sets the final price in their offer.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ─── Message builder ──────────────────────────────────────────────────────────
 
 function buildMessage(vendor, event, coordinatorType, fields) {
@@ -107,7 +183,7 @@ export default function NewProposalPage() {
   const [loading, setLoading] = useState(true);
 
   const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
-  const [fields, setFields] = useState({ serviceRequested: "", budget: "", vendingFee: "" });
+  const [fields, setFields] = useState({ serviceRequested: "", budget: "", vendingFee: "", tip: "" });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -225,6 +301,9 @@ export default function NewProposalPage() {
       };
       if (coordinatorType === "hiring_vendor" && fields.budget) {
         payload.budget_cents = Math.round(Number(fields.budget) * 100);
+      }
+      if (coordinatorType === "hiring_vendor" && fields.tip) {
+        payload.tip_cents = Math.round(Number(fields.tip) * 100);
       }
       if (coordinatorType === "charges_fees" && fields.vendingFee) {
         payload.vending_fee_cents = Math.round(Number(fields.vendingFee) * 100);
@@ -391,20 +470,43 @@ export default function NewProposalPage() {
 
           {/* Budget (hiring_vendor) */}
           {coordinatorType === "hiring_vendor" && (
-            <div>
-              <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Your budget (USD)</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-[var(--gray-400)] font-medium pointer-events-none">$</span>
-                <input
-                  type="number"
-                  min="1"
-                  value={fields.budget}
-                  onChange={(e) => setField("budget", e.target.value)}
-                  placeholder="500"
-                  className="input pl-8"
-                />
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Your budget (USD)</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-[var(--gray-400)] font-medium pointer-events-none">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={fields.budget}
+                    onChange={(e) => setField("budget", e.target.value)}
+                    placeholder="500"
+                    className="input pl-8"
+                  />
+                </div>
+                <p className="text-xs text-[var(--gray-400)] mt-1.5">Helps the vendor tailor their offer to your budget.</p>
               </div>
-              <p className="text-xs text-[var(--gray-400)] mt-1.5">Helps the vendor tailor their offer to your budget.</p>
+              {fields.budget && Number(fields.budget) > 0 && (
+                <FeeEstimateCard budgetDollars={fields.budget} tipDollars={fields.tip} />
+              )}
+              <div>
+                <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
+                  Add a tip <span className="text-[var(--gray-400)] font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-[var(--gray-400)] font-medium pointer-events-none">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={fields.tip}
+                    onChange={(e) => setField("tip", e.target.value)}
+                    placeholder="0"
+                    className="input pl-8"
+                  />
+                </div>
+                <p className="text-xs text-[var(--gray-400)] mt-1.5">100% goes directly to the vendor. Collected at checkout.</p>
+              </div>
             </div>
           )}
 
@@ -699,7 +801,10 @@ export default function NewProposalPage() {
         {/* Submit */}
         <button
           type="submit"
-          disabled={submitting || submitted || !message.trim()}
+          disabled={submitting || submitted || !message.trim() ||
+            !logistics.indoor_outdoor || !logistics.booth_size ||
+            !logistics.access_to_power || !logistics.access_to_water ||
+            !logistics.parking_available}
           className="w-full h-12 rounded-[var(--radius-lg)] text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           style={{
             background: submitted

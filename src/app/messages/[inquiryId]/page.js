@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
-import { listMessages, sendMessage } from "../../../services/inquiries";
+import { listMessages, sendMessage, updateInquiryTip } from "../../../services/inquiries";
 import { listOffers, createOffer, updateOffer, acceptOffer, declineOffer } from "../../../services/offers";
 import Link from "next/link";
 
@@ -73,6 +73,106 @@ function dollarsToC(val) {
   const n = parseFloat(val);
   return isNaN(n) ? null : Math.round(n * 100);
 }
+
+// ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
+const MP_TAX_RATE        = 0.0825;
+const MP_COORD_FEE       = 0.10;
+const MP_APP_FEE         = 0.20;
+const MP_STRIPE_RATE     = 0.029;
+const MP_STRIPE_FIXED    = 30;   // cents
+
+function mpTax(base)          { return Math.round(base * MP_TAX_RATE); }
+function mpCoordFee(base)     { return Math.round(base * MP_COORD_FEE); }
+function mpAppFee(base)       { return Math.round(base * MP_APP_FEE); }
+function mpPreStripeTotal(base, tipCents = 0) { return base + mpTax(base) + mpCoordFee(base) + tipCents; }
+function mpGrossTotal(base, tipCents = 0) {
+  const pre = mpPreStripeTotal(base, tipCents);
+  return Math.ceil((pre + MP_STRIPE_FIXED) / (1 - MP_STRIPE_RATE));
+}
+function mpStripeFeeToCustomer(base, tipCents = 0) {
+  return mpGrossTotal(base, tipCents) - mpPreStripeTotal(base, tipCents);
+}
+function mpVendorPayout(base) { return Math.round(base * 0.90); }
+function mpVendorPayoutWithTip(base, tipCents) { return Math.round(base * 0.90) + tipCents; }
+
+function fmtExact(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+// ─── Cost Preview Card — shown before buyer accepts a cash offer ───────────────
+
+function CostPreviewCard({ offer, tipCents = 0 }) {
+  const base      = offer.totalPriceCents;
+  const coordFee  = mpCoordFee(base);
+  const tax       = mpTax(base);
+  const stripe    = mpStripeFeeToCustomer(base, tipCents);
+  const estTotal  = mpGrossTotal(base, tipCents);
+
+  const hasDeposit = offer.depositCents > 0;
+  const depGross   = hasDeposit ? mpGrossTotal(offer.depositCents ?? 0) : 0;
+
+  return (
+    <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-2.5 border-b border-[var(--violet-100)] flex items-center gap-2">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-[11px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">
+          What you&apos;ll pay at checkout
+        </p>
+      </div>
+
+      <div className="px-4 py-3 space-y-1.5">
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-600)]">Base service</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-600)]">VEHNDR platform fee (10%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coordFee)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-600)]">Processing fee (Stripe)</span>
+          <span className="font-semibold text-[var(--gray-800)]">~{fmtExact(stripe)}</span>
+        </div>
+        <div className="flex justify-between text-xs">
+          <span className="text-[var(--violet-500)]">Tip</span>
+          {tipCents > 0
+            ? <span className="font-semibold text-[var(--violet-700)]">{formatPrice(tipCents)}</span>
+            : <span className="text-[var(--gray-400)] italic">Optional · set below</span>
+          }
+        </div>
+
+        <div className="pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+          <div className="flex justify-between">
+            <span className="text-xs font-bold text-[var(--violet-800)]">
+              {hasDeposit ? "Full booking total" : "Est. total due"}
+            </span>
+            <span className="text-sm font-bold text-[var(--gray-900)]">{fmtExact(estTotal)}</span>
+          </div>
+          {hasDeposit && (
+            <div className="flex justify-between mt-1">
+              <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
+              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depGross)}</span>
+            </div>
+          )}
+          <p className="text-[10px] text-[var(--violet-500)] mt-1.5">
+            Tip goes 100% to vendor
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
@@ -216,14 +316,39 @@ function StatusTimeline({ inquiry }) {
 
 // ─── Customer Action Panel ────────────────────────────────────────────────────
 
-function CustomerActionsPanel({ inquiry, inquiryId }) {
+function CustomerActionsPanel({ inquiry, inquiryId, tipCents = 0 }) {
   const status       = inquiry?.status;
   const offer        = inquiry?.activeOffer;
   const lastOffer    = inquiry?.lastOffer;
   const booking      = inquiry?.marketplaceBooking;
   const offerDeclined = !offer && lastOffer?.status === "declined";
 
+  const eventPassed  = inquiry?.event?.startDate && new Date(inquiry.event.startDate) < new Date();
+  const isCashPaid   = offer?.proposalType === "cash" && booking?.paymentStatus === "fully_paid";
+
   if (!status || ["submitted", "viewed", "discussed"].includes(status)) return null;
+
+  if (status === "completed") {
+    return (
+      <div className="bg-[var(--mint-50)] border-t border-[var(--mint-100)] px-5 py-3">
+        <div className="mx-auto max-w-2xl flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold text-[var(--mint-700)] tracking-widest uppercase">Event complete</p>
+            <p className="text-xs text-[var(--mint-600)] mt-0.5">Hope everything went great!</p>
+          </div>
+          {isCashPaid && (
+            <Link
+              href={`/messages/${inquiryId}/checkout`}
+              className="flex-shrink-0 px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-sm"
+              style={{ background: "var(--gradient-vendor)" }}
+            >
+              Leave a Tip
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (status === "expired") {
     const vendorId = inquiry?.vendor?.id;
@@ -245,6 +370,25 @@ function CustomerActionsPanel({ inquiry, inquiryId }) {
   }
 
   if (status === "scheduled") {
+    if (eventPassed && isCashPaid) {
+      return (
+        <div className="bg-[var(--mint-50)] border-t border-[var(--mint-100)] px-5 py-3">
+          <div className="mx-auto max-w-2xl flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-semibold text-[var(--mint-700)] tracking-widest uppercase">Event has passed</p>
+              <p className="text-xs text-[var(--mint-600)] mt-0.5">Enjoyed the experience? Leave a tip!</p>
+            </div>
+            <Link
+              href={`/messages/${inquiryId}/checkout`}
+              className="flex-shrink-0 px-4 py-2 rounded-xl text-white text-xs font-semibold shadow-sm"
+              style={{ background: "var(--gradient-vendor)" }}
+            >
+              Leave a Tip
+            </Link>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="bg-[var(--mint-50)] border-t border-[var(--mint-100)] px-5 py-3 flex items-center justify-between gap-3">
         <div>
@@ -303,6 +447,11 @@ function CustomerActionsPanel({ inquiry, inquiryId }) {
                 </span>
               )}
             </p>
+            {tipCents > 0 && offer.proposalType === "cash" && (
+              <p className="text-[10px] text-[var(--violet-600)] font-medium mt-0.5">
+                + {formatPrice(tipCents)} tip
+              </p>
+            )}
           </div>
           <Link
             href={`/messages/${inquiryId}/offer`}
@@ -323,7 +472,12 @@ function CustomerActionsPanel({ inquiry, inquiryId }) {
         <div className="bg-[var(--mint-50)] border-t border-[var(--mint-100)] px-5 py-3 flex items-center justify-between gap-3 mx-auto max-w-2xl">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--mint-700)]">Offer accepted</p>
-            <p className="text-base font-bold text-[var(--gray-900)] mt-0.5">{formatPrice(offer.totalPriceCents)}</p>
+            <p className="text-base font-bold text-[var(--gray-900)] mt-0.5">
+              {formatPrice(offer.totalPriceCents)}
+              {tipCents > 0 && (
+                <span className="text-xs font-normal text-[var(--violet-600)] ml-1.5">+ {formatPrice(tipCents)} tip</span>
+              )}
+            </p>
           </div>
           <Link
             href={`/messages/${inquiryId}/checkout`}
@@ -573,7 +727,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
 
 // ─── Vendor Offer Panel ───────────────────────────────────────────────────────
 
-function VendorOfferPanel({ inquiryId, offers, onOfferSaved }) {
+function VendorOfferPanel({ inquiryId, offers, onOfferSaved, tipCents = 0 }) {
   const [showForm, setShowForm] = useState(false);
   const activeOffer    = offers.find((o) => o.isActive);
   const previousOffers = offers.filter((o) => !o.isActive);
@@ -627,6 +781,23 @@ function VendorOfferPanel({ inquiryId, offers, onOfferSaved }) {
                 Deposit: {formatPrice(activeOffer.depositCents)} · <span className="capitalize">{activeOffer.depositType?.replace("_", "-")}</span>
               </p>
             )}
+            {tipCents > 0 && (
+              <div className="flex items-center justify-between mb-3 px-3 py-2 rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)]">
+                <span className="text-xs font-semibold text-[var(--violet-700)]">Customer tip</span>
+                <span className="text-xs font-bold text-[var(--violet-800)]">{formatPrice(tipCents)}</span>
+              </div>
+            )}
+            <div className="mb-3 px-3 py-2 rounded-xl bg-[var(--gray-50)] border border-[var(--gray-100)]">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] text-[var(--gray-400)] uppercase tracking-wider font-semibold">Est. your payout</span>
+                <span className="text-sm font-bold text-[var(--gray-800)]">
+                  ~{formatPrice(mpVendorPayoutWithTip(activeOffer.totalPriceCents, tipCents))}
+                </span>
+              </div>
+              <p className="text-[10px] text-[var(--gray-400)] mt-0.5">
+                90% of base + tip − Stripe fee (~{fmtExact(mpStripeFee(mpTotal(activeOffer.totalPriceCents) + tipCents))})
+              </p>
+            </div>
             {activeOffer.status === "pending" && (
               <button
                 onClick={() => setShowForm(true)}
@@ -708,13 +879,16 @@ function VendorOfferPanel({ inquiryId, offers, onOfferSaved }) {
 
 // ─── Customer Sidebar ────────────────────────────────────────────────────────
 
-function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffers }) {
+function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffers, tipCents = 0, onTipUpdate }) {
   const [accepting,          setAccepting]          = useState(false);
   const [declining,          setDeclining]          = useState(false);
   const [showRequestChanges, setShowRequestChanges] = useState(false);
   const [requestText,        setRequestText]        = useState("");
   const [sendingRequest,     setSendingRequest]     = useState(false);
   const [actionError,        setActionError]        = useState(null);
+  const [editingTip,         setEditingTip]         = useState(false);
+  const [tipInput,           setTipInput]           = useState('');
+  const [savingTip,          setSavingTip]          = useState(false);
 
   const activeOffer   = offers.find((o) => o.isActive);
   const lastOffer     = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
@@ -761,6 +935,18 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
       setActionError(err.message ?? "Failed to decline offer.");
     } finally {
       setDeclining(false);
+    }
+  }
+
+  async function handleSaveTip() {
+    setEditingTip(false);
+    const newCents = Math.round(parseFloat(tipInput || 0) * 100);
+    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    setSavingTip(true);
+    try {
+      await onTipUpdate?.(newCents);
+    } finally {
+      setSavingTip(false);
     }
   }
 
@@ -897,6 +1083,41 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     </span>
                   </div>
                 )}
+                {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
+                  <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                    <span className="text-xs text-[var(--gray-500)]">Tip</span>
+                    {editingTip ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-[var(--gray-400)]">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={tipInput}
+                          onChange={(e) => setTipInput(e.target.value)}
+                          onBlur={handleSaveTip}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
+                          autoFocus
+                          disabled={savingTip}
+                          className="w-20 text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingTip(true); setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : ''); }}
+                        disabled={savingTip}
+                        className="flex items-center gap-1 text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)] transition-colors disabled:opacity-50"
+                      >
+                        {savingTip ? (
+                          <span className="text-[var(--gray-400)] font-normal">Saving…</span>
+                        ) : tipCents > 0 ? (
+                          <>{formatPrice(tipCents)} <span className="text-[10px] text-[var(--gray-400)] font-normal">· edit</span></>
+                        ) : (
+                          <span className="italic font-normal text-[var(--violet-400)]">Add tip</span>
+                        )}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -936,6 +1157,11 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
               <p className="text-xs text-[var(--mint-600)] mt-0.5">Your vendor is booked</p>
             </div>
           </div>
+        )}
+
+        {/* Cost preview — helps coordinator understand total before accepting */}
+        {isPending && activeOffer?.proposalType === "cash" && (
+          <CostPreviewCard offer={activeOffer} tipCents={tipCents} />
         )}
 
         {/* Pending offer actions */}
@@ -1022,13 +1248,39 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0">
                   <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                 </svg>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-[10px] text-[var(--gray-400)]">Budget</p>
                   <p className="text-xs font-semibold text-[var(--gray-700)]">{formatPrice(inquiry.budgetCents)}</p>
-                  <div className="mt-1 space-y-0.5">
-                    <p className="text-[10px] text-[var(--gray-400)]">Tax (10%): -{formatPrice(Math.round(inquiry.budgetCents * 0.10))}</p>
-                    <p className="text-[10px] text-[var(--gray-400)]">VEHNDR fee (10%): -{formatPrice(Math.round(inquiry.budgetCents * 0.10))}</p>
-                    <p className="text-[10px] font-semibold text-[var(--gray-600)]">Net: {formatPrice(Math.round(inquiry.budgetCents * 0.80))}</p>
+                  <div className="mt-1.5 rounded-lg bg-[var(--violet-50)] border border-[var(--violet-100)] px-2.5 py-2 space-y-1">
+                    <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wide">Est. cost if vendor matches budget</p>
+                    <div className="space-y-0.5">
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--violet-600)]">Base</span>
+                        <span className="text-[var(--gray-700)]">{formatPrice(inquiry.budgetCents)}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
+                        <span className="text-[var(--gray-700)]">{formatPrice(mpCoordFee(inquiry.budgetCents))}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+                        <span className="text-[var(--gray-700)]">{formatPrice(mpTax(inquiry.budgetCents))}</span>
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-[var(--violet-600)]">Processing fee</span>
+                        <span className="text-[var(--gray-700)]">~{formatPrice(mpStripeFeeToCustomer(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
+                      </div>
+                      {(inquiry.tipCents ?? 0) > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[var(--violet-600)]">Tip (100% to vendor)</span>
+                          <span className="text-[var(--gray-700)]">{formatPrice(inquiry.tipCents)}</span>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex justify-between text-[10px] font-bold pt-1 border-t border-[var(--violet-200)]">
+                      <span className="text-[var(--violet-800)]">Est. grand total</span>
+                      <span className="text-[var(--violet-900)]">~{formatPrice(mpGrossTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1179,6 +1431,15 @@ export default function InquiryThreadPage() {
     setTab("messages");
   }
 
+  async function handleTipUpdate(newTipCents) {
+    try {
+      await updateInquiryTip(inquiryId, newTipCents);
+      setInquiry((prev) => prev ? { ...prev, tipCents: newTipCents } : prev);
+    } catch (err) {
+      console.error("Failed to update tip", err);
+    }
+  }
+
   if (!user) return null;
 
   const status            = inquiry?.status ?? "submitted";
@@ -1188,7 +1449,6 @@ export default function InquiryThreadPage() {
   const effectiveStatus   = !isVendor && offerDeclined ? "offer_declined" : status;
   const otherPartyName    = isVendor ? (inquiry?.customer?.name ?? "Customer") : (inquiry?.vendor?.name ?? "Vendor");
   const otherPartyInitial = otherPartyName.charAt(0).toUpperCase();
-  const backHref          = isVendor ? "/dashboard/inquiries" : "/messages";
 
   return (
     <div className="flex flex-col h-[100dvh]" style={{ background: "var(--background)" }}>
@@ -1199,7 +1459,7 @@ export default function InquiryThreadPage() {
 
           {/* Back */}
           <Link
-            href={backHref}
+            href={isVendor ? "/dashboard/inquiries" : "/messages"}
             className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-xl hover:bg-[var(--gray-100)] transition-colors"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1221,14 +1481,26 @@ export default function InquiryThreadPage() {
             {inquiry && <StatusBadge status={effectiveStatus} isVendor={isVendor} />}
           </div>
 
-          {/* Vendor accepted badge */}
-          {isVendor && activeOffer?.status === "accepted" && (
-            <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[var(--mint-50)] text-[var(--mint-700)] flex-shrink-0 tracking-wide">
-              Accepted ✓
-            </span>
+          {/* Vendor: accepted badge + view inquiry button */}
+          {isVendor && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {activeOffer?.status === "accepted" && (
+                <span className="hidden sm:inline-flex text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[var(--mint-50)] text-[var(--mint-700)] tracking-wide">
+                  Accepted ✓
+                </span>
+              )}
+              {inquiry && (
+                <Link
+                  href={`/dashboard/inquiries/${inquiryId}`}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-xl border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-600)] hover:bg-[var(--gray-50)] hover:border-[var(--violet-200)] hover:text-[var(--violet-600)] transition-all"
+                >
+                  View Inquiry
+                </Link>
+              )}
+            </div>
           )}
 
-          {/* Info link — jump to proposal detail */}
+          {/* Customer: info link — jump to proposal detail */}
           {!isVendor && inquiry && (
             <Link
               href={`/buyer-dashboard/proposals/${inquiryId}`}
@@ -1246,52 +1518,14 @@ export default function InquiryThreadPage() {
         {!isVendor && inquiry && <StatusTimeline inquiry={inquiry} />}
 
         {/* Vendor: tabs (mobile, shown on sm and below) */}
-        {isVendor && (
-          <div className="lg:hidden mx-auto max-w-5xl px-4 flex border-t border-[var(--gray-100)]">
-            {["messages", "offer"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`relative px-5 py-2.5 text-xs font-semibold uppercase tracking-widest transition-colors ${
-                  tab === t
-                    ? "text-[var(--violet-600)]"
-                    : "text-[var(--gray-400)] hover:text-[var(--gray-600)]"
-                }`}
-              >
-                {t === "offer" && offers.length === 0 ? "Send Offer" : t.charAt(0).toUpperCase() + t.slice(1)}
-                {t === "offer" && activeOffer?.status === "pending" && (
-                  <span className="absolute top-2 right-2.5 w-1.5 h-1.5 rounded-full bg-[var(--amber-400)]" />
-                )}
-                {tab === t && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full bg-[var(--violet-600)]" />
-                )}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── Body: two-column on desktop ── */}
       <div className="flex-1 flex overflow-hidden lg:flex-row">
 
-        {/* ── Vendor offer tab (mobile only) ── */}
-        {isVendor && tab === "offer" && (
-          <div className="flex-1 overflow-y-auto lg:hidden">
-            <div className="mx-auto max-w-2xl px-4 py-5">
-              {loading ? (
-                <div className="flex justify-center py-16">
-                  <div className="w-7 h-7 border-2 border-[var(--violet-400)] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : (
-                <VendorOfferPanel inquiryId={inquiryId} offers={offers} onOfferSaved={handleOfferSaved} />
-              )}
-            </div>
-          </div>
-        )}
-
         {/* ── Messages panel ── */}
         {(!isVendor || tab === "messages") && (
-          <div className={`flex flex-col flex-1 overflow-hidden ${isVendor ? "lg:flex-1" : ""}`}>
+          <div className="flex flex-col flex-1 overflow-hidden">
 
             {/* Message list */}
             <div className="flex-1 overflow-y-auto">
@@ -1378,7 +1612,7 @@ export default function InquiryThreadPage() {
             {/* Customer action panel — mobile only; desktop uses sidebar */}
             {!isVendor && inquiry && (
               <div className="lg:hidden">
-                <CustomerActionsPanel inquiry={inquiry} inquiryId={inquiryId} />
+                <CustomerActionsPanel inquiry={inquiry} inquiryId={inquiryId} tipCents={inquiry?.tipCents ?? 0} />
               </div>
             )}
 
@@ -1430,92 +1664,6 @@ export default function InquiryThreadPage() {
           </div>
         )}
 
-        {/* ── Vendor: desktop offer sidebar ── */}
-        {isVendor && (
-          <div className="hidden lg:flex flex-col w-80 xl:w-96 flex-shrink-0 border-l border-[var(--gray-100)] overflow-y-auto">
-            <div className="px-5 py-4 border-b border-[var(--gray-100)] flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-[var(--gray-900)]">
-                {activeOffer ? "Your Offer" : "Accept Proposal"}
-              </h3>
-              {activeOffer?.status === "pending" && (
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[var(--amber-50)] text-[var(--amber-700)]">
-                  Awaiting Response
-                </span>
-              )}
-              {activeOffer?.status === "accepted" && (
-                <span className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[var(--mint-50)] text-[var(--mint-700)]">
-                  Accepted ✓
-                </span>
-              )}
-            </div>
-            <div className="flex-1 p-5">
-              {loading ? (
-                <div className="flex justify-center py-8">
-                  <div className="w-6 h-6 border-2 border-[var(--violet-400)] border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : (
-                <>
-                  {/* New proposal context — shown when no offer sent yet */}
-                  {!activeOffer && inquiry && (
-                    <div className="mb-4 rounded-xl bg-[var(--amber-50)] border border-[var(--amber-100)] p-4 space-y-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--amber-700)]">
-                        New Proposal
-                      </p>
-                      {inquiry.event && (
-                        <div className="flex items-center gap-1.5">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--amber-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                          </svg>
-                          <span className="text-xs text-[var(--amber-800)] font-medium">{inquiry.event.name}</span>
-                        </div>
-                      )}
-                      {inquiry.budgetCents > 0 && (
-                        <div className="flex items-start gap-1.5">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--amber-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 flex-shrink-0">
-                            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                          </svg>
-                          <div>
-                            <span className="text-xs text-[var(--amber-800)]">Budget: <span className="font-semibold">{formatPrice(inquiry.budgetCents)}</span></span>
-                            <div className="mt-0.5 space-y-0.5">
-                              <p className="text-[10px] text-[var(--amber-700)]">Tax (10%): -{formatPrice(Math.round(inquiry.budgetCents * 0.10))}</p>
-                              <p className="text-[10px] text-[var(--amber-700)]">VEHNDR fee (10%): -{formatPrice(Math.round(inquiry.budgetCents * 0.10))}</p>
-                              <p className="text-[10px] font-semibold text-[var(--amber-900)]">Net: {formatPrice(Math.round(inquiry.budgetCents * 0.80))}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      {inquiry.initialMessage && (
-                        <p className="text-xs text-[var(--amber-700)] italic leading-relaxed border-t border-[var(--amber-200)] pt-2 mt-1">
-                          &ldquo;{inquiry.initialMessage}&rdquo;
-                        </p>
-                      )}
-                      <p className="text-[10px] text-[var(--amber-600)] pt-1">
-                        Send your quote below to respond.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Accepted offer — clear confirmation for vendor */}
-                  {activeOffer?.status === "accepted" && (
-                    <div className="mb-4 flex items-center gap-3 bg-[var(--mint-50)] rounded-xl px-4 py-3 border border-[var(--mint-100)]">
-                      <div className="w-8 h-8 rounded-full bg-[var(--mint-100)] flex items-center justify-center flex-shrink-0">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mint-700)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold text-[var(--mint-800)]">Customer accepted your offer!</p>
-                        <p className="text-xs text-[var(--mint-600)] mt-0.5">Awaiting payment from customer</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <VendorOfferPanel inquiryId={inquiryId} offers={offers} onOfferSaved={handleOfferSaved} />
-                </>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* ── Customer: desktop offer sidebar ── */}
         {!isVendor && (
@@ -1525,6 +1673,8 @@ export default function InquiryThreadPage() {
             offers={offers}
             fetchMessages={fetchMessages}
             fetchOffers={fetchOffers}
+            tipCents={inquiry?.tipCents ?? 0}
+            onTipUpdate={handleTipUpdate}
           />
         )}
       </div>

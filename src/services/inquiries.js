@@ -40,3 +40,10 @@ export async function deleteInquiry(id) {
 export async function declineInquiry(id) {
   return api(`/api/inquiries/${id}/decline`, { method: "PATCH" });
 }
+
+export async function updateInquiryTip(id, tipCents) {
+  return api(`/api/inquiries/${id}/tip`, {
+    method: "PATCH",
+    body: { tip_cents: tipCents },
+  });
+}

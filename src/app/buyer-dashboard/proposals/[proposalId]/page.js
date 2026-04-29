@@ -6,6 +6,14 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { getInquiry, deleteInquiry } from "../../../../services/inquiries";
 import { getEvent } from "../../../../services/events";
+import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
+import TipSelector from "../../../../components/TipSelector";
+import { loadStripe } from "@stripe/stripe-js";
+import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+
+const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
+  ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+  : null;
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,6 +58,17 @@ const BADGE = {
   mint:   "bg-[var(--mint-50)]   text-[var(--mint-700)]   ring-1 ring-[var(--mint-100)]",
   gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]   ring-1 ring-[var(--gray-200)]",
 };
+
+// ─── Fee estimate helpers (mirrors MarketplacePricing) ───────────────────────
+
+const FEE_TAX_RATE     = 0.0825;
+const FEE_COORD_RATE   = 0.10;
+const FEE_STRIPE_RATE  = 0.029;
+const FEE_STRIPE_FIXED = 30; // cents
+
+function feePreStripe(base, tip = 0)  { return base + Math.round(base * FEE_TAX_RATE) + Math.round(base * FEE_COORD_RATE) + tip; }
+function feeGrossTotal(base, tip = 0) { return Math.ceil((feePreStripe(base, tip) + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE)); }
+function feeStripe(base, tip = 0)     { return feeGrossTotal(base, tip) - feePreStripe(base, tip); }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -186,6 +205,189 @@ function Card({ title, icon, children, className = "" }) {
   );
 }
 
+// ─── Tip modal ───────────────────────────────────────────────────────────────
+
+function TipStripeForm({ amountCents, onSuccess, onError }) {
+  const stripe   = useStripe();
+  const elements = useElements();
+  const [ready, setReady]           = useState(false);
+  const [processing, setProcessing] = useState(false);
+  const [error, setError]           = useState(null);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!stripe || !elements || !ready || processing) return;
+    setProcessing(true);
+    setError(null);
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: window.location.href },
+      redirect: "if_required",
+    });
+    if (stripeError) {
+      setError(stripeError.message);
+      setProcessing(false);
+      if (onError) onError(stripeError);
+    } else if (paymentIntent?.status === "succeeded") {
+      onSuccess(paymentIntent.id);
+    } else {
+      setError("Payment did not complete. Please try again.");
+      setProcessing(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <PaymentElement onReady={() => setReady(true)} />
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <button
+        type="submit"
+        disabled={!ready || processing}
+        className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white font-semibold text-sm shadow disabled:opacity-40"
+      >
+        {!ready ? "Loading…" : processing ? "Processing…" : `Send ${formatPrice(amountCents)} tip`}
+      </button>
+    </form>
+  );
+}
+
+function TipModal({ booking, inquiry, onClose, onTipPaid }) {
+  const [phase, setPhase]           = useState("idle");
+  const [selectedTip, setSelectedTip] = useState(0);
+  const [intentData, setIntentData] = useState(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState(null);
+
+  const baseCents = inquiry?.activeOffer?.totalPriceCents ?? 0;
+
+  async function handleProceed() {
+    if (selectedTip <= 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await addMarketplaceTip({ bookingId: booking.id, tipCents: selectedTip });
+      setIntentData(data);
+      setPhase("paying");
+    } catch (err) {
+      setError(err.message ?? "Failed to start tip payment.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSuccess(paymentIntentId) {
+    try {
+      await confirmMarketplaceTip({
+        paymentIntentId: paymentIntentId ?? intentData?.paymentIntentId,
+        bookingId:       intentData?.bookingId,
+        tipCents:        intentData?.tipCents,
+      });
+      setPhase("done");
+      if (onTipPaid) onTipPaid();
+    } catch (err) {
+      setError(err.message ?? "Tip confirmed but not recorded. Contact support.");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--gray-100)]">
+          <p className="font-semibold text-[var(--gray-900)]">Tip {inquiry?.vendor?.name}</p>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[var(--gray-100)] text-[var(--gray-400)]"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-5">
+          {phase === "done" ? (
+            <div className="text-center py-4 space-y-3">
+              <div className="w-12 h-12 rounded-full bg-[var(--mint-500)] flex items-center justify-center mx-auto">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-[var(--gray-900)]">Tip sent!</p>
+                <p className="text-sm text-[var(--gray-500)] mt-0.5">
+                  {formatPrice(intentData?.tipCents)} goes directly to {inquiry?.vendor?.name}.
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="w-full py-3 rounded-xl border border-[var(--gray-200)] text-sm font-semibold text-[var(--gray-700)] hover:bg-[var(--gray-50)]"
+              >
+                Done
+              </button>
+            </div>
+          ) : phase === "paying" && intentData ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[var(--gray-700)]">Complete tip payment</p>
+                <p className="text-lg font-bold text-[var(--violet-600)]">{formatPrice(intentData.tipCents)}</p>
+              </div>
+              {intentData.devMode ? (
+                <DevTipForm amountCents={intentData.tipCents} onSuccess={() => handleSuccess(null)} />
+              ) : intentData.clientSecret ? (
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret: intentData.clientSecret,
+                    appearance: { theme: "stripe", variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit" } },
+                  }}
+                >
+                  <TipStripeForm
+                    amountCents={intentData.tipCents}
+                    onSuccess={(id) => handleSuccess(id)}
+                    onError={(err) => setError(err.message)}
+                  />
+                </Elements>
+              ) : null}
+              {error && <p className="text-sm text-red-600">{error}</p>}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-[var(--gray-400)]">100% goes directly to the vendor. Processed securely by Stripe.</p>
+              <TipSelector subtotalCents={baseCents} onTipChange={(c) => setSelectedTip(c)} />
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <button
+                onClick={handleProceed}
+                disabled={loading || selectedTip <= 0}
+                className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white font-semibold text-sm shadow disabled:opacity-40"
+              >
+                {loading ? "Preparing…" : selectedTip > 0 ? `Send ${formatPrice(selectedTip)} tip` : "Select a tip amount"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DevTipForm({ amountCents, onSuccess }) {
+  const [processing, setProcessing] = useState(false);
+  async function handle() {
+    setProcessing(true);
+    await new Promise((r) => setTimeout(r, 600));
+    onSuccess();
+  }
+  return (
+    <button
+      onClick={handle}
+      disabled={processing}
+      className="w-full py-3.5 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white font-semibold text-sm shadow disabled:opacity-40"
+    >
+      {processing ? "Simulating…" : `Simulate tip · ${formatPrice(amountCents)}`}
+    </button>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ProposalDetailPage() {
@@ -199,6 +401,14 @@ export default function ProposalDetailPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [showTipModal, setShowTipModal] = useState(false);
+
+  async function refreshInquiry() {
+    try {
+      const inq = await getInquiry(proposalId);
+      setInquiry(inq);
+    } catch { /* ignore */ }
+  }
 
   useEffect(() => {
     if (authLoading) return;
@@ -237,7 +447,7 @@ export default function ProposalDetailPage() {
     );
   }
 
-  const { vendor, status, activeOffer, initialMessage, createdAt, budgetCents } = inquiry;
+  const { vendor, status, activeOffer, initialMessage, createdAt, budgetCents, tipCents } = inquiry;
   const initial   = vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
   const color     = STATUS_COLOR[status] ?? "gray";
   const hasOffer  = activeOffer?.status === "pending";
@@ -245,6 +455,10 @@ export default function ProposalDetailPage() {
   const isExpired = status === "expired";
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
   const canDelete = !isPaid;
+  const booking          = inquiry.marketplaceBooking;
+  const isCash           = activeOffer?.proposalType === "cash";
+  const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);
+  const canTip           = isPaid && isCash && !!booking && !hasPostPaymentTip;
 
   async function handleDelete() {
     setDeleting(true);
@@ -341,7 +555,7 @@ export default function ProposalDetailPage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/>
               </svg>
-              Review Offer · {formatPrice(activeOffer.totalPriceCents)}
+              Review Offer · {formatPrice(activeOffer.totalPriceCents)}{(tipCents ?? 0) > 0 ? ` + ${formatPrice(tipCents)} tip` : ""}
             </Link>
           )}
 
@@ -364,6 +578,18 @@ export default function ProposalDetailPage() {
               </svg>
               Awaiting vendor payment
             </span>
+          )}
+
+          {canTip && (
+            <button
+              onClick={() => setShowTipModal(true)}
+              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border border-[var(--violet-200)] text-[var(--violet-700)] text-sm font-semibold hover:shadow-sm transition-all"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+              Tip Vendor
+            </button>
           )}
 
           {vendor?.id && (
@@ -491,7 +717,20 @@ export default function ProposalDetailPage() {
             {inquiry.scheduledAt && <InfoRow label="Booked" value={fmt(inquiry.scheduledAt)} />}
             {inquiry.completedAt && <InfoRow label="Completed" value={fmt(inquiry.completedAt)} />}
             {inquiry.expiredAt && <InfoRow label="Expired" value={fmt(inquiry.expiredAt)} />}
-            {budgetCents && <InfoRow label="Your budget" value={formatPrice(budgetCents)} />}
+            {budgetCents && (
+              <>
+                <InfoRow label="Your budget" value={formatPrice(budgetCents)} />
+                {(tipCents ?? 0) > 0 && (
+                  <InfoRow label="Tip (100% to vendor)" value={formatPrice(tipCents)} />
+                )}
+                <InfoRow label="Est. grand total">
+                  <span className="font-semibold text-[var(--violet-700)]">~{formatPrice(feeGrossTotal(budgetCents, tipCents ?? 0))}</span>
+                  <span className="block text-[10px] text-[var(--gray-400)] font-normal mt-0.5">
+                    Includes 10% fee, 8.25% tax, processing{(tipCents ?? 0) > 0 ? ", and tip" : ""}
+                  </span>
+                </InfoRow>
+              </>
+            )}
           </div>
         </Card>
 
@@ -506,9 +745,14 @@ export default function ProposalDetailPage() {
             }
           >
             <div className="divide-y divide-[var(--gray-50)]">
-              <InfoRow label="Total price" >
+              <InfoRow label="Offer price">
                 <span className="font-bold text-[var(--gray-900)] text-base">{formatPrice(activeOffer.totalPriceCents)}</span>
               </InfoRow>
+              {(tipCents ?? 0) > 0 && (
+                <InfoRow label="Committed tip">
+                  <span className="font-medium text-[var(--violet-700)]">{formatPrice(tipCents)}</span>
+                </InfoRow>
+              )}
               {activeOffer.depositCents && (
                 <InfoRow label="Deposit">
                   {formatPrice(activeOffer.depositCents)}
@@ -545,6 +789,32 @@ export default function ProposalDetailPage() {
                 </Link>
               </div>
             )}
+          </Card>
+        )}
+
+        {/* Tips card */}
+        {isPaid && (booking?.tipCents ?? 0) > 0 && (
+          <Card
+            title="Tips"
+            icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+            }
+          >
+            <div className="divide-y divide-[var(--gray-50)]">
+              {(tipCents ?? 0) > 0 && (
+                <InfoRow label="Paid with booking" value={formatPrice(tipCents)} />
+              )}
+              {(booking.tipCents - (tipCents ?? 0)) > 0 && (
+                <InfoRow label="Additional tips sent">
+                  <span className="font-semibold text-[var(--violet-700)]">{formatPrice(booking.tipCents - (tipCents ?? 0))}</span>
+                </InfoRow>
+              )}
+              <InfoRow label="Total sent to vendor">
+                <span className="font-bold text-[var(--gray-900)]">{formatPrice(booking.tipCents)}</span>
+              </InfoRow>
+            </div>
           </Card>
         )}
 
@@ -650,6 +920,16 @@ export default function ProposalDetailPage() {
         >
           <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{initialMessage}</p>
         </Card>
+      )}
+
+      {/* ── Tip modal ── */}
+      {showTipModal && (
+        <TipModal
+          booking={booking}
+          inquiry={inquiry}
+          onClose={() => setShowTipModal(false)}
+          onTipPaid={refreshInquiry}
+        />
       )}
     </div>
   );

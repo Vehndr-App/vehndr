@@ -167,9 +167,11 @@ function VendorPayInner() {
       .then((inq) => {
         setInquiry(inq);
         const offer = inq?.activeOffer;
-        // Guard: only for vendor-pays offers that are accepted + unpaid
+        const booking = inq?.marketplaceBooking;
         if (offer?.proposalType !== "product" || offer?.status !== "accepted") {
           setError("No vendor payment required for this inquiry.");
+        } else if (booking?.paymentStatus === "fully_paid") {
+          setConfirmed(true);
         }
       })
       .catch(() => setError("Failed to load inquiry."))

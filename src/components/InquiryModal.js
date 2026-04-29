@@ -75,6 +75,67 @@ const YES_NO_NA = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" },
 const YES_NO_PAID = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, { value: "paid", label: "Paid Parking" }];
 const INDOOR_OUTDOOR = [{ value: "indoor", label: "Indoor" }, { value: "outdoor", label: "Outdoor" }];
 
+// ─── Fee estimate helpers (mirrors MarketplacePricing) ───────────────────────
+
+const FEE_TAX_RATE     = 0.0825;
+const FEE_COORD_RATE   = 0.10;
+const FEE_STRIPE_RATE  = 0.029;
+const FEE_STRIPE_FIXED = 30; // cents
+
+function _feeBase(dollars)   { return Math.round(Number(dollars) * 100); }
+function _feeTax(base)        { return Math.round(base * FEE_TAX_RATE); }
+function _feeCoord(base)      { return Math.round(base * FEE_COORD_RATE); }
+function _feePreStripe(base)  { return base + _feeTax(base) + _feeCoord(base); }
+function _feeGrossTotal(base) {
+  const pre = _feePreStripe(base);
+  return Math.ceil((pre + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE));
+}
+function _feeStripe(base) { return _feeGrossTotal(base) - _feePreStripe(base); }
+
+function _fmt(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency", currency: "USD",
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+function BudgetFeeEstimate({ budgetDollars }) {
+  const base = _feeBase(budgetDollars);
+  if (!base || base <= 0) return null;
+  return (
+    <div className="rounded-[var(--radius-lg)] bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
+      <div className="px-3.5 py-2 border-b border-[var(--violet-100)] flex items-center gap-1.5">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated cost if vendor matches your budget</p>
+      </div>
+      <div className="px-3.5 py-2.5 space-y-1">
+        <div className="flex justify-between text-[11px]">
+          <span className="text-[var(--violet-600)]">Base (your budget)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{_fmt(base)}</span>
+        </div>
+        <div className="flex justify-between text-[11px]">
+          <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{_fmt(_feeCoord(base))}</span>
+        </div>
+        <div className="flex justify-between text-[11px]">
+          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{_fmt(_feeTax(base))}</span>
+        </div>
+        <div className="flex justify-between text-[11px]">
+          <span className="text-[var(--violet-600)]">Processing fee (Stripe)</span>
+          <span className="font-semibold text-[var(--gray-800)]">{_fmt(_feeStripe(base))}</span>
+        </div>
+        <div className="flex justify-between text-[11px] font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+          <span className="text-[var(--violet-900)]">Est. total you&apos;d pay</span>
+          <span className="text-[var(--violet-900)]">{_fmt(_feeGrossTotal(base))}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Message builder ──────────────────────────────────────────────────────────
 
 function buildMessage(vendor, coordinatorType, fields) {
@@ -168,6 +229,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
     guestCount: "",
     serviceRequested: "",
     budget: "",
+    tip: "",
     vendingFee: "",
     eventLink: "",
     // venue logistics
@@ -210,7 +272,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
       setCoordinatorType(defaultCoordinatorType);
       setFields({
         eventName: "", eventDate: "", location: "", guestCount: "",
-        serviceRequested: "", budget: "", vendingFee: "", eventLink: "",
+        serviceRequested: "", budget: "", tip: "", vendingFee: "", eventLink: "",
         boothWidth: "", boothDepth: "", canopyAllowed: null, indoorOutdoor: null,
         attendees: "", accessToPower: null, accessToWater: null, wifiAvailability: null,
         vendorLoadIn: "", vendorLoadOut: "", eventHours: "",
@@ -265,6 +327,9 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
 
       if (coordinatorType === "hiring_vendor" && fields.budget) {
         payload.budget_cents = Math.round(Number(fields.budget) * 100);
+      }
+      if (coordinatorType === "hiring_vendor" && fields.tip) {
+        payload.tip_cents = Math.round(Number(fields.tip) * 100);
       }
       if (coordinatorType === "charges_fees" && fields.vendingFee) {
         payload.vending_fee_cents = Math.round(Number(fields.vendingFee) * 100);
@@ -503,24 +568,50 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
               {coordinatorType === "hiring_vendor" && (
                 <section className="space-y-3">
                   <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Budget</p>
+                  <div className="space-y-2.5">
+                    <div>
+                      <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
+                        Your budget (USD) <span className="text-[var(--coral-500)]">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-[var(--gray-400)] font-medium pointer-events-none">$</span>
+                        <input
+                          type="number"
+                          required
+                          min="1"
+                          value={fields.budget}
+                          onChange={(e) => set("budget", e.target.value)}
+                          placeholder="500"
+                          className="input pl-8"
+                        />
+                      </div>
+                      <p className="text-xs text-[var(--gray-400)] mt-1.5">
+                        Helps the vendor tailor their offer to your budget.
+                      </p>
+                    </div>
+                    {fields.budget && Number(fields.budget) > 0 && (
+                      <BudgetFeeEstimate budgetDollars={fields.budget} />
+                    )}
+                  </div>
+
                   <div>
                     <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-                      Your budget (USD) <span className="text-[var(--coral-500)]">*</span>
+                      Add a tip <span className="text-xs font-normal text-[var(--gray-400)]">(optional)</span>
                     </label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-[var(--gray-400)] font-medium pointer-events-none">$</span>
                       <input
                         type="number"
-                        required
-                        min="1"
-                        value={fields.budget}
-                        onChange={(e) => set("budget", e.target.value)}
-                        placeholder="500"
+                        min="0"
+                        step="0.01"
+                        value={fields.tip}
+                        onChange={(e) => set("tip", e.target.value)}
+                        placeholder="0"
                         className="input pl-8"
                       />
                     </div>
                     <p className="text-xs text-[var(--gray-400)] mt-1.5">
-                      Helps the vendor tailor their offer to your budget.
+                      100% goes directly to the vendor. Collected at checkout.
                     </p>
                   </div>
                 </section>
