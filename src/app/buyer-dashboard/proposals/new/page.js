@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getVendorProfile } from "../../../../services/vendors";
@@ -172,7 +172,7 @@ function buildMessage(vendor, event, coordinatorType, fields) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function NewProposalPage() {
+function NewProposalPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const vendorId = searchParams.get("vendor_id");
@@ -841,5 +841,13 @@ export default function NewProposalPage() {
         </p>
       </form>
     </div>
+  );
+}
+
+export default function NewProposalPage() {
+  return (
+    <Suspense>
+      <NewProposalPageInner />
+    </Suspense>
   );
 }
