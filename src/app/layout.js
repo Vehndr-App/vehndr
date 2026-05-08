@@ -36,6 +36,7 @@ const metadataDescription =
   "Discover and book the best vendors for your events. Browse storefronts, add to cart, and checkout seamlessly.";
 
 export const metadata = {
+  metadataBase: new URL("https://www.vehndr.com"),
   title: metadataTitle,
   description: metadataDescription,
   openGraph: {
