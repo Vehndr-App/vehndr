@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
 import { getInquiry, declineInquiry } from "../../../../services/inquiries";
-import { listOffers, createOffer } from "../../../../services/offers";
+import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -137,13 +137,14 @@ function StatusPipeline({ status }) {
 
 function HeroCard({
   customer, event, status,
-  coordinatorType, budgetCents, vendingFeeCents, submittedAt,
+  coordinatorType, budgetCents, vendingFeeCents, tipCents, submittedAt,
   fresh, isExpired, isVendorDeclined, isConfirmed,
-  offerAccepted, offerDeclined, canRevise,
+  offerAccepted, offerDeclined, canRevise, canWithdraw,
   cashPending, needsVendorPay, vendorPaid, freeConfirmed,
   needsProposal, primaryHref, primaryLabel,
   confirmDecline, setConfirmDecline,
   declining, handleDecline, accepting, handleQuickAccept,
+  withdrawing, handleWithdrawOffer,
   id,
 }) {
   const statusLabel = isVendorDeclined ? "Declined"
@@ -205,10 +206,42 @@ function HeroCard({
 
       <Divider />
 
+      {/* Budget / fee row */}
+      {(budgetCents > 0 || vendingFeeCents > 0 || tipCents > 0 || coordinatorType === "no_fees") && (
+        <div className="px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5">
+          {coordinatorType === "hiring_vendor" && budgetCents > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Their Budget</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(budgetCents)}</span>
+            </div>
+          )}
+          {coordinatorType === "charges_fees" && vendingFeeCents > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Vending Fee</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(vendingFeeCents)}</span>
+            </div>
+          )}
+          {coordinatorType === "no_fees" && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Cost</span>
+              <span className="text-[13px] font-semibold text-[var(--mint-700)]">Free to join</span>
+            </div>
+          )}
+          {tipCents > 0 && (
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Tip</span>
+              <span className="text-[15px] font-bold text-[var(--violet-600)]">+{fmt$(tipCents)}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <Divider />
+
       {/* Action bar */}
       <div className="px-6 py-4 flex flex-wrap items-center gap-2">
-        {/* Primary action */}
-        {primaryHref && !offerAccepted && (
+        {/* Send Offer / Accept / Decline — only when no offer is pending */}
+        {needsProposal && !isExpired && !isVendorDeclined && primaryHref && (
           <Link href={primaryHref}
             className="h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-1.5"
             style={{ background: "linear-gradient(to right, var(--violet-600), var(--magenta-600))", boxShadow: "0 2px 10px rgba(139,92,246,0.25)" }}>
@@ -220,16 +253,61 @@ function HeroCard({
           </Link>
         )}
 
-        {/* Open thread */}
+        {needsProposal && !isExpired && !isVendorDeclined && !offerDeclined && (
+          <button type="button" onClick={handleQuickAccept} disabled={accepting}
+            className="h-9 px-4 rounded-xl border border-[var(--mint-300)] text-[13px] font-semibold text-[var(--mint-700)] bg-[var(--mint-50)] hover:bg-[var(--mint-100)] disabled:opacity-50 transition-colors flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            {accepting ? "Accepting…" : "Accept"}
+          </button>
+        )}
+
+        {needsProposal && !isExpired && !isVendorDeclined && !offerAccepted && (
+          confirmDecline ? (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[var(--gray-400)]">Sure?</span>
+              <button type="button" onClick={handleDecline} disabled={declining}
+                className="h-9 px-3 rounded-xl text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors">
+                {declining ? "…" : "Yes, decline"}
+              </button>
+              <button type="button" onClick={() => setConfirmDecline(false)}
+                className="h-9 px-3 rounded-xl border border-[var(--gray-200)] text-[13px] font-semibold text-[var(--gray-600)] hover:bg-[var(--gray-50)] transition-colors">
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button type="button" onClick={() => setConfirmDecline(true)}
+              className="h-9 px-4 rounded-xl text-[13px] font-semibold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+              Decline
+            </button>
+          )
+        )}
+
+        {/* Withdraw Offer — only when offer is pending (sent but not yet accepted) */}
+        {canWithdraw && (
+          <button type="button" onClick={handleWithdrawOffer} disabled={withdrawing}
+            className="h-9 px-4 rounded-xl text-[13px] font-semibold text-[var(--gray-600)] border border-[var(--gray-200)] bg-white hover:bg-[var(--gray-50)] disabled:opacity-50 transition-colors flex items-center gap-1.5">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/>
+            </svg>
+            {withdrawing ? "Withdrawing…" : "Withdraw Offer"}
+          </button>
+        )}
+
+        {/* Message */}
         <Link href={`/messages/${id}`}
           className="h-9 px-4 rounded-xl border border-[var(--gray-200)] text-[13px] font-semibold text-[var(--gray-700)] flex items-center gap-1.5 hover:bg-[var(--gray-50)] transition-colors">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
-          Open Thread
+          Message
         </Link>
 
-        {/* Vendor payment */}
+        {/* Status badges */}
         {needsVendorPay && (
           <Link href={`/dashboard/inquiries/${id}/pay`}
             className="h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-1.5"
@@ -237,8 +315,6 @@ function HeroCard({
             Pay to Participate
           </Link>
         )}
-
-        {/* Awaiting */}
         {cashPending && (
           <span className="h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)]">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -247,7 +323,6 @@ function HeroCard({
             Awaiting payment
           </span>
         )}
-
         {(vendorPaid || freeConfirmed) && (
           <span className="h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)]">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -255,34 +330,6 @@ function HeroCard({
             </svg>
             {freeConfirmed ? "Confirmed" : "Booking Confirmed"}
           </span>
-        )}
-
-        {/* Quick accept + decline — only when no offer yet */}
-        {needsProposal && !offerDeclined && !isExpired && !isVendorDeclined && (
-          <div className="flex items-center gap-2 ml-auto">
-            <button type="button" onClick={handleQuickAccept} disabled={accepting}
-              className="h-9 px-3 rounded-xl border border-[var(--gray-200)] text-[13px] font-semibold text-[var(--gray-600)] hover:bg-[var(--gray-50)] disabled:opacity-50 transition-colors">
-              {accepting ? "Accepting…" : "Quick Accept"}
-            </button>
-            {confirmDecline ? (
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-[var(--gray-400)]">Sure?</span>
-                <button type="button" onClick={handleDecline} disabled={declining}
-                  className="h-9 px-3 rounded-xl text-[13px] font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 transition-colors">
-                  {declining ? "…" : "Yes, decline"}
-                </button>
-                <button type="button" onClick={() => setConfirmDecline(false)}
-                  className="h-9 px-3 rounded-xl border border-[var(--gray-200)] text-[13px] font-semibold text-[var(--gray-600)] hover:bg-[var(--gray-50)] transition-colors">
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button type="button" onClick={() => setConfirmDecline(true)}
-                className="h-9 px-3 rounded-xl text-[13px] font-semibold text-red-500 border border-red-100 hover:bg-red-50 transition-colors">
-                Decline
-              </button>
-            )}
-          </div>
         )}
       </div>
     </Card>
@@ -724,6 +771,7 @@ function VendorInquiryDetailInner() {
   const [declining,      setDeclining]      = useState(false);
   const [confirmDecline, setConfirmDecline] = useState(false);
   const [accepting,      setAccepting]      = useState(false);
+  const [withdrawing,    setWithdrawing]    = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -742,6 +790,16 @@ function VendorInquiryDetailInner() {
       setConfirmDecline(false);
     } catch (e) { alert(e.message || "Failed to decline inquiry."); }
     finally { setDeclining(false); }
+  }
+
+  async function handleWithdrawOffer() {
+    setWithdrawing(true);
+    try {
+      await withdrawOffer(id, inquiry?.activeOffer?.id);
+      const [inq, list] = await Promise.all([getInquiry(id), listOffers(id)]);
+      setInquiry(inq); setOffers(Array.isArray(list) ? list : []);
+    } catch (e) { alert(e.message || "Failed to withdraw offer."); }
+    finally { setWithdrawing(false); }
   }
 
   async function handleQuickAccept() {
@@ -786,6 +844,7 @@ function VendorInquiryDetailInner() {
   const needsVendorPay = offerAccepted && activeOffer?.proposalType === "product" && status !== "scheduled";
   const cashPending    = offerAccepted && activeOffer?.proposalType === "cash" && !isConfirmed;
   const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both";
+  const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined;
 
   const primaryHref = (offerDeclined || canRevise || (needsProposal && !offerDeclined && !isExpired && !isVendorDeclined))
     ? `/dashboard/inquiries/${id}/offer/new` : null;
@@ -819,7 +878,7 @@ function VendorInquiryDetailInner() {
         <HeroCard
           customer={customer} event={event} status={status}
           coordinatorType={coordinatorType} budgetCents={budgetCents}
-          vendingFeeCents={vendingFeeCents} submittedAt={submittedAt}
+          vendingFeeCents={vendingFeeCents} tipCents={proposalTipCents ?? 0} submittedAt={submittedAt}
           fresh={fresh} isExpired={isExpired} isVendorDeclined={isVendorDeclined}
           isConfirmed={isConfirmed} offerAccepted={offerAccepted}
           offerDeclined={offerDeclined} canRevise={canRevise}
@@ -829,6 +888,7 @@ function VendorInquiryDetailInner() {
           confirmDecline={confirmDecline} setConfirmDecline={setConfirmDecline}
           declining={declining} handleDecline={handleDecline}
           accepting={accepting} handleQuickAccept={handleQuickAccept}
+          canWithdraw={canWithdraw} withdrawing={withdrawing} handleWithdrawOffer={handleWithdrawOffer}
           id={id}
         />
 

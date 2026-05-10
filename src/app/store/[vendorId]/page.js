@@ -106,7 +106,7 @@ export default function StorefrontPage() {
   }
 
   return (
-    <div className="w-full pb-24">
+    <div className="w-full pb-36">
       {/* Hero Section - Uber Eats Style with Multiple Images */}
       <div className="relative">
         {/* Main Hero Image */}
@@ -179,24 +179,16 @@ export default function StorefrontPage() {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={handleBookClick}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white text-black rounded-full text-xs font-semibold hover:bg-white/90 transition-colors"
-                  >
-                    Request to Book
-                  </button>
-                  <button
-                    type="button"
                     onClick={handleShare}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white/20 backdrop-blur-sm rounded-full text-xs font-medium text-white hover:bg-white/30 transition-colors"
+                    className="tap-scale w-9 h-9 flex items-center justify-center bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-colors"
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <circle cx="18" cy="5" r="3"/>
                       <circle cx="6" cy="12" r="3"/>
                       <circle cx="18" cy="19" r="3"/>
                       <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
                       <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
                     </svg>
-                    Share
                   </button>
                 </div>
               </div>
@@ -252,22 +244,6 @@ export default function StorefrontPage() {
             ))}
           </div>
         )}
-
-        {/* Tap to Pay Section - Coming soon placeholder */}
-        <div className="mb-6 p-4 rounded-[var(--radius-xl)] bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border border-[var(--violet-100)]">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-gradient-primary flex items-center justify-center">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
-                <line x1="1" y1="10" x2="23" y2="10"/>
-              </svg>
-            </div>
-            <div>
-              <h3 className="font-semibold text-[var(--gray-900)]">Tap to Pay coming soon</h3>
-              <p className="text-xs text-[var(--gray-500)]">Contactless payments will be available in a future update.</p>
-            </div>
-          </div>
-        </div>
 
         {/* Tabs - Products vs Services */}
         <div className="flex gap-1 p-1 bg-[var(--gray-100)] rounded-[var(--radius-lg)] mb-4 w-fit">
@@ -327,33 +303,52 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        {/* Vendor Contact/Info Footer */}
-        <div className="mt-8 mb-4 p-4 rounded-[var(--radius-xl)] bg-[var(--gray-50)] border border-[var(--gray-100)]">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                {vendor.name?.charAt(0) || 'V'}
-              </div>
-              <div>
-                <h4 className="font-semibold text-[var(--gray-900)]">{vendor.name}</h4>
-                <p className="text-xs text-[var(--gray-500)]">Verified Vendor</p>
-              </div>
+        {/* Trust signals */}
+        <div className="mt-8 mb-4 grid grid-cols-3 gap-3">
+          {[
+            { icon: "✓", label: "Verified", sub: "Identity checked" },
+            { icon: "🔒", label: "Secure Pay", sub: "Protected by Stripe" },
+            { icon: "⭐", label: "Top Rated", sub: "Event marketplace" },
+          ].map(({ icon, label, sub }) => (
+            <div key={label} className="flex flex-col items-center text-center p-3 rounded-xl bg-[var(--gray-50)] border border-[var(--gray-100)]">
+              <span className="text-xl mb-1">{icon}</span>
+              <p className="text-[11px] font-bold text-[var(--gray-800)]">{label}</p>
+              <p className="text-[10px] text-[var(--gray-400)] leading-tight mt-0.5">{sub}</p>
             </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handleBookClick}
-                className="btn bg-black text-white h-9 px-4 text-sm rounded-full hover:opacity-90 transition-opacity"
-              >
-                Request to Book
-              </button>
-              <button className="btn bg-gradient-primary text-white h-9 px-4 text-sm rounded-full">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-1">
-                  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-                </svg>
-                Save
-              </button>
-            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Sticky bottom CTA */}
+      <div
+        className="fixed bottom-0 left-0 right-0 z-30 bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)] footer-safe"
+        style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
+      >
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center gap-3">
+          {/* Vendor avatar */}
+          <div className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center text-white font-bold text-sm overflow-hidden"
+            style={{ background: "var(--gradient-vendor)" }}>
+            {vendor.heroImage ? (
+              <img src={vendor.heroImage} alt="" className="w-full h-full object-cover" />
+            ) : (
+              vendor.name?.charAt(0) || "V"
+            )}
           </div>
+
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[13px] font-bold text-[var(--gray-900)] truncate">{vendor.name}</p>
+            <p className="text-[11px] text-[var(--gray-500)] truncate">Send a free booking request</p>
+          </div>
+
+          {/* CTA */}
+          <button
+            onClick={handleBookClick}
+            className="tap-scale flex-shrink-0 px-3 sm:px-5 py-2.5 rounded-xl text-[13px] font-bold text-white whitespace-nowrap"
+            style={{ background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }}
+          >
+            Request to Book
+          </button>
         </div>
       </div>
 

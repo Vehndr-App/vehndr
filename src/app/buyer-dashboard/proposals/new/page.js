@@ -7,6 +7,21 @@ import { getVendorProfile } from "../../../../services/vendors";
 import { getEvent, updateEvent } from "../../../../services/events";
 import { createInquiry } from "../../../../services/inquiries";
 
+const TIME_SLOTS = (() => {
+  const slots = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const hour = h % 12 || 12;
+      const period = h < 12 ? "AM" : "PM";
+      slots.push({
+        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
+        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
+      });
+    }
+  }
+  return slots;
+})();
+
 // ─── Coordinator types ────────────────────────────────────────────────────────
 
 const COORDINATOR_TYPES = [
@@ -71,6 +86,7 @@ function formatFee(cents) {
 }
 
 function FeeEstimateCard({ budgetDollars, tipDollars }) {
+  const [open, setOpen] = useState(false);
   const base = feeBase(budgetDollars);
   if (!base || base <= 0) return null;
   const tip    = feeBase(tipDollars) || 0;
@@ -81,43 +97,53 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
 
   return (
     <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-[var(--violet-100)] flex items-center gap-2">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p className="text-[11px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated cost breakdown</p>
-      </div>
-      <div className="px-4 py-3 space-y-1.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">Your budget (base)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatFee(base)}</span>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span className="text-xs font-semibold text-[var(--violet-700)]">Est. total</span>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatFee(coord)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-[var(--violet-900)]">~{formatFee(total)}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={`transition-transform ${open ? "rotate-180" : ""}`}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatFee(tax)}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
-          <span className="font-semibold text-[var(--gray-800)]">~{formatFee(stripe)}</span>
-        </div>
-        {tip > 0 && (
+      </button>
+      {open && (
+        <div className="px-4 pb-3 pt-1 border-t border-[var(--violet-100)] space-y-1.5">
           <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Tip (100% to vendor)</span>
-            <span className="font-semibold text-[var(--gray-800)]">{formatFee(tip)}</span>
+            <span className="text-[var(--violet-700)]">Your budget (base)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatFee(base)}</span>
           </div>
-        )}
-        <div className="flex justify-between text-xs font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
-          <span className="text-[var(--violet-900)]">Est. grand total</span>
-          <span className="text-[var(--violet-900)]">~{formatFee(total)}</span>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatFee(coord)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatFee(tax)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
+            <span className="font-semibold text-[var(--gray-800)]">~{formatFee(stripe)}</span>
+          </div>
+          {tip > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-[var(--violet-700)]">Tip</span>
+              <span className="font-semibold text-[var(--gray-800)]">{formatFee(tip)}</span>
+            </div>
+          )}
+          <p className="text-[10px] text-[var(--violet-500)] leading-relaxed pt-1">
+            Estimate based on your budget. The vendor sets the final price in their offer.
+          </p>
         </div>
-        <p className="text-[10px] text-[var(--violet-500)] leading-relaxed pt-0.5">
-          Estimate based on your budget. The vendor sets the final price in their offer.
-        </p>
-      </div>
+      )}
     </div>
   );
 }
@@ -184,57 +210,17 @@ function NewProposalPageInner() {
 
   const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
   const [fields, setFields] = useState({ serviceRequested: "", budget: "", vendingFee: "", tip: "" });
+  const [logistics, setLogistics] = useState({ boothSize: "", vendorLoadIn: "", vendorLoadOut: "" });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
 
-  const [logistics, setLogistics] = useState({
-    indoor_outdoor: "",
-    booth_size: "",
-    canopy_allowed: "",
-    venue_attendees: "",
-    access_to_power: "",
-    access_to_water: "",
-    wifi_availability: "",
-    parking_available: "",
-    security_presence: "",
-    requires_coi: "",
-    vendor_load_in: "",
-    vendor_load_out: "",
-    event_hours: "",
-  });
-
   useEffect(() => {
     if (!vendorId || !eventId) { setLoading(false); return; }
     Promise.all([getVendorProfile(vendorId), getEvent(eventId)])
-      .then(([v, e]) => {
-        setVendor(v);
-        setEvent(e);
-        // Pre-populate logistics from whatever the event already has
-        if (e) {
-          const pick = (snake, camel) => {
-            const v = e[snake] ?? e[camel];
-            return v != null ? String(v) : "";
-          };
-          setLogistics({
-            indoor_outdoor:    pick("indoor_outdoor",    "indoorOutdoor"),
-            booth_size:        pick("booth_size",        "boothSize"),
-            canopy_allowed:    pick("canopy_allowed",    "canopyAllowed"),
-            venue_attendees:   pick("venue_attendees",   "venueAttendees"),
-            access_to_power:   pick("access_to_power",   "accessToPower"),
-            access_to_water:   pick("access_to_water",   "accessToWater"),
-            wifi_availability: pick("wifi_availability", "wifiAvailability"),
-            parking_available: pick("parking_available", "parkingAvailable"),
-            security_presence: pick("security_presence", "securityPresence"),
-            requires_coi:      pick("requires_coi",      "requiresCoi"),
-            vendor_load_in:    pick("vendor_load_in",    "vendorLoadIn"),
-            vendor_load_out:   pick("vendor_load_out",   "vendorLoadOut"),
-            event_hours:       pick("event_hours",       "eventHours"),
-          });
-        }
-      })
+      .then(([v, e]) => { setVendor(v); setEvent(e); })
       .catch(() => setError("Could not load proposal details."))
       .finally(() => setLoading(false));
   }, [vendorId, eventId]);
@@ -248,10 +234,6 @@ function NewProposalPageInner() {
 
   const setField = useCallback((key, value) => {
     setFields((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  const setLogField = useCallback((key, value) => {
-    setLogistics((prev) => ({ ...prev, [key]: value }));
   }, []);
 
   function handleTypeChange(type) {
@@ -273,24 +255,17 @@ function NewProposalPageInner() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!logistics.indoor_outdoor) { setError("Please specify if the venue is indoor or outdoor."); return; }
-    if (!logistics.booth_size) { setError("Please enter the booth size."); return; }
-    if (!logistics.access_to_power) { setError("Please specify access to power."); return; }
-    if (!logistics.access_to_water) { setError("Please specify access to water."); return; }
-    if (!logistics.parking_available) { setError("Please specify parking availability."); return; }
     if (!message.trim()) { setError("Please add a message before sending."); return; }
     setError(null);
     setSubmitting(true);
     try {
-      // Save any venue logistics back to the event before submitting
-      const logisticsPayload = {};
-      Object.entries(logistics).forEach(([key, val]) => {
-        if (val !== "" && val != null) {
-          logisticsPayload[key] = key === "venue_attendees" ? Number(val) : val;
-        }
-      });
-      if (Object.keys(logisticsPayload).length > 0) {
-        await updateEvent(eventId, logisticsPayload);
+      // Save vendor-specific logistics to the event
+      const logUpdate = {};
+      if (logistics.boothSize) logUpdate.booth_size = logistics.boothSize;
+      if (logistics.vendorLoadIn) logUpdate.vendor_load_in = TIME_SLOTS.find((s) => s.value === logistics.vendorLoadIn)?.label ?? logistics.vendorLoadIn;
+      if (logistics.vendorLoadOut) logUpdate.vendor_load_out = TIME_SLOTS.find((s) => s.value === logistics.vendorLoadOut)?.label ?? logistics.vendorLoadOut;
+      if (Object.keys(logUpdate).length > 0) {
+        await updateEvent(eventId, logUpdate);
       }
 
       const payload = {
@@ -505,7 +480,7 @@ function NewProposalPageInner() {
                     className="input pl-8"
                   />
                 </div>
-                <p className="text-xs text-[var(--gray-400)] mt-1.5">100% goes directly to the vendor. Collected at checkout.</p>
+                <p className="text-xs text-[var(--gray-400)] mt-1.5">Collected at checkout.</p>
               </div>
             </div>
           )}
@@ -542,211 +517,46 @@ function NewProposalPageInner() {
           )}
         </div>
 
-        {/* Venue details */}
-        <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
-          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--gray-100)]">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-            </svg>
-            <span className="text-sm font-semibold text-[var(--gray-800)]">Venue Details</span>
-            <span className="text-xs text-[var(--coral-500)] font-medium">Required</span>
+        {/* Vendor Logistics */}
+        <div className="bg-white rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-card)" }}>
+          <div>
+            <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Vendor Logistics</p>
+            <p className="text-xs text-[var(--gray-400)] mt-1">Optional details specific to this vendor — may differ from other vendors at the same event.</p>
           </div>
 
-          <div className="px-6 pb-6 space-y-5 pt-5">
-            <p className="text-xs text-[var(--gray-400)] leading-relaxed">
-              Help vendors understand your venue setup. This info is saved to your event and visible to vendors you invite.
-            </p>
+          <div>
+            <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Booth / space size</label>
+            <input
+              type="text"
+              value={logistics.boothSize}
+              onChange={(e) => setLogistics((prev) => ({ ...prev, boothSize: e.target.value }))}
+              placeholder="e.g. 10×10 ft"
+              className="input"
+            />
+          </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-              {/* Indoor / Outdoor */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">
-                  Indoor or outdoor? <span className="text-[var(--coral-500)]">*</span>
-                </label>
-                <select
-                  value={logistics.indoor_outdoor}
-                  onChange={(e) => setLogField("indoor_outdoor", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Select…</option>
-                  <option value="indoor">Indoor</option>
-                  <option value="outdoor">Outdoor</option>
-                  <option value="both">Both</option>
-                </select>
-              </div>
-
-              {/* Booth size */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">
-                  Booth size <span className="text-[var(--coral-500)]">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={logistics.booth_size}
-                  onChange={(e) => setLogField("booth_size", e.target.value)}
-                  placeholder="e.g. 10×10 ft"
-                  className="input text-sm"
-                />
-              </div>
-
-              {/* Access to power */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">
-                  Access to power? <span className="text-[var(--coral-500)]">*</span>
-                </label>
-                <select
-                  value={logistics.access_to_power}
-                  onChange={(e) => setLogField("access_to_power", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Select…</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                  <option value="limited">Limited</option>
-                </select>
-              </div>
-
-              {/* Access to water */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">
-                  Access to water? <span className="text-[var(--coral-500)]">*</span>
-                </label>
-                <select
-                  value={logistics.access_to_water}
-                  onChange={(e) => setLogField("access_to_water", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Select…</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
-
-              {/* Parking */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">
-                  Parking available? <span className="text-[var(--coral-500)]">*</span>
-                </label>
-                <select
-                  value={logistics.parking_available}
-                  onChange={(e) => setLogField("parking_available", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Select…</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                  <option value="limited">Limited</option>
-                </select>
-              </div>
-
-              {/* Canopy allowed */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Canopy / tent allowed?</label>
-                <select
-                  value={logistics.canopy_allowed}
-                  onChange={(e) => setLogField("canopy_allowed", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Not specified</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                  <option value="not_sure">Not sure</option>
-                </select>
-              </div>
-
-              {/* Expected attendees */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Expected attendees</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={logistics.venue_attendees}
-                  onChange={(e) => setLogField("venue_attendees", e.target.value)}
-                  placeholder="e.g. 500"
-                  className="input text-sm"
-                />
-              </div>
-
-              {/* Wi-Fi */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Wi-Fi available?</label>
-                <select
-                  value={logistics.wifi_availability}
-                  onChange={(e) => setLogField("wifi_availability", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Not specified</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                  <option value="not_provided">Not provided</option>
-                </select>
-              </div>
-
-              {/* Security */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Security on site?</label>
-                <select
-                  value={logistics.security_presence}
-                  onChange={(e) => setLogField("security_presence", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Not specified</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
-
-              {/* COI */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Requires certificate of insurance?</label>
-                <select
-                  value={logistics.requires_coi}
-                  onChange={(e) => setLogField("requires_coi", e.target.value)}
-                  className="input text-sm"
-                >
-                  <option value="">Not specified</option>
-                  <option value="true">Yes</option>
-                  <option value="false">No</option>
-                </select>
-              </div>
-
-              {/* Event hours */}
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Event hours</label>
-                <input
-                  type="text"
-                  value={logistics.event_hours}
-                  onChange={(e) => setLogField("event_hours", e.target.value)}
-                  placeholder="e.g. 10 AM – 5 PM"
-                  className="input text-sm"
-                />
-              </div>
-
-              {/* Load-in */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Vendor load-in time</label>
-                <input
-                  type="text"
-                  value={logistics.vendor_load_in}
-                  onChange={(e) => setLogField("vendor_load_in", e.target.value)}
-                  placeholder="e.g. 7 AM – 9 AM"
-                  className="input text-sm"
-                />
-              </div>
-
-              {/* Load-out */}
-              <div>
-                <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1.5">Vendor load-out time</label>
-                <input
-                  type="text"
-                  value={logistics.vendor_load_out}
-                  onChange={(e) => setLogField("vendor_load_out", e.target.value)}
-                  placeholder="e.g. After 6 PM"
-                  className="input text-sm"
-                />
-              </div>
-
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
+              <select
+                value={logistics.vendorLoadIn}
+                onChange={(e) => setLogistics((prev) => ({ ...prev, vendorLoadIn: e.target.value }))}
+                className="input"
+              >
+                <option value="">Select time</option>
+                {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
+              <select
+                value={logistics.vendorLoadOut}
+                onChange={(e) => setLogistics((prev) => ({ ...prev, vendorLoadOut: e.target.value }))}
+                className="input"
+              >
+                <option value="">Select time</option>
+                {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
             </div>
           </div>
         </div>
@@ -801,10 +611,7 @@ function NewProposalPageInner() {
         {/* Submit */}
         <button
           type="submit"
-          disabled={submitting || submitted || !message.trim() ||
-            !logistics.indoor_outdoor || !logistics.booth_size ||
-            !logistics.access_to_power || !logistics.access_to_water ||
-            !logistics.parking_available}
+          disabled={submitting || submitted || !message.trim()}
           className="w-full h-12 rounded-[var(--radius-lg)] text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           style={{
             background: submitted

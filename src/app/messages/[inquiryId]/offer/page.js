@@ -36,6 +36,7 @@ function ofGrossTotal(b, tip=0){ return Math.ceil((ofPreStripe(b, tip) + OF_ST_F
 function ofStripe(b, tip=0)   { return ofGrossTotal(b, tip) - ofPreStripe(b, tip); }
 
 function CostBreakdown({ offer, tipCents = 0 }) {
+  const [open, setOpen] = useState(false);
   const base       = offer.totalPriceCents;
   const tip        = tipCents ?? 0;
   const coord      = ofCoord(base);
@@ -47,60 +48,77 @@ function CostBreakdown({ offer, tipCents = 0 }) {
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
-      <div className="px-4 py-2.5 border-b border-[var(--violet-100)] flex items-center gap-2">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-        </svg>
-        <p className="text-[11px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">What you&apos;ll pay at checkout</p>
-      </div>
-      <div className="px-4 py-3 space-y-1.5">
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">Base service</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
+      {/* Toggle row — always visible */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <span className="text-[11px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">
+            {hasDeposit ? "Est. deposit today" : "Est. checkout total"}
+          </span>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coord)}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold text-[var(--gray-900)]">{fmtExact(hasDeposit ? depTotal : total)}</span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--violet-400)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          >
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
-        </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
-          <span className="font-semibold text-[var(--gray-800)]">~{fmtExact(stripe)}</span>
-        </div>
-        {tip > 0 ? (
+      </button>
+
+      {/* Expanded line items */}
+      {open && (
+        <div className="border-t border-[var(--violet-100)] px-4 py-3 space-y-1.5">
           <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Tip (100% to vendor)</span>
-            <span className="font-semibold text-[var(--violet-700)]">{formatPrice(tip)}</span>
+            <span className="text-[var(--violet-700)]">Base service</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
           </div>
-        ) : (
           <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-500)]">Tip</span>
-            <span className="text-[var(--gray-400)] italic">Optional at checkout</span>
+            <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coord)}</span>
           </div>
-        )}
-        <div className="pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
-          <div className="flex justify-between">
-            <span className="text-xs font-bold text-[var(--violet-800)]">
-              {hasDeposit ? "Full booking total" : "Est. total due"}
-            </span>
-            <span className="text-sm font-bold text-[var(--gray-900)]">{fmtExact(total)}</span>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
           </div>
-          {hasDeposit && (
-            <div className="flex justify-between mt-1">
-              <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
-              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depTotal)}</span>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
+            <span className="font-semibold text-[var(--gray-800)]">~{fmtExact(stripe)}</span>
+          </div>
+          {tip > 0 ? (
+            <div className="flex justify-between text-xs">
+              <span className="text-[var(--violet-700)]">Tip</span>
+              <span className="font-semibold text-[var(--violet-700)]">{formatPrice(tip)}</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-xs">
+              <span className="text-[var(--violet-500)]">Tip</span>
+              <span className="text-[var(--gray-400)] italic">Optional at checkout</span>
             </div>
           )}
-          {tip === 0 && (
-            <p className="text-[10px] text-[var(--violet-500)] mt-1.5">
-              + any tip you add · tip goes 100% to vendor
-            </p>
-          )}
+          <div className="pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+            <div className="flex justify-between">
+              <span className="text-xs font-bold text-[var(--violet-800)]">
+                {hasDeposit ? "Full booking total" : "Est. total due"}
+              </span>
+              <span className="text-sm font-bold text-[var(--gray-900)]">{fmtExact(total)}</span>
+            </div>
+            {hasDeposit && (
+              <div className="flex justify-between mt-1">
+                <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
+                <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depTotal)}</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -141,7 +159,7 @@ function getExpiryInfo(expiresAt) {
 
 // ─── Active Offer Card ────────────────────────────────────────────────────────
 
-function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, accepting, declining }) {
+function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, accepting, declining, actionsInFooter }) {
   const isExpired = offer.expiresAt && new Date(offer.expiresAt) < new Date();
   const isPending = offer.status === "pending" && !isExpired;
   const expiryInfo = getExpiryInfo(offer.expiresAt);
@@ -150,52 +168,74 @@ function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestC
     <div className="bg-white rounded-[var(--radius-xl)] border border-[var(--gray-100)] shadow-[var(--shadow-card)] overflow-hidden">
       {/* Urgency banner */}
       {isPending && expiryInfo && (expiryInfo.urgency === "critical" || expiryInfo.urgency === "warning") && (
-        <div className={`px-5 py-2.5 flex items-center gap-2 ${
+        <div className={`px-5 py-3 flex items-center gap-2.5 ${
           expiryInfo.urgency === "critical"
-            ? "bg-[var(--coral-50)] border-b border-[var(--coral-100)]"
-            : "bg-[var(--amber-50)] border-b border-[var(--amber-100)]"
+            ? "bg-gradient-to-r from-[var(--coral-50)] to-[#fff8f5] border-b border-[var(--coral-100)]"
+            : "bg-gradient-to-r from-[var(--amber-50)] to-[#fffdf5] border-b border-[var(--amber-100)]"
         }`}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={expiryInfo.urgency === "critical" ? "var(--coral-600)" : "var(--amber-700)"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          <p className={`text-xs font-semibold ${expiryInfo.urgency === "critical" ? "text-[var(--coral-700)]" : "text-[var(--amber-700)]"}`}>
-            {expiryInfo.label} — accept now to lock in your booking
+          <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+            expiryInfo.urgency === "critical" ? "bg-[var(--coral-100)]" : "bg-[var(--amber-100)]"
+          }`}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke={expiryInfo.urgency === "critical" ? "var(--coral-600)" : "var(--amber-700)"}
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+          </span>
+          <p className={`text-[12px] font-bold leading-snug ${expiryInfo.urgency === "critical" ? "text-[var(--coral-700)]" : "text-[var(--amber-700)]"}`}>
+            {expiryInfo.label}
+            <span className="font-normal"> — accept now to lock in your booking</span>
           </p>
         </div>
       )}
 
       {/* Card header */}
-      <div className="px-5 pt-5 pb-4 border-b border-[var(--gray-100)]">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--violet-100)] text-[var(--violet-700)]">
-                Latest Offer · v{offer.versionNumber}
-              </span>
-              {isExpired && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--gray-100)] text-[var(--gray-500)]">
-                  Expired
-                </span>
-              )}
-              {offer.status === "accepted" && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--mint-50)] text-[var(--mint-700)]">
-                  Accepted
-                </span>
-              )}
-              {offer.status === "declined" && (
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[var(--gray-100)] text-[var(--gray-500)]">
-                  Declined
-                </span>
-              )}
-            </div>
-            <p className={`text-3xl font-bold ${isExpired || offer.status === "declined" ? "text-[var(--gray-400)]" : "text-[var(--gray-900)]"}`}>
-              {formatPrice(offer.totalPriceCents)}
-            </p>
-          </div>
+      <div className="px-5 pt-6 pb-5 border-b border-[var(--gray-100)]">
+        {/* Version + status badges */}
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[var(--violet-100)] text-[var(--violet-700)] tracking-wide">
+            v{offer.versionNumber}
+          </span>
+          {isExpired && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[var(--gray-100)] text-[var(--gray-500)]">
+              Expired
+            </span>
+          )}
+          {offer.status === "accepted" && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[var(--mint-50)] text-[var(--mint-700)] flex items-center gap-1">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke="var(--mint-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              Accepted
+            </span>
+          )}
+          {offer.status === "declined" && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[var(--gray-100)] text-[var(--gray-500)]">
+              Declined
+            </span>
+          )}
+          {isPending && (
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-[var(--coral-50)] text-[var(--coral-600)] flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[var(--coral-500)] animate-pulse" />
+              Awaiting your response
+            </span>
+          )}
         </div>
 
+        {/* Hero price */}
+        <p
+          className={`font-display leading-none tracking-tight mb-1 ${
+            isExpired || offer.status === "declined" ? "text-[var(--gray-300)]" : "text-[var(--gray-900)]"
+          }`}
+          style={{ fontSize: "clamp(36px, 10vw, 48px)", fontWeight: 800, letterSpacing: "-0.03em" }}
+        >
+          {formatPrice(offer.totalPriceCents)}
+        </p>
+        <p className="text-[12px] text-[var(--gray-400)]">Total service price from vendor</p>
+
         {offer.description && (
-          <p className="text-sm text-[var(--gray-600)] mt-3 leading-relaxed">
+          <p className="text-[14px] text-[var(--gray-600)] mt-4 leading-relaxed border-t border-[var(--gray-50)] pt-4">
             {offer.description}
           </p>
         )}
@@ -250,8 +290,8 @@ function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestC
         </div>
       )}
 
-      {/* Actions */}
-      {isPending && (
+      {/* Actions — hidden on mobile when moved to sticky footer */}
+      {isPending && !actionsInFooter && (
         <div className="px-5 pb-5 space-y-2">
           <div className="flex gap-3">
             <button
@@ -495,7 +535,11 @@ export default function OfferPage() {
     setError(null);
     try {
       await acceptOffer(inquiryId, active.id);
-      router.push(`/messages/${inquiryId}`);
+      if (active.proposalType === "cash") {
+        router.push(`/messages/${inquiryId}/checkout`);
+      } else {
+        router.push(`/messages/${inquiryId}`);
+      }
     } catch (err) {
       setError(err.message ?? "Failed to accept offer.");
       setAccepting(false);
@@ -536,100 +580,185 @@ export default function OfferPage() {
   const activeOffer = offers.find((o) => o.isActive);
   const vendorName = inquiry?.vendor?.name ?? "Vendor";
 
+  const isActiveExpired = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
+  const isActivePending = activeOffer?.status === "pending" && !isActiveExpired && !declined;
+  const showFooter = isActivePending;
+
   return (
-    <div className="min-h-screen bg-[var(--gray-50)]">
+    <div className="flex flex-col h-[calc(100dvh-3.5rem)] bg-[var(--gray-50)]">
       {/* Header */}
-      <div className="bg-white border-b border-[var(--gray-100)] sticky top-0 z-30">
+      <div className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-b border-[var(--gray-100)]">
         <div className="mx-auto max-w-2xl px-4 py-3 flex items-center gap-3">
           <Link
             href={`/messages/${inquiryId}`}
-            className="w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full hover:bg-[var(--gray-100)] transition-colors"
+            className="tap-scale-sm w-9 h-9 flex-shrink-0 flex items-center justify-center rounded-full hover:bg-[var(--gray-100)] transition-colors"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </Link>
-          <div>
-            <p className="font-semibold text-[var(--gray-900)] text-sm">{vendorName}</p>
-            <p className="text-xs text-[var(--gray-500)]">Offer details</p>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-[var(--gray-900)] text-[14px] truncate">{vendorName}</p>
+            <p className="text-[11px] text-[var(--gray-500)]">Offer details</p>
+          </div>
+          {/* Active offer price in header when pending */}
+          {activeOffer?.status === "pending" && !isActiveExpired && (
+            <span className="flex-shrink-0 text-[13px] font-bold text-[var(--violet-600)] bg-[var(--violet-50)] px-3 py-1 rounded-full">
+              {formatPrice(activeOffer.totalPriceCents)}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-2xl px-4 py-6 space-y-4" style={{ paddingBottom: showFooter ? "0" : "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
+          {loading ? (
+            <OfferSkeleton />
+          ) : !activeOffer ? (
+            <NoOfferState inquiryId={inquiryId} />
+          ) : (
+            <>
+              {declined && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] bg-[var(--gray-50)] border border-[var(--gray-200)]">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                  <p className="text-sm text-[var(--gray-700)] font-medium">Offer declined. Returning to messages…</p>
+                </div>
+              )}
+              {error && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] bg-red-50 border border-red-200">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+              <OfferCard
+                offer={activeOffer}
+                tipCents={inquiry?.tipCents ?? 0}
+                inquiryId={inquiryId}
+                onAccept={handleAccept}
+                onDecline={handleDecline}
+                onRequestChanges={() => setShowRequestChanges(true)}
+                accepting={accepting}
+                declining={declining}
+                actionsInFooter={isActivePending}
+              />
+
+              <OfferVersionHistory
+                offers={offers}
+                activeOfferId={activeOffer.id}
+              />
+            </>
+          )}
+          <div className="mt-6 pt-4 border-t border-[var(--gray-100)] text-center">
+            <p className="text-[10px] text-[var(--gray-400)]">
+              © {new Date().getFullYear()} Vehndr&nbsp;·&nbsp;
+              <Link href="/terms" className="hover:text-[var(--gray-600)] transition-colors">Terms</Link>
+              &nbsp;·&nbsp;
+              <Link href="/privacy" className="hover:text-[var(--gray-600)] transition-colors">Privacy</Link>
+            </p>
           </div>
         </div>
       </div>
 
-      <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
-        {loading ? (
-          <OfferSkeleton />
-        ) : !activeOffer ? (
-          <NoOfferState inquiryId={inquiryId} />
-        ) : (
-          <>
-            {declined && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] bg-[var(--gray-50)] border border-[var(--gray-200)]">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                  <polyline points="20 6 9 17 4 12"/>
-                </svg>
-                <p className="text-sm text-[var(--gray-700)] font-medium">Offer declined. Returning to messages…</p>
-              </div>
-            )}
-            {error && (
-              <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] bg-red-50 border border-red-200">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                </svg>
-                <p className="text-sm text-red-700">{error}</p>
-              </div>
-            )}
-            <OfferCard
-              offer={activeOffer}
-              tipCents={inquiry?.tipCents ?? 0}
-              inquiryId={inquiryId}
-              onAccept={handleAccept}
-              onDecline={handleDecline}
-              onRequestChanges={() => setShowRequestChanges(true)}
-              accepting={accepting}
-              declining={declining}
-            />
-
-            {/* Request Changes panel */}
-            {showRequestChanges && (
-              <div className="bg-white rounded-[var(--radius-xl)] border border-[var(--violet-100)] p-5 space-y-4" style={{ boxShadow: "var(--shadow-card)" }}>
+      {/* Sticky footer — action buttons or request-changes composer */}
+      {showFooter && (
+        <div
+          className="flex-shrink-0 bg-white/95 backdrop-blur-xl border-t border-[var(--gray-100)] footer-safe"
+          style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.07)" }}
+        >
+          {showRequestChanges ? (
+            <div className="mx-auto max-w-2xl px-4 pt-4 pb-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-semibold text-[var(--gray-900)] mb-0.5">Request Changes</h3>
-                  <p className="text-xs text-[var(--gray-500)]">Describe what you'd like the vendor to revise. They'll update their offer based on your feedback.</p>
+                  <p className="text-[14px] font-bold text-[var(--gray-900)]">Request Changes</p>
+                  <p className="text-[12px] text-[var(--gray-500)] mt-0.5 leading-snug">
+                    Describe what you'd like revised — the vendor will update their offer.
+                  </p>
                 </div>
-                <textarea
-                  rows={4}
-                  value={requestText}
-                  onChange={(e) => setRequestText(e.target.value)}
-                  placeholder='e.g. "Can you lower the price to $X?" or "I need setup included in the package…"'
-                  className="w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all resize-none leading-relaxed"
-                />
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => { setShowRequestChanges(false); setRequestText(""); }}
-                    className="flex-1 py-2.5 rounded-xl border border-[var(--gray-200)] text-sm font-semibold text-[var(--gray-600)] hover:bg-[var(--gray-50)] transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSendRequest}
-                    disabled={sendingRequest || !requestText.trim()}
-                    className="flex-1 py-2.5 rounded-xl text-white text-sm font-semibold shadow-sm disabled:opacity-40 transition-all"
-                    style={{ background: sendingRequest || !requestText.trim() ? "var(--gray-400)" : "var(--gradient-vendor)" }}
-                  >
-                    {sendingRequest ? "Sending…" : "Send to Vendor"}
-                  </button>
-                </div>
+                <button
+                  onClick={() => { setShowRequestChanges(false); setRequestText(""); }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[var(--gray-100)] transition-colors flex-shrink-0 mt-0.5"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
               </div>
-            )}
-
-            <OfferVersionHistory
-              offers={offers}
-              activeOfferId={activeOffer.id}
-            />
-          </>
-        )}
-      </div>
+              <textarea
+                rows={3}
+                value={requestText}
+                onChange={(e) => setRequestText(e.target.value)}
+                placeholder='e.g. "Can you lower the price to $X?" or "I need setup included…"'
+                className="w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all resize-none leading-relaxed"
+                autoFocus
+              />
+              <button
+                onClick={handleSendRequest}
+                disabled={sendingRequest || !requestText.trim()}
+                className="tap-scale w-full py-3.5 rounded-xl text-white text-[14px] font-bold disabled:opacity-40 transition-all"
+                style={{ background: sendingRequest || !requestText.trim() ? "var(--gray-300)" : "var(--gradient-vendor)" }}
+              >
+                {sendingRequest ? "Sending…" : "Send Request"}
+              </button>
+            </div>
+          ) : (
+            <div className="mx-auto max-w-2xl px-4 pt-3.5 pb-3.5">
+              {/* Price reminder */}
+              {activeOffer && (
+                <div className="flex items-center justify-between mb-3 px-1">
+                  <p className="text-[12px] text-[var(--gray-500)]">Offer from <span className="font-semibold text-[var(--gray-700)]">{vendorName}</span></p>
+                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents)}</p>
+                </div>
+              )}
+              {/* Accept — full-width, prominent */}
+              <button
+                onClick={handleAccept}
+                disabled={accepting || declining}
+                className="tap-scale w-full py-4 rounded-2xl text-white text-[15px] font-bold mb-2.5 disabled:opacity-40 transition-all"
+                style={{
+                  background: accepting || declining ? "var(--gray-300)" : "linear-gradient(135deg, var(--mint-500) 0%, var(--mint-600) 100%)",
+                  boxShadow: accepting || declining ? "none" : "0 4px 16px rgba(16,185,129,0.3)",
+                }}
+              >
+                {accepting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    Accepting…
+                  </span>
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    Accept Offer
+                  </span>
+                )}
+              </button>
+              {/* Secondary row */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDecline}
+                  disabled={declining || accepting}
+                  className="tap-scale-sm flex-1 py-3 rounded-xl border border-[var(--gray-200)] text-[13px] font-semibold text-[var(--gray-600)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-40"
+                >
+                  {declining ? "Declining…" : "Decline"}
+                </button>
+                <button
+                  onClick={() => setShowRequestChanges(true)}
+                  disabled={accepting || declining}
+                  className="tap-scale-sm flex-1 py-3 rounded-xl border border-[var(--violet-200)] text-[13px] font-semibold text-[var(--violet-600)] hover:bg-[var(--violet-50)] transition-colors disabled:opacity-40"
+                >
+                  Request Changes
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

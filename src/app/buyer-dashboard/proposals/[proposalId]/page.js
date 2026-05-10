@@ -77,9 +77,12 @@ function fmt(raw, opts = { month: "long", day: "numeric", year: "numeric" }) {
   return new Date(raw).toLocaleDateString("en-US", opts);
 }
 
-function fmtTime(raw) {
-  if (!raw) return null;
-  return new Date(raw).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+function fmtDateTime(raw) {
+  if (!raw) return "—";
+  const d = new Date(raw);
+  const date = d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `${date} at ${time}`;
 }
 
 function formatPrice(cents) {
@@ -129,54 +132,88 @@ function LogisticChip({ value }) {
 function Timeline({ status }) {
   const currentIdx = STATUS_ORDER.indexOf(status === "offer_updated" ? "actions_needed" : status);
   const isExpired  = status === "expired";
+  const pct = isExpired ? 0 : Math.round((currentIdx / (STATUS_STEPS.length - 1)) * 100);
 
   return (
-    <div className="flex items-center gap-0">
-      {STATUS_STEPS.map((step, i) => {
-        const done    = i <= currentIdx && !isExpired;
-        const current = i === currentIdx && !isExpired;
-        const last    = i === STATUS_STEPS.length - 1;
-
-        return (
-          <div key={step.key} className="flex items-center flex-1">
-            {/* Node */}
-            <div className="flex flex-col items-center">
-              <div
-                className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
-                  done
-                    ? current
-                      ? "bg-[var(--violet-600)] ring-4 ring-[var(--violet-100)] shadow-[0_0_0_2px_var(--violet-600)]"
-                      : "bg-[var(--violet-600)]"
-                    : isExpired
-                    ? "bg-[var(--gray-200)]"
-                    : "bg-[var(--gray-100)] ring-2 ring-[var(--gray-200)]"
-                }`}
-              >
-                {done && !current ? (
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                ) : current ? (
-                  <div className="w-2.5 h-2.5 rounded-full bg-white" />
-                ) : null}
-              </div>
-              <p className={`mt-1.5 text-[10px] font-medium text-center leading-tight ${
-                done ? "text-[var(--violet-700)]" : "text-[var(--gray-300)]"
-              }`} style={{ width: 56 }}>
-                {step.label}
-              </p>
-            </div>
-
-            {/* Connector */}
-            {!last && (
-              <div className={`flex-1 h-[2px] mx-1 rounded-full ${
-                i < currentIdx && !isExpired ? "bg-[var(--violet-600)]" : "bg-[var(--gray-200)]"
-              }`} />
+    <>
+      {/* Mobile: compact progress bar */}
+      <div className="sm:hidden">
+        <div className="flex items-start justify-between mb-2.5 gap-2">
+          <div>
+            <p className="text-sm font-semibold text-[var(--violet-700)]">
+              {isExpired ? "Expired" : (STATUS_STEPS[currentIdx]?.label ?? "—")}
+            </p>
+            {!isExpired && (
+              <p className="text-[10px] text-[var(--gray-400)] mt-0.5">Step {currentIdx + 1} of {STATUS_STEPS.length}</p>
             )}
           </div>
-        );
-      })}
-    </div>
+        </div>
+        <div className="relative h-1.5 w-full bg-[var(--gray-100)] rounded-full">
+          <div
+            className="absolute inset-y-0 left-0 bg-[var(--violet-600)] rounded-full transition-[width]"
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2">
+          {STATUS_STEPS.map((step, i) => (
+            <div
+              key={step.key}
+              className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                i <= currentIdx && !isExpired ? "bg-[var(--violet-600)]" : "bg-[var(--gray-100)]"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop: full horizontal timeline */}
+      <div className="hidden sm:block overflow-x-auto pb-2">
+        <div className="flex items-center gap-0 min-w-max">
+          {STATUS_STEPS.map((step, i) => {
+            const done    = i <= currentIdx && !isExpired;
+            const current = i === currentIdx && !isExpired;
+            const last    = i === STATUS_STEPS.length - 1;
+
+            return (
+              <div key={step.key} className="flex items-center flex-1">
+                <div className="flex flex-col items-center">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                      done
+                        ? current
+                          ? "bg-[var(--violet-600)] ring-4 ring-[var(--violet-100)] shadow-[0_0_0_2px_var(--violet-600)]"
+                          : "bg-[var(--violet-600)]"
+                        : isExpired
+                        ? "bg-[var(--gray-200)]"
+                        : "bg-[var(--gray-100)] ring-2 ring-[var(--gray-200)]"
+                    }`}
+                  >
+                    {done && !current ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : current ? (
+                      <div className="w-2.5 h-2.5 rounded-full bg-white" />
+                    ) : null}
+                  </div>
+                  <p className={`mt-1.5 text-[10px] font-medium text-center leading-tight ${
+                    done ? "text-[var(--violet-700)]" : "text-[var(--gray-300)]"
+                  }`} style={{ width: 56 }}>
+                    {step.label}
+                  </p>
+                </div>
+
+                {!last && (
+                  <div className={`flex-1 h-[2px] mx-1 rounded-full ${
+                    i < currentIdx && !isExpired ? "bg-[var(--violet-600)]" : "bg-[var(--gray-200)]"
+                  }`} />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -184,9 +221,9 @@ function Timeline({ status }) {
 
 function InfoRow({ label, value, children }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-[var(--gray-50)] last:border-0">
-      <span className="text-sm text-[var(--gray-500)] flex-shrink-0 min-w-[160px]">{label}</span>
-      <span className="text-sm font-medium text-[var(--gray-800)] text-right">{children ?? value ?? "—"}</span>
+    <div className="flex items-start justify-between gap-3 py-3 border-b border-[var(--gray-50)] last:border-0">
+      <span className="text-sm text-[var(--gray-500)] flex-shrink-0 min-w-[90px] sm:min-w-[140px]">{label}</span>
+      <span className="text-sm font-medium text-[var(--gray-800)] text-right min-w-0">{children ?? value ?? "—"}</span>
     </div>
   );
 }
@@ -196,11 +233,11 @@ function InfoRow({ label, value, children }) {
 function Card({ title, icon, children, className = "" }) {
   return (
     <div className={`bg-white rounded-2xl overflow-hidden ${className}`} style={{ boxShadow: "var(--shadow-card)" }}>
-      <div className="flex items-center gap-2.5 px-6 py-4 border-b border-[var(--gray-100)]">
+      <div className="flex items-center gap-2.5 px-4 sm:px-6 py-3.5 sm:py-4 border-b border-[var(--gray-100)]">
         {icon && <span className="text-[var(--gray-400)]">{icon}</span>}
         <h3 className="font-semibold text-[var(--gray-900)] text-[15px]">{title}</h3>
       </div>
-      <div className="px-6 py-5">{children}</div>
+      <div className="px-4 sm:px-6 py-4 sm:py-5">{children}</div>
     </div>
   );
 }
@@ -290,7 +327,7 @@ function TipModal({ booking, inquiry, onClose, onTipPaid }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--gray-100)]">
           <p className="font-semibold text-[var(--gray-900)]">Tip {inquiry?.vendor?.name}</p>
@@ -352,7 +389,7 @@ function TipModal({ booking, inquiry, onClose, onTipPaid }) {
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-xs text-[var(--gray-400)]">100% goes directly to the vendor. Processed securely by Stripe.</p>
+              <p className="text-xs text-[var(--gray-400)]">Processed securely by Stripe.</p>
               <TipSelector subtotalCents={baseCents} onTipChange={(c) => setSelectedTip(c)} />
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
@@ -430,7 +467,7 @@ export default function ProposalDetailPage() {
 
   if (loading || authLoading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-5">
+      <div className="max-w-4xl mx-auto px-4 py-5 sm:py-8 space-y-4">
         <div className="h-8 bg-[var(--gray-100)] rounded w-48 animate-pulse" />
         <div className="bg-white rounded-2xl h-40 animate-pulse" style={{ boxShadow: "var(--shadow-card)" }} />
         <div className="bg-white rounded-2xl h-56 animate-pulse" style={{ boxShadow: "var(--shadow-card)" }} />
@@ -440,7 +477,7 @@ export default function ProposalDetailPage() {
 
   if (error || !inquiry) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-16 text-center">
+      <div className="max-w-4xl mx-auto px-4 py-12 text-center">
         <p className="text-[var(--error)] mb-4">{error ?? "Proposal not found."}</p>
         <Link href="/buyer-dashboard/proposals" className="text-sm text-[var(--violet-600)] hover:underline">← Back to proposals</Link>
       </div>
@@ -480,7 +517,7 @@ export default function ProposalDetailPage() {
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+    <div className="max-w-4xl mx-auto px-4 py-5 sm:py-8 space-y-4 sm:space-y-6">
 
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-2 text-sm text-[var(--gray-400)]">
@@ -494,37 +531,38 @@ export default function ProposalDetailPage() {
       </div>
 
       {/* ── Hero card: vendor + status ── */}
-      <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
-        {/* Top band */}
-        <div className="h-2 w-full" style={{ background: isBooked ? "var(--gradient-organizer)" : isExpired ? "var(--gray-200)" : "var(--gradient-vendor)" }} />
+      <div className="bg-white rounded-2xl overflow-hidden animate-spring-up" style={{ boxShadow: "var(--shadow-card)" }}>
+        {/* Top gradient band */}
+        <div className="h-1.5 w-full" style={{ background: isBooked ? "var(--gradient-organizer)" : isExpired ? "var(--gray-200)" : "var(--gradient-vendor)" }} />
 
-        <div className="p-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-center gap-4">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3 sm:gap-4">
               <div
-                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-xl flex-shrink-0"
+                className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-white font-bold text-base sm:text-xl flex-shrink-0 overflow-hidden"
                 style={{ background: "var(--gradient-vendor)", boxShadow: "0 4px 16px rgba(139,92,246,0.25)" }}
               >
-                {initial}
+                {vendor?.heroImage
+                  ? <img src={vendor.heroImage} alt="" className="w-full h-full object-cover" />
+                  : initial
+                }
               </div>
               <div>
-                <h1 className="text-lg font-display font-bold text-[var(--gray-900)]">{vendor?.name}</h1>
-                {event && <p className="text-sm text-[var(--gray-500)] mt-0.5">for {event.name}</p>}
-                <p className="text-xs text-[var(--gray-400)] mt-0.5">Submitted {fmt(createdAt)}</p>
+                <h1 className="text-[16px] sm:text-lg font-display font-bold text-[var(--gray-900)] leading-tight">{vendor?.name}</h1>
+                {event && <p className="text-[13px] text-[var(--gray-500)] mt-0.5">for {event.name}</p>}
+                <p className="text-[11px] text-[var(--gray-400)] mt-1">Submitted {fmtDateTime(createdAt)}</p>
               </div>
             </div>
-            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full ${BADGE[color]}`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70" />
+            <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-full ${BADGE[color]}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current opacity-80" />
               {STATUS_LABEL[status] ?? status}
             </span>
           </div>
 
           {/* Timeline */}
           {!isExpired && (
-            <div className="mt-8 mb-2 overflow-x-auto pb-2">
-              <div style={{ minWidth: 480 }}>
-                <Timeline status={status} />
-              </div>
+            <div className="mt-5 sm:mt-8 mb-2">
+              <Timeline status={status} />
             </div>
           )}
 
@@ -536,82 +574,93 @@ export default function ProposalDetailPage() {
         </div>
 
         {/* Action bar */}
-        <div className="flex flex-wrap gap-2 px-6 pb-5">
-          <Link
-            href={`/messages/${inquiry.id}`}
-            className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[var(--gray-900)] text-white text-sm font-semibold hover:bg-[var(--gray-700)] transition-colors"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            </svg>
-            Open Thread
-          </Link>
+        <div className="px-4 sm:px-6 pb-4 sm:pb-5">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
 
-          {hasOffer && (
+            {/* Primary CTAs — full-width on mobile */}
             <Link
-              href={`/messages/${inquiry.id}/offer`}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gradient-to-r from-[var(--coral-500)] to-[var(--coral-600)] text-white text-sm font-semibold hover:shadow-md transition-all"
+              href={`/messages/${inquiry.id}`}
+              className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-[var(--gray-900)] text-white text-sm font-semibold hover:bg-[var(--gray-700)] transition-colors"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/>
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
               </svg>
-              Review Offer · {formatPrice(activeOffer.totalPriceCents)}{(tipCents ?? 0) > 0 ? ` + ${formatPrice(tipCents)} tip` : ""}
+              Open Thread
             </Link>
-          )}
 
-          {isBooked && activeOffer?.proposalType === "cash" && !isPaid && (
-            <Link
-              href={`/messages/${inquiry.id}/checkout`}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gradient-to-r from-[var(--mint-500)] to-[var(--mint-600)] text-white text-sm font-semibold hover:shadow-md transition-all"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
-              </svg>
-              Complete Payment
-            </Link>
-          )}
+            {hasOffer && (
+              <Link
+                href={`/messages/${inquiry.id}/offer`}
+                className="tap-scale flex items-center justify-center gap-2 h-11 px-5 rounded-2xl text-white text-[13px] font-bold transition-all"
+                style={{
+                  background: "linear-gradient(135deg, var(--coral-500) 0%, var(--coral-600) 100%)",
+                  boxShadow: "0 4px 16px rgba(255,107,107,0.35)",
+                }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                Review Offer — {formatPrice(activeOffer.totalPriceCents)}
+              </Link>
+            )}
 
-          {isBooked && activeOffer?.proposalType === "product" && !isPaid && status !== "scheduled" && (
-            <span className="flex items-center gap-2 h-9 px-4 rounded-xl bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)] text-xs font-semibold">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12"/>
-              </svg>
-              Awaiting vendor payment
-            </span>
-          )}
+            {isBooked && activeOffer?.proposalType === "cash" && !isPaid && (
+              <Link
+                href={`/messages/${inquiry.id}/checkout`}
+                className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-gradient-to-r from-[var(--mint-500)] to-[var(--mint-600)] text-white text-sm font-semibold hover:shadow-md transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                </svg>
+                Complete Payment
+              </Link>
+            )}
 
-          {canTip && (
-            <button
-              onClick={() => setShowTipModal(true)}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border border-[var(--violet-200)] text-[var(--violet-700)] text-sm font-semibold hover:shadow-sm transition-all"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-              </svg>
-              Tip Vendor
-            </button>
-          )}
+            {isBooked && activeOffer?.proposalType === "product" && !isPaid && status !== "scheduled" && (
+              <span className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)] text-xs font-semibold">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Awaiting vendor payment
+              </span>
+            )}
 
-          {vendor?.id && (
-            <Link
-              href={`/store/${vendor.id}`}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl border border-[var(--gray-200)] text-[var(--gray-600)] text-sm font-medium hover:bg-[var(--gray-50)] transition-colors"
-            >
-              View Storefront
-            </Link>
-          )}
+            {/* Secondary CTAs — row on mobile, inline on desktop */}
+            {(canTip || vendor?.id || canDelete) && (
+              <div className="flex flex-row flex-wrap gap-2 sm:contents">
+                {canTip && (
+                  <button
+                    onClick={() => setShowTipModal(true)}
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border border-[var(--violet-200)] text-[var(--violet-700)] text-sm font-semibold hover:shadow-sm transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                    </svg>
+                    Tip Vendor
+                  </button>
+                )}
 
-          {canDelete && (
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="flex items-center gap-2 h-9 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors ml-auto"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-              </svg>
-              Delete
-            </button>
-          )}
+                {vendor?.id && (
+                  <Link
+                    href={`/store/${vendor.id}`}
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-[var(--gray-200)] text-[var(--gray-600)] text-sm font-medium hover:bg-[var(--gray-50)] transition-colors"
+                  >
+                    View Storefront
+                  </Link>
+                )}
+
+                {canDelete && (
+                  <button
+                    onClick={() => setShowDeleteModal(true)}
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors sm:ml-auto"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                    </svg>
+                    Delete
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -688,9 +737,91 @@ export default function ProposalDetailPage() {
               {event.ageGroup && (
                 <InfoRow label="Primary audience" value={event.ageGroup} />
               )}
-              <InfoRow label="Certificate of Insurance">
-                <YesNo value={event.requiresCoi} />
-              </InfoRow>
+              {event.requiresCoi != null && (
+                <InfoRow label="Certificate of Insurance">
+                  <YesNo value={event.requiresCoi} />
+                </InfoRow>
+              )}
+              {/* Venue logistics */}
+              {hasLogistics && (
+                <>
+                  <div className="pt-4 pb-1">
+                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--gray-400)]">Venue Logistics</p>
+                  </div>
+                  {event.boothSize && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Booth size</span>
+                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.boothSize.replace("x", " ft × ")} ft</span>
+                    </div>
+                  )}
+                  {event.indoorOutdoor && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Indoor or outdoor</span>
+                      <LogisticChip value={event.indoorOutdoor} />
+                    </div>
+                  )}
+                  {event.canopyAllowed && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Canopy allowed</span>
+                      <LogisticChip value={event.canopyAllowed} />
+                    </div>
+                  )}
+                  {event.venueAttendees && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Event attendees</span>
+                      <span className="text-sm font-medium text-[var(--gray-800)]">{Number(event.venueAttendees).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {event.accessToPower && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Access to power</span>
+                      <LogisticChip value={event.accessToPower} />
+                    </div>
+                  )}
+                  {event.accessToWater && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Access to water</span>
+                      <LogisticChip value={event.accessToWater} />
+                    </div>
+                  )}
+                  {event.wifiAvailability && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">WiFi availability</span>
+                      <LogisticChip value={event.wifiAvailability} />
+                    </div>
+                  )}
+                  {event.vendorLoadIn && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Vendor load-in</span>
+                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.vendorLoadIn}</span>
+                    </div>
+                  )}
+                  {event.vendorLoadOut && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Vendor load-out</span>
+                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.vendorLoadOut}</span>
+                    </div>
+                  )}
+                  {event.eventHours && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Event hours</span>
+                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.eventHours}</span>
+                    </div>
+                  )}
+                  {event.parkingAvailable && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Parking on site</span>
+                      <LogisticChip value={event.parkingAvailable} />
+                    </div>
+                  )}
+                  {event.securityPresence && (
+                    <div className="flex items-start justify-between gap-4 py-3">
+                      <span className="text-sm text-[var(--gray-500)]">Security presence</span>
+                      <LogisticChip value={event.securityPresence} />
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </Card>
         )}
@@ -710,20 +841,20 @@ export default function ProposalDetailPage() {
                 {STATUS_LABEL[status] ?? status}
               </span>
             </InfoRow>
-            <InfoRow label="Submitted" value={fmt(createdAt)} />
-            {inquiry.viewedAt && <InfoRow label="Viewed by vendor" value={fmt(inquiry.viewedAt)} />}
-            {inquiry.discussedAt && <InfoRow label="Discussion started" value={fmt(inquiry.discussedAt)} />}
-            {inquiry.actionsNeededAt && <InfoRow label="Offer received" value={fmt(inquiry.actionsNeededAt)} />}
-            {inquiry.scheduledAt && <InfoRow label="Booked" value={fmt(inquiry.scheduledAt)} />}
-            {inquiry.completedAt && <InfoRow label="Completed" value={fmt(inquiry.completedAt)} />}
-            {inquiry.expiredAt && <InfoRow label="Expired" value={fmt(inquiry.expiredAt)} />}
+            <InfoRow label="Submitted" value={fmtDateTime(createdAt)} />
+            {inquiry.viewedAt && <InfoRow label="Viewed by vendor" value={fmtDateTime(inquiry.viewedAt)} />}
+            {inquiry.discussedAt && <InfoRow label="Discussion started" value={fmtDateTime(inquiry.discussedAt)} />}
+            {inquiry.actionsNeededAt && <InfoRow label="Offer received" value={fmtDateTime(inquiry.actionsNeededAt)} />}
+            {inquiry.scheduledAt && <InfoRow label="Booked" value={fmtDateTime(inquiry.scheduledAt)} />}
+            {inquiry.completedAt && <InfoRow label="Completed" value={fmtDateTime(inquiry.completedAt)} />}
+            {inquiry.expiredAt && <InfoRow label="Expired" value={fmtDateTime(inquiry.expiredAt)} />}
             {budgetCents && (
               <>
                 <InfoRow label="Your budget" value={formatPrice(budgetCents)} />
                 {(tipCents ?? 0) > 0 && (
-                  <InfoRow label="Tip (100% to vendor)" value={formatPrice(tipCents)} />
+                  <InfoRow label="Tip" value={formatPrice(tipCents)} />
                 )}
-                <InfoRow label="Est. grand total">
+                <InfoRow label="Est. total">
                   <span className="font-semibold text-[var(--violet-700)]">~{formatPrice(feeGrossTotal(budgetCents, tipCents ?? 0))}</span>
                   <span className="block text-[10px] text-[var(--gray-400)] font-normal mt-0.5">
                     Includes 10% fee, 8.25% tax, processing{(tipCents ?? 0) > 0 ? ", and tip" : ""}
@@ -775,7 +906,7 @@ export default function ProposalDetailPage() {
                 <InfoRow label="Payment" value={activeOffer.paymentStatus.replace("_", " ")} />
               )}
               {activeOffer.expiresAt && (
-                <InfoRow label="Offer expires" value={fmt(activeOffer.expiresAt)} />
+                <InfoRow label="Offer expires" value={fmtDateTime(activeOffer.expiresAt)} />
               )}
             </div>
 
@@ -818,94 +949,6 @@ export default function ProposalDetailPage() {
           </Card>
         )}
 
-        {/* Venue logistics */}
-        {hasLogistics && (
-          <Card
-            title="Venue Logistics"
-            icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-              </svg>
-            }
-          >
-            <div className="divide-y divide-[var(--gray-50)]">
-              {event.boothSize && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Booth size</span>
-                  <span className="text-sm font-medium text-[var(--gray-800)]">
-                    {event.boothSize.replace("x", " ft × ")} ft
-                  </span>
-                </div>
-              )}
-              {event.indoorOutdoor && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Indoor or outdoor</span>
-                  <LogisticChip value={event.indoorOutdoor} />
-                </div>
-              )}
-              {event.canopyAllowed && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Canopy allowed</span>
-                  <LogisticChip value={event.canopyAllowed} />
-                </div>
-              )}
-              {event.venueAttendees && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Event attendees</span>
-                  <span className="text-sm font-medium text-[var(--gray-800)]">{Number(event.venueAttendees).toLocaleString()}</span>
-                </div>
-              )}
-              {event.accessToPower && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Access to power</span>
-                  <LogisticChip value={event.accessToPower} />
-                </div>
-              )}
-              {event.accessToWater && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Access to water</span>
-                  <LogisticChip value={event.accessToWater} />
-                </div>
-              )}
-              {event.wifiAvailability && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">WiFi availability</span>
-                  <LogisticChip value={event.wifiAvailability} />
-                </div>
-              )}
-              {event.vendorLoadIn && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Vendor load-in</span>
-                  <span className="text-sm font-medium text-[var(--gray-800)]">{event.vendorLoadIn}</span>
-                </div>
-              )}
-              {event.vendorLoadOut && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Vendor load-out</span>
-                  <span className="text-sm font-medium text-[var(--gray-800)]">{event.vendorLoadOut}</span>
-                </div>
-              )}
-              {event.eventHours && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Event date / hours</span>
-                  <span className="text-sm font-medium text-[var(--gray-800)]">{event.eventHours}</span>
-                </div>
-              )}
-              {event.parkingAvailable && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Parking on site</span>
-                  <LogisticChip value={event.parkingAvailable} />
-                </div>
-              )}
-              {event.securityPresence && (
-                <div className="flex items-start justify-between gap-4 py-3">
-                  <span className="text-sm text-[var(--gray-500)]">Security presence</span>
-                  <LogisticChip value={event.securityPresence} />
-                </div>
-              )}
-            </div>
-          </Card>
-        )}
       </div>
 
       {/* ── Initial message ── */}

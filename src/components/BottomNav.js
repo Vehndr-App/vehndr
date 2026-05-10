@@ -93,8 +93,10 @@ export default function BottomNav() {
     return () => clearInterval(interval);
   }, [user]);
 
-  // Admin, buyer-dashboard, and messages pages have their own navigation.
-  if (isAdminRoute || isBuyerDashboard || isMessages) {
+  const isStorePage = pathname?.startsWith("/store/");
+
+  // Admin, buyer-dashboard, messages, and store pages have their own navigation.
+  if (isAdminRoute || isBuyerDashboard || isMessages || isStorePage) {
     return null;
   }
 

@@ -150,7 +150,12 @@
 }
 
 /* Base Styles */
+html {
+  overflow-x: hidden;
+}
+
 body {
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-jakarta), system-ui, sans-serif;
@@ -685,6 +690,100 @@ body {
   background: var(--gray-300);
   border-radius: var(--radius-full);
   margin: 8px auto 16px;
+}
+
+/* ─── Mobile premium utilities ───────────────────────────────────────────────── */
+
+/* iOS-style spring bounce enter */
+@keyframes spring-up {
+  0%   { opacity: 0; transform: translateY(16px) scale(0.97); }
+  60%  { opacity: 1; transform: translateY(-3px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes slide-up-soft {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.85); }
+  70%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.animate-spring-up   { animation: spring-up 380ms cubic-bezier(0.175, 0.885, 0.32, 1.1) forwards; }
+.animate-slide-up-soft { animation: slide-up-soft 250ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.animate-row-in      { animation: row-in 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.animate-pop-in      { animation: pop-in 350ms cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+/* Tap feedback — applied on interactive elements */
+.tap-highlight {
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
+.tap-scale:active { transform: scale(0.97); transition: transform 80ms; }
+.tap-scale-sm:active { transform: scale(0.985); transition: transform 80ms; }
+
+/* Glass morphism card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+}
+
+/* Premium elevated card */
+.card-premium {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.07), 0 1px 4px rgba(0, 0, 0, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Urgent action card */
+.card-urgent {
+  background: linear-gradient(135deg, #fff5f5 0%, #fff0eb 100%);
+  border: 1px solid rgba(239, 68, 68, 0.15);
+  border-radius: 16px;
+}
+
+/* Sticky footer safe-area */
+.footer-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 16px);
+}
+
+/* Scrollbar none utility for Firefox + WebKit */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+/* iOS input reset */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="date"],
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 /* Tailwind color overrides to match design system */

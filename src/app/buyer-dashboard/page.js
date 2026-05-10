@@ -1,279 +1,412 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
-import { listInquiries } from "../../services/inquiries";
-import { getMyEvents } from "../../services/events";
+import { listInquiries, deleteInquiry } from "../../services/inquiries";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  submitted:      { label: "Proposal Sent",   color: "amber"  },
-  viewed:         { label: "Viewed",          color: "blue"   },
-  discussed:      { label: "In Discussion",   color: "violet" },
-  actions_needed: { label: "Offer Received",  color: "coral"  },
-  offer_updated:  { label: "Offer Revised",   color: "coral"  },
-  scheduled:      { label: "Booked",          color: "mint"   },
-  completed:      { label: "Completed",       color: "mint"   },
-  expired:        { label: "Expired",         color: "gray"   },
+  submitted:      { label: "Sent",      color: "amber",  dot: "bg-[var(--amber-500)]"  },
+  viewed:         { label: "Viewed",    color: "blue",   dot: "bg-[var(--info)]"        },
+  discussed:      { label: "Active",    color: "violet", dot: "bg-[var(--violet-500)]"  },
+  actions_needed: { label: "Offer",     color: "coral",  dot: "bg-[var(--coral-500)]"   },
+  offer_updated:  { label: "Revised",   color: "coral",  dot: "bg-[var(--coral-500)]"   },
+  scheduled:      { label: "Booked",    color: "mint",   dot: "bg-[var(--mint-500)]"    },
+  completed:      { label: "Completed", color: "mint",   dot: "bg-[var(--mint-500)]"    },
+  expired:        { label: "Expired",   color: "gray",   dot: "bg-[var(--gray-300)]"    },
 };
 
-const COLOR_DOT = {
-  amber:  "bg-[var(--amber-500)]",
+const BADGE_STYLES = {
+  amber:  "bg-[var(--amber-50)]  text-[var(--amber-700)]",
+  blue:   "bg-[var(--info-50)]   text-[var(--info)]",
+  violet: "bg-[var(--violet-50)] text-[var(--violet-700)]",
+  coral:  "bg-[var(--coral-50)]  text-[var(--coral-600)]",
+  mint:   "bg-[var(--mint-50)]   text-[var(--mint-700)]",
+  gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]",
+};
+
+const ACCENT_BAR = {
+  amber:  "bg-[var(--amber-400)]",
   blue:   "bg-[var(--info)]",
   violet: "bg-[var(--violet-500)]",
   coral:  "bg-[var(--coral-500)]",
   mint:   "bg-[var(--mint-500)]",
-  gray:   "bg-[var(--gray-300)]",
+  gray:   "bg-[var(--gray-200)]",
 };
 
+const TABS = [
+  { id: "all",    label: "All"    },
+  { id: "sent",   label: "Sent"   },
+  { id: "booked", label: "Booked" },
+];
+
+const SENT_STATUSES   = new Set(["submitted", "viewed"]);
+const BOOKED_STATUSES = new Set(["scheduled"]);
+
+const PAGE_SIZE = 6;
+
+function matchTab(inq, tab) {
+  const s = inq.status;
+  if (tab === "all")    return true;
+  if (tab === "sent")   return SENT_STATUSES.has(s);
+  if (tab === "booked") return BOOKED_STATUSES.has(s);
+  return true;
+}
+
+// ─── Fee helpers ──────────────────────────────────────────────────────────────
+
+function feeGrossTotal(base, tip = 0) {
+  const pre = base + Math.round(base * 0.0825) + Math.round(base * 0.10) + tip;
+  return Math.ceil((pre + 30) / (1 - 0.029));
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 function formatDate(raw) {
-  if (!raw) return null;
+  if (!raw) return "—";
   return new Date(raw).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
-function StatCard({ label, value, sub, gradient, icon }) {
+function formatPrice(cents) {
+  if (!cents) return null;
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonCard() {
   return (
-    <div className="bg-white rounded-2xl p-5 flex items-start gap-4" style={{ boxShadow: "var(--shadow-card)" }}>
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 text-white`} style={{ background: gradient }}>
-        {icon}
-      </div>
-      <div>
-        <p className="text-2xl font-bold text-[var(--gray-900)] leading-none mb-1">{value}</p>
-        <p className="text-sm font-medium text-[var(--gray-600)]">{label}</p>
-        {sub && <p className="text-xs text-[var(--gray-400)] mt-0.5">{sub}</p>}
+    <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="h-[3px] bg-[var(--gray-100)]" />
+      <div className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[10px] bg-[var(--gray-100)] animate-pulse flex-shrink-0" />
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="h-4 bg-[var(--gray-100)] rounded w-3/5 animate-pulse" />
+            <div className="h-3 bg-[var(--gray-100)] rounded w-2/5 animate-pulse" />
+          </div>
+          <div className="h-6 w-14 bg-[var(--gray-100)] rounded-full animate-pulse flex-shrink-0" />
+        </div>
+        <div className="flex justify-between mt-3 pt-2.5 border-t border-[var(--gray-50)]">
+          <div className="h-3 w-20 bg-[var(--gray-100)] rounded animate-pulse" />
+          <div className="h-3 w-16 bg-[var(--gray-100)] rounded animate-pulse" />
+        </div>
       </div>
     </div>
   );
 }
 
-function RecentProposalRow({ inquiry }) {
-  const meta = STATUS_META[inquiry.status] ?? { label: inquiry.status, color: "gray" };
-  const offer = inquiry.activeOffer;
-  const hasOffer = offer?.status === "pending";
-  const initial = inquiry.vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
+// ─── Proposal Card ────────────────────────────────────────────────────────────
+
+function ProposalCard({ inquiry, onDelete }) {
+  const meta        = STATUS_META[inquiry.status] ?? { label: inquiry.status, color: "gray", dot: "bg-[var(--gray-300)]" };
+  const offer       = inquiry.activeOffer;
+  const hasOffer    = offer?.status === "pending";
+  const isBooked    = offer?.status === "accepted" || inquiry.status === "scheduled";
+  const initial     = inquiry.vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
+  const needsAction = inquiry.status === "actions_needed";
+  const isPaid      = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
+
+  const tip   = inquiry.tipCents ?? 0;
+  const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
+  const price = (hasOffer || isBooked) && offer?.totalPriceCents
+    ? formatPrice(feeGrossTotal(offer.totalPriceCents, tip))
+    : null;
 
   return (
-    <Link
-      href={`/buyer-dashboard/proposals/${inquiry.id}`}
-      className="group flex items-center gap-4 px-5 py-4 hover:bg-[var(--violet-50)] transition-colors duration-150"
-    >
-      {/* Avatar */}
-      <div
-        className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-        style={{ background: "var(--gradient-vendor)", boxShadow: "0 2px 8px rgba(139,92,246,0.2)" }}
+    <div className="relative group">
+      <Link
+        href={`/buyer-dashboard/proposals/${inquiry.id}`}
+        className="block bg-white rounded-2xl overflow-hidden active:scale-[0.985] transition-transform duration-100"
+        style={{
+          boxShadow: needsAction
+            ? "0 0 0 1.5px var(--coral-200), var(--shadow-card)"
+            : "var(--shadow-card)",
+        }}
       >
-        {initial}
-      </div>
+        <div className={`h-[3px] w-full ${ACCENT_BAR[color]}`} />
+        <div className="p-4">
+          {/* Top row: avatar + name + badge */}
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+              style={{ background: "var(--gradient-vendor)" }}
+            >
+              {initial}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[15px] font-bold text-[var(--gray-900)] leading-tight truncate">
+                {inquiry.vendor?.name ?? "Vendor"}
+              </p>
+              <p className="text-xs text-[var(--gray-400)] mt-0.5 truncate">
+                {inquiry.event?.name ?? "No event linked"}
+              </p>
+            </div>
+            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${BADGE_STYLES[color]}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+              {meta.label}
+            </span>
+          </div>
 
-      {/* Info */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-[var(--gray-900)] truncate">{inquiry.vendor?.name}</p>
-        {inquiry.event && (
-          <p className="text-xs text-[var(--gray-400)] truncate mt-0.5">{inquiry.event.name}</p>
-        )}
-      </div>
+          {/* Bottom row: date left, price/action right — stacks if needed */}
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mt-3 pt-2.5 border-t border-[var(--gray-50)]">
+            <span className="text-[11px] text-[var(--gray-400)] tabular-nums">{formatDate(inquiry.createdAt)}</span>
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {needsAction && (
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--coral-600)]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--coral-500)] animate-pulse inline-block" />
+                  Action needed
+                </span>
+              )}
+              {price && (
+                <span className={`text-[13px] font-bold ${needsAction ? "text-[var(--coral-600)]" : "text-[var(--gray-800)]"}`}>
+                  {price}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Link>
 
-      {/* Status */}
-      <div className="flex items-center gap-1.5 flex-shrink-0">
-        <span className={`w-1.5 h-1.5 rounded-full ${COLOR_DOT[hasOffer ? "coral" : meta.color]}`} />
-        <span className="text-xs font-medium text-[var(--gray-500)]">
-          {hasOffer ? `Offer · $${(offer.totalPriceCents / 100).toLocaleString()}` : meta.label}
-        </span>
-      </div>
-
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--gray-300)] group-hover:text-[var(--violet-400)] flex-shrink-0">
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
-    </Link>
+      {!isPaid && (
+        <button
+          onClick={(e) => { e.preventDefault(); onDelete(inquiry); }}
+          className="absolute top-4 right-4 z-10 opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg bg-white border border-[var(--gray-200)] flex items-center justify-center text-[var(--gray-400)] hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm"
+          title="Delete"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+function EmptyState({ tab }) {
+  const copy = {
+    all:    { h: "No proposals yet",    s: "When you submit proposals to vendors, they'll appear here." },
+    sent:   { h: "No sent proposals",   s: "Proposals waiting for a vendor response will show up here." },
+    booked: { h: "Nothing booked yet",  s: "Confirmed bookings will appear here." },
+  };
+  const { h, s } = copy[tab] ?? copy.all;
+  return (
+    <div className="bg-white rounded-2xl flex flex-col items-center justify-center py-12 px-6 text-center" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="w-12 h-12 rounded-2xl mb-3 flex items-center justify-center" style={{ background: "var(--gradient-browse)" }}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
+        </svg>
+      </div>
+      <h3 className="text-[15px] font-semibold text-[var(--gray-900)] mb-1">{h}</h3>
+      <p className="text-[13px] text-[var(--gray-400)] leading-relaxed max-w-xs mb-5">{s}</p>
+      {tab === "all" && (
+        <Link href="/vendors" className="btn btn-gradient text-sm" style={{ height: "40px", padding: "0 20px", fontSize: "13px" }}>
+          Browse vendors
+        </Link>
+      )}
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function BuyerDashboardHome() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  const [inquiries, setInquiries] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [inquiries, setInquiries]   = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [activeTab, setActiveTab]   = useState("all");
+  const [page, setPage]             = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting]     = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   useEffect(() => {
     if (authLoading) return;
     if (!user) { router.push("/login"); return; }
-    Promise.all([listInquiries(), getMyEvents()])
-      .then(([inqs, evts]) => {
-        setInquiries(Array.isArray(inqs) ? inqs : []);
-        setEvents(Array.isArray(evts) ? evts : []);
-      })
+    listInquiries()
+      .then((data) => setInquiries(Array.isArray(data) ? data : []))
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [user, authLoading, router]);
 
-  const active = inquiries.filter((i) => ["submitted","viewed","discussed","actions_needed","offer_updated"].includes(i.status)).length;
-  const booked = inquiries.filter((i) => i.status === "scheduled").length;
-  const withOffers = inquiries.filter((i) => i.activeOffer?.status === "pending").length;
+  const filtered = useMemo(
+    () => inquiries.filter((i) => matchTab(i, activeTab)),
+    [inquiries, activeTab]
+  );
 
-  const greeting = () => {
-    const h = new Date().getHours();
-    if (h < 12) return "Good morning";
-    if (h < 17) return "Good afternoon";
-    return "Good evening";
-  };
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const tabCounts = useMemo(() => {
+    const c = {};
+    TABS.forEach(({ id }) => {
+      c[id] = id === "all" ? inquiries.length : inquiries.filter((i) => matchTab(i, id)).length;
+    });
+    return c;
+  }, [inquiries]);
+
+  function handleTabChange(tab) {
+    setActiveTab(tab);
+    setPage(1);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteInquiry(deleteTarget.id);
+      setInquiries((prev) => prev.filter((i) => i.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(err.message ?? "Failed to delete.");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div className="max-w-lg mx-auto pb-24">
 
-      {/* ── Header ── */}
-      <div className="mb-8">
-        <p className="text-sm text-[var(--gray-400)] font-medium mb-1">{greeting()}</p>
-        <h1 className="text-2xl font-display font-bold text-[var(--gray-900)]">
-          {user?.name ? user.name.split(" ")[0] : "Welcome"} 👋
-        </h1>
-        <p className="text-sm text-[var(--gray-500)] mt-1">Here's an overview of your event planning activity.</p>
-      </div>
-
-      {/* ── Stats ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-        <StatCard
-          label="Total Proposals"
-          value={loading ? "—" : inquiries.length}
-          gradient="var(--gradient-vendor)"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
-            </svg>
-          }
-        />
-        <StatCard
-          label="Active"
-          value={loading ? "—" : active}
-          gradient="linear-gradient(135deg,#F59E0B,#FB923C)"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-            </svg>
-          }
-        />
-        <StatCard
-          label="Offers Pending"
-          value={loading ? "—" : withOffers}
-          gradient="linear-gradient(135deg,#FF6B6B,#EE5A5A)"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7m0 0a2 2 0 10-4 0m4 0a2 2 0 114 0"/>
-            </svg>
-          }
-        />
-        <StatCard
-          label="Booked"
-          value={loading ? "—" : booked}
-          gradient="linear-gradient(135deg,#10B981,#059669)"
-          icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          }
-        />
-      </div>
-
-      {/* ── Two-column content ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Recent proposals */}
-        <div className="lg:col-span-2 bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
-          <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--gray-100)]">
-            <h2 className="font-semibold text-[var(--gray-900)] text-[15px]">Recent Proposals</h2>
-            <Link href="/buyer-dashboard/proposals" className="text-xs font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]">
-              View all →
-            </Link>
-          </div>
-          {loading ? (
-            <div className="divide-y divide-[var(--gray-50)]">
-              {[1,2,3].map(i => (
-                <div key={i} className="flex items-center gap-4 px-5 py-4">
-                  <div className="w-9 h-9 rounded-xl bg-[var(--gray-100)] animate-pulse flex-shrink-0" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="h-3.5 bg-[var(--gray-100)] rounded w-1/3 animate-pulse" />
-                    <div className="h-3 bg-[var(--gray-100)] rounded w-1/2 animate-pulse" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : inquiries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-              <div className="w-12 h-12 rounded-2xl mb-4 flex items-center justify-center" style={{ background: "var(--gradient-browse)" }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
-                </svg>
-              </div>
-              <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">No proposals yet</p>
-              <p className="text-xs text-[var(--gray-400)] mb-4">Browse vendors and submit your first proposal.</p>
-              <Link href="/vendors" className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)]">Browse vendors →</Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--gray-50)]">
-              {inquiries.slice(0, 5).map((inq) => (
-                <RecentProposalRow key={inq.id} inquiry={inq} />
-              ))}
-            </div>
-          )}
+      {/* ── Sticky header ── */}
+      <div className="sticky top-14 z-30 bg-[var(--gray-50)]">
+        {/* Title */}
+        <div className="px-4 pt-4 pb-3">
+          <p className="text-[11px] text-[var(--gray-400)] font-medium leading-none mb-0.5">{greeting()}</p>
+          <h1 className="text-[19px] font-display font-bold text-[var(--gray-900)] leading-tight">
+            {user?.name ? user.name.split(" ")[0] : "My"}&rsquo;s Proposals
+          </h1>
         </div>
 
-        {/* Right panel: Quick actions + Events */}
-        <div className="space-y-6">
-          {/* Quick actions */}
-          <div className="bg-white rounded-2xl p-5" style={{ boxShadow: "var(--shadow-card)" }}>
-            <h2 className="font-semibold text-[var(--gray-900)] text-[15px] mb-4">Quick Actions</h2>
-            <div className="space-y-2">
-              <Link href="/vendors" className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--violet-50)] transition-colors group">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs" style={{ background: "var(--gradient-vendor)" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                </div>
-                <span className="text-sm font-medium text-[var(--gray-700)] group-hover:text-[var(--violet-700)]">Browse Vendors</span>
-              </Link>
-              <Link href="/buyer-dashboard/events" className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--violet-50)] transition-colors group">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg,#0EA5E9,#14B8A6)" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-                <span className="text-sm font-medium text-[var(--gray-700)] group-hover:text-[var(--violet-700)]">My Events</span>
-              </Link>
-              <Link href="/buyer-dashboard/proposals" className="flex items-center gap-3 p-3 rounded-xl hover:bg-[var(--violet-50)] transition-colors group">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg,#F59E0B,#FB923C)" }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
-                </div>
-                <span className="text-sm font-medium text-[var(--gray-700)] group-hover:text-[var(--violet-700)]">All Proposals</span>
-              </Link>
-            </div>
+        {/* Filter chips */}
+        <div className="relative">
+          <div className="flex gap-2 px-4 pb-3 overflow-x-auto" style={{ scrollbarWidth: "none", WebkitOverflowScrolling: "touch" }}>
+            {TABS.map(({ id, label }) => {
+              const count  = tabCounts[id] ?? 0;
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => handleTabChange(id)}
+                  className={`flex-shrink-0 flex items-center gap-1.5 h-8 px-3.5 rounded-full text-[13px] font-semibold transition-all duration-150 ${
+                    active
+                      ? "bg-[var(--gray-900)] text-white"
+                      : "bg-white text-[var(--gray-500)] border border-[var(--gray-200)]"
+                  }`}
+                  style={active ? { boxShadow: "0 1px 4px rgba(0,0,0,0.15)" } : {}}
+                >
+                  {label}
+                  <span className={`text-[10px] font-bold tabular-nums leading-none ${
+                    count > 0 && !loading
+                      ? active ? "opacity-60" : "text-[var(--gray-400)]"
+                      : "invisible"
+                  }`}>
+                    {count || 0}
+                  </span>
+                </button>
+              );
+            })}
           </div>
+          {/* Right fade hint */}
+          <div className="absolute right-0 top-0 bottom-3 w-8 pointer-events-none"
+            style={{ background: "linear-gradient(to left, var(--gray-50), transparent)" }} />
+        </div>
 
-          {/* My events */}
-          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--gray-100)]">
-              <h2 className="font-semibold text-[var(--gray-900)] text-[15px]">My Events</h2>
-              <Link href="/buyer-dashboard/events" className="text-xs font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]">View all →</Link>
+        <div className="h-px bg-[var(--gray-200)]" />
+      </div>
+
+      {/* ── Card list ── */}
+      <div className="px-4 pt-4 space-y-3">
+        {loading ? (
+          <>
+            <SkeletonCard /><SkeletonCard /><SkeletonCard />
+          </>
+        ) : paginated.length === 0 ? (
+          <EmptyState tab={activeTab} />
+        ) : (
+          paginated.map((inq) => (
+            <ProposalCard key={inq.id} inquiry={inq} onDelete={setDeleteTarget} />
+          ))
+        )}
+      </div>
+
+      {/* ── Pagination ── */}
+      {!loading && totalPages > 1 && (
+        <div className="px-4 mt-5 flex items-center justify-between gap-3">
+          <button
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page === 1}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-[var(--gray-200)] bg-white text-sm font-semibold text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Prev
+          </button>
+
+          <span className="text-sm font-semibold text-[var(--gray-500)] tabular-nums">
+            {page} / {totalPages}
+          </span>
+
+          <button
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages}
+            className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-[var(--gray-200)] bg-white text-sm font-semibold text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            Next
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* ── Delete modal ── */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
             </div>
-            {loading ? (
-              <div className="p-5 space-y-3">
-                {[1,2].map(i => <div key={i} className="h-10 bg-[var(--gray-100)] rounded-xl animate-pulse" />)}
-              </div>
-            ) : events.length === 0 ? (
-              <div className="px-5 py-6 text-center">
-                <p className="text-xs text-[var(--gray-400)]">No events yet. Create one when submitting a proposal.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-[var(--gray-50)]">
-                {events.slice(0, 3).map((evt) => (
-                  <div key={evt.id} className="px-5 py-3.5">
-                    <p className="text-sm font-medium text-[var(--gray-800)] truncate">{evt.name}</p>
-                    {evt.startDate && (
-                      <p className="text-xs text-[var(--gray-400)] mt-0.5">{formatDate(evt.startDate)}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <h2 className="text-base font-bold text-[var(--gray-900)] text-center mb-1">Delete this proposal?</h2>
+            <p className="text-sm text-[var(--gray-500)] text-center mb-5">
+              This will permanently remove your proposal to <strong>{deleteTarget.vendor?.name}</strong>.
+            </p>
+            {deleteError && <p className="text-sm text-red-600 text-center mb-4">{deleteError}</p>}
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteError(null); }}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl border border-[var(--gray-200)] text-sm font-semibold text-[var(--gray-700)] disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold disabled:opacity-40"
+              >
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

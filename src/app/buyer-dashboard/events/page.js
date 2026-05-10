@@ -117,12 +117,12 @@ export default function EventsPage() {
         </div>
         <Link
           href="/vendors"
-          className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white text-sm font-semibold hover:shadow-[var(--shadow-button)] transition-all"
+          className="flex items-center justify-center h-9 w-9 sm:w-auto sm:gap-1.5 sm:px-4 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white font-semibold hover:shadow-[var(--shadow-button)] transition-all flex-shrink-0"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          New Proposal
+          <span className="hidden sm:inline text-sm">New Proposal</span>
         </Link>
       </div>
 
