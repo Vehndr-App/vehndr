@@ -273,13 +273,29 @@ export default function Navbar() {
                     </MenuLink>
                   )}
                   {user.role === 'coordinator' && (
-                    <MenuLink
-                      href="/coordinator-dashboard"
-                      icon={<DashboardIcon />}
-                      active={pathname === '/coordinator-dashboard'}
-                    >
-                      Event Organizer Dashboard
-                    </MenuLink>
+                    <>
+                      <MenuLink
+                        href="/coordinator-dashboard"
+                        icon={<DashboardIcon />}
+                        active={pathname === '/coordinator-dashboard'}
+                      >
+                        Event Organizer Dashboard
+                      </MenuLink>
+                      <MenuLink
+                        href="/buyer-dashboard/proposals"
+                        icon={<ProposalsIcon />}
+                        active={pathname.startsWith('/buyer-dashboard/proposals')}
+                      >
+                        My Proposals
+                      </MenuLink>
+                      <MenuLink
+                        href="/messages"
+                        icon={<MessageIcon />}
+                        active={pathname.startsWith('/messages')}
+                      >
+                        Messages
+                      </MenuLink>
+                    </>
                   )}
                   {user.role === 'admin' && (
                     <MenuLink
@@ -479,6 +495,25 @@ function BellIcon() {
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
       <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+    </svg>
+  );
+}
+
+function ProposalsIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+      <rect x="9" y="3" width="6" height="4" rx="1"/>
+      <line x1="9" y1="12" x2="15" y2="12"/>
+      <line x1="9" y1="16" x2="13" y2="16"/>
+    </svg>
+  );
+}
+
+function MessageIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
     </svg>
   );
 }

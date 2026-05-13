@@ -9,23 +9,32 @@ import { listInquiries, deleteInquiry } from "../../../services/inquiries";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_META = {
-  submitted:      { label: "Proposal Sent",  color: "amber",  dot: "bg-[var(--amber-500)]"  },
-  viewed:         { label: "Viewed",         color: "blue",   dot: "bg-[var(--info)]"        },
-  discussed:      { label: "In Discussion",  color: "violet", dot: "bg-[var(--violet-500)]"  },
-  actions_needed: { label: "Offer Received", color: "coral",  dot: "bg-[var(--coral-500)]"   },
-  offer_updated:  { label: "Offer Revised",  color: "coral",  dot: "bg-[var(--coral-500)]"   },
-  scheduled:      { label: "Booked",         color: "mint",   dot: "bg-[var(--mint-500)]"    },
-  completed:      { label: "Completed",      color: "mint",   dot: "bg-[var(--mint-500)]"    },
-  expired:        { label: "Expired",        color: "gray",   dot: "bg-[var(--gray-300)]"    },
+  submitted:      { label: "Sent",      color: "amber",  dot: "bg-[var(--amber-500)]"  },
+  viewed:         { label: "Viewed",    color: "blue",   dot: "bg-[var(--info)]"        },
+  discussed:      { label: "Active",    color: "violet", dot: "bg-[var(--violet-500)]"  },
+  actions_needed: { label: "Offer",     color: "coral",  dot: "bg-[var(--coral-500)]"   },
+  offer_updated:  { label: "Revised",   color: "coral",  dot: "bg-[var(--coral-500)]"   },
+  scheduled:      { label: "Booked",    color: "mint",   dot: "bg-[var(--mint-500)]"    },
+  completed:      { label: "Completed", color: "mint",   dot: "bg-[var(--mint-500)]"    },
+  expired:        { label: "Expired",   color: "gray",   dot: "bg-[var(--gray-300)]"    },
 };
 
 const BADGE_STYLES = {
-  amber:  "bg-[var(--amber-50)]  text-[var(--amber-700)]  ring-1 ring-[var(--amber-200)]",
-  blue:   "bg-[var(--info-50)]   text-[var(--info)]        ring-1 ring-[var(--info-100)]",
-  violet: "bg-[var(--violet-50)] text-[var(--violet-700)] ring-1 ring-[var(--violet-200)]",
-  coral:  "bg-[var(--coral-50)]  text-[var(--coral-600)]  ring-1 ring-[var(--coral-100)]",
-  mint:   "bg-[var(--mint-50)]   text-[var(--mint-700)]   ring-1 ring-[var(--mint-100)]",
-  gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]   ring-1 ring-[var(--gray-200)]",
+  amber:  "bg-[var(--amber-50)]  text-[var(--amber-700)]",
+  blue:   "bg-[var(--info-50)]   text-[var(--info)]",
+  violet: "bg-[var(--violet-50)] text-[var(--violet-700)]",
+  coral:  "bg-[var(--coral-50)]  text-[var(--coral-600)]",
+  mint:   "bg-[var(--mint-50)]   text-[var(--mint-700)]",
+  gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]",
+};
+
+const ACCENT_BAR = {
+  amber:  "bg-[var(--amber-400)]",
+  blue:   "bg-[var(--info)]",
+  violet: "bg-[var(--violet-500)]",
+  coral:  "bg-[var(--coral-500)]",
+  mint:   "bg-[var(--mint-500)]",
+  gray:   "bg-[var(--gray-200)]",
 };
 
 const TABS = [
@@ -51,7 +60,7 @@ function matchTab(inq, tab) {
   return true;
 }
 
-// ─── Fee helpers (mirrors MarketplacePricing) ─────────────────────────────────
+// ─── Fee helpers ──────────────────────────────────────────────────────────────
 
 const FEE_TAX_RATE     = 0.0825;
 const FEE_COORD_RATE   = 0.10;
@@ -75,110 +84,120 @@ function formatPrice(cents) {
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
-function SkeletonRow() {
+function SkeletonCard() {
   return (
-    <div className="grid grid-cols-[auto_1fr_auto_auto_auto] items-center gap-4 px-6 py-4">
-      <div className="w-10 h-10 rounded-xl bg-[var(--gray-100)] animate-pulse" />
-      <div className="space-y-2">
-        <div className="h-3.5 bg-[var(--gray-100)] rounded w-2/5 animate-pulse" />
-        <div className="h-3 bg-[var(--gray-100)] rounded w-1/3 animate-pulse" />
+    <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="h-[3px] bg-[var(--gray-100)]" />
+      <div className="p-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[10px] bg-[var(--gray-100)] animate-pulse flex-shrink-0" />
+          <div className="flex-1 min-w-0 space-y-2">
+            <div className="h-4 bg-[var(--gray-100)] rounded w-3/5 animate-pulse" />
+            <div className="h-3 bg-[var(--gray-100)] rounded w-2/5 animate-pulse" />
+          </div>
+          <div className="h-6 w-14 bg-[var(--gray-100)] rounded-full animate-pulse flex-shrink-0" />
+        </div>
+        <div className="flex justify-between mt-3 pt-2.5 border-t border-[var(--gray-50)]">
+          <div className="h-3 w-20 bg-[var(--gray-100)] rounded animate-pulse" />
+          <div className="h-3 w-16 bg-[var(--gray-100)] rounded animate-pulse" />
+        </div>
       </div>
-      <div className="h-5 bg-[var(--gray-100)] rounded-full w-24 animate-pulse" />
-      <div className="h-3 bg-[var(--gray-100)] rounded w-16 animate-pulse" />
-      <div className="h-8 bg-[var(--gray-100)] rounded-lg w-16 animate-pulse" />
     </div>
   );
 }
 
-// ─── Proposal row ─────────────────────────────────────────────────────────────
+// ─── Proposal Card ────────────────────────────────────────────────────────────
 
-function ProposalRow({ inquiry, index, onDelete }) {
-  const meta      = STATUS_META[inquiry.status] ?? { label: inquiry.status, color: "gray", dot: "bg-[var(--gray-300)]" };
-  const offer     = inquiry.activeOffer;
-  const hasOffer  = offer?.status === "pending";
-  const isBooked  = offer?.status === "accepted" || inquiry.status === "scheduled";
-  const initial   = inquiry.vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
+function ProposalCard({ inquiry, onDelete }) {
+  const meta        = STATUS_META[inquiry.status] ?? { label: inquiry.status, color: "gray", dot: "bg-[var(--gray-300)]" };
+  const offer       = inquiry.activeOffer;
+  const hasOffer    = offer?.status === "pending";
+  const isBooked    = offer?.status === "accepted" || inquiry.status === "scheduled";
+  const initial     = inquiry.vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
   const needsAction = inquiry.status === "actions_needed";
-  const isPaid    = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
+  const isPaid      = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
 
-  const tip = inquiry.tipCents ?? 0;
-  const badgeLabel  = hasOffer
-    ? `Offer · ${formatPrice(feeGrossTotal(offer.totalPriceCents ?? 0, tip))}`
-    : isBooked
-    ? `Booked · ${formatPrice(feeGrossTotal(offer?.totalPriceCents ?? 0, tip))}`
-    : meta.label;
-  const badgeColor  = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
+  const tip   = inquiry.tipCents ?? 0;
+  const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
+  const price = (hasOffer || isBooked) && offer?.totalPriceCents
+    ? formatPrice(feeGrossTotal(offer.totalPriceCents, tip))
+    : null;
 
   return (
-    <div
-      className={`group relative grid items-center gap-x-4 gap-y-1 px-6 py-4 border-b border-[var(--gray-50)] hover:bg-[var(--violet-50)] transition-colors duration-150 last:border-0 ${
-        needsAction ? "bg-[var(--coral-50)]/30" : ""
-      }`}
-      style={{
-        gridTemplateColumns: "40px 1fr auto auto auto",
-        animationDelay: `${index * 30}ms`,
-      }}
-    >
-      {/* Attention accent */}
-      {needsAction && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full bg-[var(--coral-500)]" />
-      )}
-
-      {/* Vendor avatar */}
-      <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
-        style={{ background: "var(--gradient-vendor)", boxShadow: "0 2px 8px rgba(139,92,246,0.2)" }}
+    <div className="relative group">
+      <Link
+        href={`/buyer-dashboard/proposals/${inquiry.id}`}
+        className="block bg-white rounded-2xl overflow-hidden active:scale-[0.985] transition-transform duration-100"
+        style={{
+          boxShadow: needsAction
+            ? "0 0 0 1.5px var(--coral-200), var(--shadow-card)"
+            : "var(--shadow-card)",
+        }}
       >
-        {initial}
-      </div>
+        {/* Status accent bar */}
+        <div className={`h-[3px] w-full ${ACCENT_BAR[color]}`} />
 
-      {/* Vendor + event */}
-      <div className="min-w-0">
-        <p className={`text-sm truncate ${needsAction ? "font-bold text-[var(--gray-900)]" : "font-semibold text-[var(--gray-800)]"}`}>
-          {inquiry.vendor?.name ?? "Vendor"}
-        </p>
-        {inquiry.event ? (
-          <p className="text-xs text-[var(--gray-400)] truncate mt-0.5">{inquiry.event.name}</p>
-        ) : (
-          <p className="text-xs text-[var(--gray-300)] mt-0.5 italic">No event linked</p>
-        )}
-      </div>
+        <div className="p-5">
+          {/* Main row */}
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-[10px] flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+              style={{ background: "var(--gradient-vendor)" }}
+            >
+              {initial}
+            </div>
 
-      {/* Status badge */}
-      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${BADGE_STYLES[badgeColor]}`}>
-        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_META[inquiry.status]?.dot ?? "bg-[var(--gray-300)]"}`} />
-        {badgeLabel}
-      </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-[15px] font-bold text-[var(--gray-900)] leading-tight truncate">
+                {inquiry.vendor?.name ?? "Vendor"}
+              </p>
+              <p className="text-xs text-[var(--gray-400)] mt-0.5 truncate">
+                {inquiry.event?.name ?? "No event linked"}
+              </p>
+            </div>
 
-      {/* Date */}
-      <span className="text-xs text-[var(--gray-400)] whitespace-nowrap tabular-nums hidden sm:block">
-        {formatDate(inquiry.createdAt)}
-      </span>
+            <span className={`inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${BADGE_STYLES[color]}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+              {meta.label}
+            </span>
+          </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1.5">
-        <Link
-          href={`/buyer-dashboard/proposals/${inquiry.id}`}
-          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-700)] hover:bg-[var(--violet-600)] hover:text-white hover:border-[var(--violet-600)] transition-all duration-150 whitespace-nowrap"
-          style={{ boxShadow: "var(--shadow-sm)" }}
+          {/* Footer row */}
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-[var(--gray-50)]">
+            <span className="text-[11px] text-[var(--gray-400)] tabular-nums">
+              {formatDate(inquiry.createdAt)}
+            </span>
+            <div className="flex items-center gap-2">
+              {needsAction && (
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-[var(--coral-600)]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--coral-500)] animate-pulse inline-block" />
+                  Action needed
+                </span>
+              )}
+              {price && (
+                <span className={`text-[13px] font-bold ${needsAction ? "text-[var(--coral-600)]" : "text-[var(--gray-800)]"}`}>
+                  {price}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </Link>
+
+      {/* Delete — desktop hover only, absolutely positioned so it doesn't affect layout */}
+      {!isPaid && (
+        <button
+          onClick={(e) => { e.preventDefault(); onDelete(inquiry); }}
+          className="absolute top-5 right-5 z-10 opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg bg-white border border-[var(--gray-200)] flex items-center justify-center text-[var(--gray-400)] hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm"
+          title="Delete proposal"
         >
-          View
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+            <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
           </svg>
-        </Link>
-        {!isPaid && (
-          <button
-            onClick={() => onDelete(inquiry)}
-            className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-8 h-8 rounded-lg border border-[var(--gray-200)] bg-white text-[var(--gray-400)] hover:text-red-600 hover:border-red-200 hover:bg-red-50 transition-all duration-150"
-            title="Delete proposal"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-            </svg>
-          </button>
-        )}
-      </div>
+        </button>
+      )}
     </div>
   );
 }
@@ -195,10 +214,11 @@ function EmptyState({ tab }) {
   };
   const { h, s } = copy[tab] ?? copy.all;
   return (
-    <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
-      <div className="w-16 h-16 rounded-2xl mb-5 flex items-center justify-center" style={{ background: "var(--gradient-browse)" }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
+    <div className="bg-white rounded-2xl flex flex-col items-center justify-center py-16 px-6 text-center" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="w-14 h-14 rounded-2xl mb-4 flex items-center justify-center" style={{ background: "var(--gradient-browse)" }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
         </svg>
       </div>
       <h3 className="text-[15px] font-semibold text-[var(--gray-900)] mb-1.5">{h}</h3>
@@ -221,7 +241,7 @@ export default function ProposalsPage() {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState(null);
   const [activeTab, setActiveTab] = useState("all");
-  const [deleteTarget, setDeleteTarget] = useState(null); // inquiry to delete
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]   = useState(false);
   const [deleteError, setDeleteError] = useState(null);
 
@@ -249,7 +269,10 @@ export default function ProposalsPage() {
     }
   }
 
-  const filtered = useMemo(() => inquiries.filter((i) => matchTab(i, activeTab)), [inquiries, activeTab]);
+  const filtered = useMemo(
+    () => inquiries.filter((i) => matchTab(i, activeTab)),
+    [inquiries, activeTab]
+  );
 
   const tabCounts = useMemo(() => {
     const counts = {};
@@ -260,101 +283,104 @@ export default function ProposalsPage() {
   }, [inquiries]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+    <div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-display font-bold text-[var(--gray-900)]">My Proposals</h1>
-          {!loading && inquiries.length > 0 && (
-            <p className="text-sm text-[var(--gray-400)] mt-0.5">{inquiries.length} proposal{inquiries.length !== 1 ? "s" : ""} total</p>
-          )}
+      {/* ── Sticky header ── */}
+      <div className="sticky top-14 z-20 bg-white border-b border-[var(--gray-100)]">
+        <div className="max-w-3xl mx-auto px-4">
+
+          {/* Title row */}
+          <div className="flex items-center justify-between pt-3 pb-2 sm:pt-5 sm:pb-3">
+            <div>
+              <h1 className="text-xl font-display font-bold text-[var(--gray-900)] leading-none">
+                My Proposals
+              </h1>
+              {/* Always rendered so sticky header height never changes after load */}
+              <p className={`text-xs text-[var(--gray-400)] mt-1 ${!loading && inquiries.length > 0 ? "visible" : "invisible"}`}>
+                {inquiries.length || 0} proposal{(inquiries.length || 0) !== 1 ? "s" : ""}
+              </p>
+            </div>
+            <Link
+              href="/vendors"
+              className="flex items-center justify-center h-9 w-9 sm:w-auto sm:gap-1.5 sm:px-4 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white text-sm font-semibold hover:shadow-[var(--shadow-button)] transition-all flex-shrink-0"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+              </svg>
+              <span className="hidden sm:inline">New Proposal</span>
+            </Link>
+          </div>
+
+          {/* Filter tabs */}
+          <div className="flex overflow-x-auto scrollbar-hide">
+            {TABS.map(({ id, label }) => {
+              const count  = tabCounts[id] ?? 0;
+              const active = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`relative flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium whitespace-nowrap flex-shrink-0 transition-colors ${
+                    active ? "text-[var(--violet-600)]" : "text-[var(--gray-400)] hover:text-[var(--gray-700)]"
+                  }`}
+                >
+                  {label}
+                  {/* Always rendered so tab button widths never change after load */}
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none ${
+                    count > 0 && !loading
+                      ? active
+                        ? "bg-[var(--violet-100)] text-[var(--violet-700)]"
+                        : "bg-[var(--gray-100)] text-[var(--gray-400)]"
+                      : "invisible"
+                  }`}>
+                    {count || 0}
+                  </span>
+                  {active && (
+                    <span className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full bg-[var(--violet-600)]" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <Link
-          href="/vendors"
-          className="flex items-center gap-1.5 h-9 px-4 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white text-sm font-semibold hover:shadow-[var(--shadow-button)] transition-all"
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-          </svg>
-          New Proposal
-        </Link>
       </div>
 
-      {/* Main card */}
-      <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
-
-        {/* Tabs */}
-        <div className="flex border-b border-[var(--gray-100)] px-4 overflow-x-auto scrollbar-hide">
-          {TABS.map(({ id, label }) => {
-            const count  = tabCounts[id] ?? 0;
-            const active = activeTab === id;
-            return (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`relative flex items-center gap-1.5 px-4 py-3.5 text-sm font-medium whitespace-nowrap transition-colors duration-150 ${
-                  active ? "text-[var(--violet-600)]" : "text-[var(--gray-400)] hover:text-[var(--gray-700)]"
-                }`}
-              >
-                {label}
-                {count > 0 && (
-                  <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${active ? "bg-[var(--violet-100)] text-[var(--violet-700)]" : "bg-[var(--gray-100)] text-[var(--gray-400)]"}`}>
-                    {count}
-                  </span>
-                )}
-                {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[var(--violet-600)] rounded-t-full" />}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Column headers (desktop) */}
-        {!loading && filtered.length > 0 && (
-          <div
-            className="hidden sm:grid items-center gap-x-4 px-6 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-100)]"
-            style={{ gridTemplateColumns: "40px 1fr auto auto auto" }}
-          >
-            <div />
-            <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Vendor / Event</p>
-            <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Status</p>
-            <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Submitted</p>
-            <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Actions</p>
-          </div>
-        )}
-
-        {/* Content */}
+      {/* ── Card list ── */}
+      <div className="max-w-3xl mx-auto px-4 py-4 space-y-3 pb-24">
         {loading ? (
-          <div>
-            <SkeletonRow /><SkeletonRow /><SkeletonRow />
-          </div>
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
         ) : error ? (
-          <div className="text-center py-16">
+          <div className="bg-white rounded-2xl p-8 text-center" style={{ boxShadow: "var(--shadow-card)" }}>
             <p className="text-sm text-[var(--error)]">{error}</p>
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState tab={activeTab} />
         ) : (
-          <div>
-            {filtered.map((inq, i) => (
-              <ProposalRow key={inq.id} inquiry={inq} index={i} onDelete={setDeleteTarget} />
-            ))}
-          </div>
+          filtered.map((inq) => (
+            <ProposalCard key={inq.id} inquiry={inq} onDelete={setDeleteTarget} />
+          ))
         )}
       </div>
 
-      {/* ── Delete confirmation modal ── */}
+      {/* ── Delete modal ── */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
               </svg>
             </div>
             <h2 className="text-base font-bold text-[var(--gray-900)] text-center mb-1">Delete this proposal?</h2>
             <p className="text-sm text-[var(--gray-500)] text-center mb-5">
-              This will permanently remove your proposal to <strong>{deleteTarget.vendor?.name}</strong>. This cannot be undone.
+              This will permanently remove your proposal to{" "}
+              <strong>{deleteTarget.vendor?.name}</strong>. This cannot be undone.
             </p>
             {deleteError && (
               <p className="text-sm text-red-600 text-center mb-4">{deleteError}</p>

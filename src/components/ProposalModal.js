@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createEvent, getMyEvents } from "../services/events";
 import { api } from "../services/api";
@@ -29,6 +29,7 @@ const STEP_META = {
   2: { title: "Venue & Location",    subtitle: "Where will this event take place?" },
   3: { title: "Date & Time",         subtitle: "When is the event happening?" },
   4: { title: "Your Audience",       subtitle: "Help vendors understand who they'll be serving." },
+  5: { title: "Venue Setup",         subtitle: "Help vendors prepare for the space and logistics." },
 };
 
 const INITIAL_FORM = {
@@ -44,6 +45,17 @@ const INITIAL_FORM = {
   attendees: "",
   ageGroup: "All Ages",
   requiresCoi: false,
+  // Venue logistics (Step 5) — event-level fields reused across vendors
+  indoorOutdoor: "",
+  accessToPower: "",
+  accessToWater: "",
+  parkingAvailable: "",
+  canopyAllowed: "",
+  venueAttendees: "",
+  wifiAvailability: "",
+  securityPresence: "",
+  eventHoursStart: "",
+  eventHoursEnd: "",
 };
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -325,7 +337,7 @@ function ChooseStep({ myEvents, loadingEvents, selectedEvent, onSelect, onCreate
               <input
                 type="url"
                 value={importUrl}
-                onChange={(e) => { setImportUrl(e.target.value); setImportError(null); }}
+                onChange={(e) => setImportUrl(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleImport()}
                 placeholder="https://lu.ma/your-event"
                 className="input flex-1 text-sm h-10 rounded-lg"
@@ -573,6 +585,84 @@ function Step1({ form, setField, importing, onImport, onNext, onBack, error }) {
   );
 }
 
+// ─── AddressAutocomplete ──────────────────────────────────────────────────────
+
+function AddressAutocomplete({ value, onChange }) {
+  const [suggestions, setSuggestions] = useState([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef(null);
+
+  function handleInput(e) {
+    const v = e.target.value;
+    onChange(v);
+    clearTimeout(timerRef.current);
+    if (v.length < 3) { setSuggestions([]); setOpen(false); return; }
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(v)}&addressdetails=1&limit=5&countrycodes=us`,
+          { headers: { "Accept-Language": "en-US" } }
+        );
+        const data = await res.json();
+        const formatted = data.map((item) => {
+          const a = item.address;
+          return [
+            [a.house_number, a.road].filter(Boolean).join(" "),
+            a.city || a.town || a.village || a.county,
+            a.state,
+            a.postcode,
+          ].filter(Boolean).join(", ");
+        }).filter(Boolean);
+        setSuggestions(formatted);
+        setOpen(formatted.length > 0);
+      } catch {
+        setSuggestions([]); setOpen(false);
+      }
+    }, 350);
+  }
+
+  function pick(s) {
+    onChange(s);
+    setSuggestions([]);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none z-10">
+        {Icons.pin}
+      </span>
+      <input
+        type="text"
+        value={value}
+        onChange={handleInput}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        placeholder="e.g. 1234 Main St, Los Angeles, CA 90012"
+        className="input pl-9"
+        autoFocus
+        autoComplete="off"
+      />
+      {open && suggestions.length > 0 && (
+        <ul className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-[var(--gray-200)] overflow-hidden max-h-60 overflow-y-auto">
+          {suggestions.map((s, i) => (
+            <li key={i}>
+              <button
+                type="button"
+                onMouseDown={() => pick(s)}
+                className="w-full text-left px-4 py-2.5 text-sm text-[var(--gray-700)] hover:bg-[var(--violet-50)] flex items-start gap-2.5 border-b border-[var(--gray-100)] last:border-0"
+              >
+                <span className="mt-0.5 flex-shrink-0 text-[var(--violet-400)]">{Icons.pin}</span>
+                <span className="leading-snug">{s}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // ─── Step 2: Address ──────────────────────────────────────────────────────────
 
 function Step2({ form, setField, onNext, onBack, error }) {
@@ -583,19 +673,10 @@ function Step2({ form, setField, onNext, onBack, error }) {
           <FieldLabel required hint="Include street, city, and state so vendors can plan travel and delivery.">
             Venue address
           </FieldLabel>
-          <div className="relative">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none">
-              {Icons.pin}
-            </span>
-            <input
-              type="text"
-              value={form.streetAddress}
-              onChange={(e) => setField("streetAddress", e.target.value)}
-              placeholder="e.g. 1234 Main St, Los Angeles, CA 90012"
-              className="input pl-9"
-              autoFocus
-            />
-          </div>
+          <AddressAutocomplete
+            value={form.streetAddress}
+            onChange={(v) => setField("streetAddress", v)}
+          />
         </div>
 
         <ErrorBox message={error} />
@@ -659,7 +740,7 @@ function Step3({ form, setField, onNext, onBack, error }) {
 
 // ─── Step 4: Audience ─────────────────────────────────────────────────────────
 
-function Step4({ form, setField, onSave, onBack, error, submitting }) {
+function Step4({ form, setField, onSave, onBack, error, submitting, nextLabel }) {
   return (
     <>
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -720,6 +801,89 @@ function Step4({ form, setField, onSave, onBack, error, submitting }) {
               </p>
             </div>
             <Toggle checked={form.requiresCoi} onChange={(v) => setField("requiresCoi", v)} />
+          </div>
+        </div>
+
+        <ErrorBox message={error} />
+      </div>
+      <FooterNav
+        onBack={onBack}
+        onSubmit={onSave}
+        submitting={submitting}
+        nextLabel={nextLabel ?? (submitting ? "Saving…" : "Save & Continue")}
+      />
+    </>
+  );
+}
+
+// ─── Step 5: Venue logistics ──────────────────────────────────────────────────
+
+const CHIP_YES_NO       = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
+const CHIP_YES_NO_LTD   = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, { value: "limited", label: "Limited" }];
+const CHIP_INDOOR_OUT   = [{ value: "indoor", label: "Indoor" }, { value: "outdoor", label: "Outdoor" }, { value: "both", label: "Both" }];
+
+function Step5({ form, setField, onSave, onBack, error, submitting }) {
+  return (
+    <>
+      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <p className="text-xs text-[var(--gray-400)] leading-relaxed">
+          All optional — fill in what you know so vendors can plan ahead. You can update these later.
+        </p>
+
+        {/* Indoor / outdoor */}
+        <div>
+          <FieldLabel hint="Will vendors be set up inside, outside, or both?">Indoor or outdoor?</FieldLabel>
+          <ChipGroup value={form.indoorOutdoor} onChange={(v) => setField("indoorOutdoor", v)} options={CHIP_INDOOR_OUT} />
+        </div>
+
+        {/* Power + Water */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Access to power?</FieldLabel>
+            <ChipGroup value={form.accessToPower} onChange={(v) => setField("accessToPower", v)} options={CHIP_YES_NO_LTD} />
+          </div>
+          <div>
+            <FieldLabel>Access to water?</FieldLabel>
+            <ChipGroup value={form.accessToWater} onChange={(v) => setField("accessToWater", v)} options={CHIP_YES_NO} />
+          </div>
+        </div>
+
+        {/* Parking + Canopy */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Parking?</FieldLabel>
+            <ChipGroup value={form.parkingAvailable} onChange={(v) => setField("parkingAvailable", v)} options={CHIP_YES_NO_LTD} />
+          </div>
+          <div>
+            <FieldLabel>Canopy / tent OK?</FieldLabel>
+            <ChipGroup value={form.canopyAllowed} onChange={(v) => setField("canopyAllowed", v)} options={CHIP_YES_NO} />
+          </div>
+        </div>
+
+        {/* Event hours */}
+        <div>
+          <FieldLabel hint="When does the public event start and end?">Event hours</FieldLabel>
+          <div className="grid grid-cols-2 gap-3">
+            <select value={form.eventHoursStart} onChange={(e) => setField("eventHoursStart", e.target.value)} className="input">
+              <option value="">Start time</option>
+              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+            <select value={form.eventHoursEnd} onChange={(e) => setField("eventHoursEnd", e.target.value)} className="input">
+              <option value="">End time</option>
+              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {/* WiFi + Security */}
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel>Wi-Fi available?</FieldLabel>
+            <ChipGroup value={form.wifiAvailability} onChange={(v) => setField("wifiAvailability", v)} options={CHIP_YES_NO} />
+          </div>
+          <div>
+            <FieldLabel>Security on site?</FieldLabel>
+            <ChipGroup value={form.securityPresence} onChange={(v) => setField("securityPresence", v)} options={CHIP_YES_NO} />
           </div>
         </div>
 
@@ -837,26 +1001,9 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       }));
     }
 
-    if (res?.name) {
-      // Enough data — create the event and redirect immediately
-      const eventRes = await createEvent({
-        name: res.name,
-        description: res.description || null,
-        location: res.location || "",
-        street_address: res.location || "",
-        start_date: startDate ? `${startDate}T${startTime}:00` : null,
-        end_date: endDate ? `${endDate}T${endTime}:00` : null,
-        attendees: res.attendees || 0,
-        status: "draft",
-      });
-      const eventId = eventRes?.event?.id ?? eventRes?.id;
-      onClose();
-      router.push(`/buyer-dashboard/proposals/new?vendor_id=${vendor.id}&event_id=${eventId}`);
-    } else {
-      // Partial or no data — go to step 1 so the user can fill in what's missing
-      setSelectedEvent(null);
-      setStep(1);
-    }
+    // Always go to step 1 so the user can review/fill in what's missing
+    setSelectedEvent(null);
+    setStep(1);
   }
 
   async function handleImport() {
@@ -899,6 +1046,8 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       case 4:
         if (!form.attendees || Number(form.attendees) < 1) { setError("Please enter the expected number of attendees."); return false; }
         return true;
+      case 5:
+        return true;
       default:
         return true;
     }
@@ -926,6 +1075,19 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
     setSubmitting(true);
     try {
       const endDate = form.isMultiDay && form.endDate ? form.endDate : form.startDate;
+      const logisticsPayload = {};
+      if (form.indoorOutdoor)    logisticsPayload.indoor_outdoor    = form.indoorOutdoor;
+      if (form.accessToPower)    logisticsPayload.access_to_power   = form.accessToPower;
+      if (form.accessToWater)    logisticsPayload.access_to_water   = form.accessToWater;
+      if (form.parkingAvailable) logisticsPayload.parking_available = form.parkingAvailable;
+      if (form.canopyAllowed)    logisticsPayload.canopy_allowed    = form.canopyAllowed;
+      if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
+      if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
+      if (form.eventHoursStart || form.eventHoursEnd) {
+        const start = TIME_SLOTS.find((s) => s.value === form.eventHoursStart)?.label;
+        const end   = TIME_SLOTS.find((s) => s.value === form.eventHoursEnd)?.label;
+        logisticsPayload.event_hours = [start, end].filter(Boolean).join(" – ");
+      }
       const eventRes = await createEvent({
         name: form.name.trim(),
         description: form.description.trim() || null,
@@ -937,6 +1099,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
         age_group: form.ageGroup,
         requires_coi: form.requiresCoi,
         status: "draft",
+        ...logisticsPayload,
       });
       const eventId = eventRes?.event?.id ?? eventRes?.id;
       onClose();
@@ -952,7 +1115,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
 
   const vendorInitial = vendor?.name?.charAt(0)?.toUpperCase() || "V";
   const isNumberStep = typeof step === "number";
-  const progress = isNumberStep ? step / 4 : 0;
+  const progress = isNumberStep ? step / 5 : 0;
   const headerTitle = step === "choose" ? "Which event is this for?" : STEP_META[step]?.title ?? "";
 
   return (
@@ -993,7 +1156,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex gap-1">
-                  {[1, 2, 3, 4].map((n) => (
+                  {[1, 2, 3, 4, 5].map((n) => (
                     <div
                       key={n}
                       className={`h-1 rounded-full transition-all duration-500 ${
@@ -1007,7 +1170,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
                   ))}
                 </div>
                 <span className="text-[11px] font-bold text-[var(--gray-400)]">
-                  {step} <span className="font-normal">of</span> 4
+                  {step} <span className="font-normal">of</span> 5
                 </span>
               </div>
               <p className="text-xs text-[var(--gray-400)]">{STEP_META[step]?.subtitle}</p>
@@ -1036,7 +1199,9 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
           ) : step === 3 ? (
             <Step3 form={form} setField={setField} onNext={next} onBack={back} error={error} />
           ) : step === 4 ? (
-            <Step4 form={form} setField={setField} onSave={handleSaveEvent} onBack={back} error={error} submitting={submitting} />
+            <Step4 form={form} setField={setField} onSave={next} onBack={back} error={error} submitting={false} nextLabel="Continue" />
+          ) : step === 5 ? (
+            <Step5 form={form} setField={setField} onSave={handleSaveEvent} onBack={back} error={error} submitting={submitting} />
           ) : null}
         </div>
       </div>

@@ -228,16 +228,16 @@ export default function CheckoutPage() {
 
   // ─── Main render ─────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-6">
+    <div className="mx-auto max-w-3xl px-4 sm:px-6 py-3 sm:py-6" style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))" }}>
       {/* Header */}
-      <div className="mb-6">
+      <div className="mb-4 sm:mb-6">
         <h1 className="font-display text-2xl sm:text-3xl tracking-tight text-[var(--gray-900)]">Checkout</h1>
         <p className="text-[var(--gray-500)] text-sm mt-1">Review your order and complete payment</p>
       </div>
 
       {/* Order Summary Banner */}
-      <div className="card p-4 mb-6 bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border-[var(--violet-200)]">
-        <div className="flex items-center justify-between">
+      <div className="card p-3 sm:p-4 mb-4 sm:mb-6 bg-gradient-to-r from-[var(--violet-50)] to-[var(--magenta-50)] border-[var(--violet-200)]">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -347,7 +347,7 @@ export default function CheckoutPage() {
                             ))}
                           </p>
                         )}
-                        <div className="flex items-center gap-3 mt-2">
+                        <div className="flex items-center flex-wrap gap-2 mt-2">
                           {!item.options?.timeSlot && (
                             <div className="flex items-center gap-1 bg-[var(--gray-100)] rounded-full p-0.5">
                               <button
@@ -541,7 +541,7 @@ export default function CheckoutPage() {
       </div>
 
       {/* Back to Cart */}
-      <div className="mt-6 text-center">
+      <div className="mt-4 sm:mt-6 text-center">
         <button
           onClick={() => router.push('/cart')}
           className="text-[var(--gray-500)] hover:text-[var(--gray-700)] font-medium text-sm inline-flex items-center gap-1"

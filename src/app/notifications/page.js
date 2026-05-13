@@ -140,7 +140,7 @@ function NotificationRow({ notification, onRead }) {
       <NotificationIcon type={notification.type} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
-          <p className={`text-sm leading-snug ${unread ? "font-semibold text-[var(--gray-900)]" : "font-medium text-[var(--gray-700)]"}`}>
+          <p className={`text-sm leading-snug break-words ${unread ? "font-semibold text-[var(--gray-900)]" : "font-medium text-[var(--gray-700)]"}`}>
             {notification.title}
           </p>
           <span className="text-[11px] text-[var(--gray-400)] whitespace-nowrap flex-shrink-0 mt-0.5">

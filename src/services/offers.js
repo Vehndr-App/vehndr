@@ -30,3 +30,9 @@ export async function declineOffer(inquiryId, offerId) {
     method: "PATCH",
   });
 }
+
+export async function withdrawOffer(inquiryId, offerId) {
+  return api(`/api/inquiries/${inquiryId}/offers/${offerId}/withdraw`, {
+    method: "PATCH",
+  });
+}

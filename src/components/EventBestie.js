@@ -248,10 +248,6 @@ export default function EventBestie() {
         </button>
       )}
 
-      {/* Pulse animation when closed - web only */}
-      {showBubble && !isOpen && (
-        <span className="fixed bottom-20 right-4 z-[59] w-14 h-14 rounded-full bg-[var(--violet-500)] animate-ping opacity-30 pointer-events-none" />
-      )}
 
       {/* Chat Panel - full-screen on native (positioned to visual viewport so keyboard doesn't push page), card on web */}
       <div
