@@ -543,7 +543,7 @@ function ProductsInner() {
         isOpen={imageEditor.isOpen}
         imageSrc={imageEditor.imageSrc}
         fileName={imageEditor.fileName}
-        initialAspect={1}
+        initialAspect={null}
         onClose={() => setImageEditor({ isOpen: false, imageSrc: null, fileName: "product-photo.jpg", targetId: null })}
         onSave={(editedFile) => {
           setProductForm((prev) => ({
@@ -660,7 +660,7 @@ function SortableProductImage({ id, item, onEdit, onRemove }) {
           e.stopPropagation();
           onEdit?.();
         }}
-        className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
+        className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-black/70 text-white flex items-center justify-center shadow-md hover:bg-black/85 transition-colors"
       >
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 11l6-6m2.828 2.828l-6 6M7 17l-2 2 2-2z" />
@@ -681,4 +681,3 @@ function SortableProductImage({ id, item, onEdit, onRemove }) {
     </div>
   );
 }
-

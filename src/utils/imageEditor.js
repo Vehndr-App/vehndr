@@ -24,13 +24,6 @@ function getSourceDimensions(image, rotation) {
   return { width, height };
 }
 
-function applyTransforms(ctx, width, height, rotation, flip) {
-  ctx.translate(width / 2, height / 2);
-  ctx.rotate(getRadianAngle(rotation));
-  ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
-  ctx.translate(-width / 2, -height / 2);
-}
-
 function toFileName(sourceName, outputType) {
   const extension = outputType === "image/png" ? "png" : "jpg";
   const base = sourceName ? sourceName.replace(/\.[^/.]+$/, "") : "edited";
@@ -47,17 +40,6 @@ export async function getEditedImageFile({
   sourceName = "image"
 }) {
   const image = await createImage(imageSrc);
-  const { width: boundingWidth, height: boundingHeight } = getSourceDimensions(image, rotation);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(boundingWidth);
-  canvas.height = Math.round(boundingHeight);
-  const ctx = canvas.getContext("2d");
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = "high";
-
-  applyTransforms(ctx, image.width, image.height, rotation, flip);
-  ctx.drawImage(image, 0, 0);
 
   const croppedCanvas = document.createElement("canvas");
   croppedCanvas.width = Math.round(cropPixels.width);
@@ -66,7 +48,7 @@ export async function getEditedImageFile({
   croppedCtx.imageSmoothingEnabled = true;
   croppedCtx.imageSmoothingQuality = "high";
   croppedCtx.drawImage(
-    canvas,
+    image,
     cropPixels.x,
     cropPixels.y,
     cropPixels.width,
@@ -77,8 +59,20 @@ export async function getEditedImageFile({
     cropPixels.height
   );
 
+  const { width: boundingWidth, height: boundingHeight } = getSourceDimensions(croppedCanvas, rotation);
+  const outputCanvas = document.createElement("canvas");
+  outputCanvas.width = Math.round(boundingWidth);
+  outputCanvas.height = Math.round(boundingHeight);
+  const outputCtx = outputCanvas.getContext("2d");
+  outputCtx.imageSmoothingEnabled = true;
+  outputCtx.imageSmoothingQuality = "high";
+  outputCtx.translate(outputCanvas.width / 2, outputCanvas.height / 2);
+  outputCtx.rotate(getRadianAngle(rotation));
+  outputCtx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
+  outputCtx.drawImage(croppedCanvas, -croppedCanvas.width / 2, -croppedCanvas.height / 2);
+
   const blob = await new Promise((resolve) => {
-    croppedCanvas.toBlob(
+    outputCanvas.toBlob(
       (result) => resolve(result),
       outputType,
       outputQuality
