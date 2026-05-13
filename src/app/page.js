@@ -44,13 +44,14 @@ export default async function Home({ searchParams }) {
   if (mode === "events") {
     events = await listEvents({ search, type: eventType, date: eventDate });
   } else {
-    // Fetch filtered vendors for display
-    vendors = await listVendors({ search, category, minPrice, maxPrice });
-    // Fetch all vendors to get all categories for the filter
-    const allVendors = await listVendors();
+    // Fetch all vendors once; derive categories from the full list, filter client-side
+    const allVendors = await listVendors({ search, minPrice, maxPrice });
     allCategories = Array.from(
       new Set(allVendors.flatMap((v) => v.categories ?? []))
     ).sort();
+    vendors = category
+      ? allVendors.filter((v) => (v.categories ?? []).includes(category))
+      : allVendors;
   }
 
   // Group vendors by category

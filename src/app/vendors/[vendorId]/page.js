@@ -1,17 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import Link from "next/link";
 import { getStorefrontPath } from "../../../utils/storefrontLinks";
+import InquiryModal from "../../../components/InquiryModal";
 
 export default function VendorProfilePage() {
   const { vendorId } = useParams();
-  const router = useRouter();
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [inquiryOpen, setInquiryOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -52,11 +53,26 @@ export default function VendorProfilePage() {
           alt=""
           className="h-24 w-24 rounded-lg bg-black/[.04] object-cover"
         />
-        <div>
+        <div className="flex-1">
           <h1 className="text-2xl font-semibold">{vendor.name}</h1>
           <p className="text-sm text-black/60">{vendor.description}</p>
           <div className="text-xs mt-2 text-black/50">
             {vendor.location} • {vendor.rating}★
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setInquiryOpen(true)}
+              className="px-4 py-2 rounded-full bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition-colors"
+            >
+              Check Availability
+            </button>
+            <Link
+              href={getStorefrontPath(vendor)}
+              className="px-4 py-2 rounded-full border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors"
+            >
+              View Storefront
+            </Link>
           </div>
         </div>
       </div>
@@ -128,11 +144,15 @@ export default function VendorProfilePage() {
       {/* Empty State */}
       {products.length === 0 && (
         <div className="text-center py-12 text-gray-500">
-          <p>This vendor hasn't added any products or services yet.</p>
+          <p>This vendor hasn&apos;t added any products or services yet.</p>
         </div>
       )}
+
+      <InquiryModal
+        vendor={vendor}
+        isOpen={inquiryOpen}
+        onClose={() => setInquiryOpen(false)}
+      />
     </div>
   );
 }
-
-

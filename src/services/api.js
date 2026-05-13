@@ -1,5 +1,5 @@
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 function getOrCreateCartToken() {
   if (typeof window === "undefined") return null;
@@ -47,18 +47,10 @@ function buildHeaders(extraHeaders = {}, body) {
 }
 
 export async function api(path, { method = "GET", headers = {}, body, signal, credentials, cache } = {}) {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'api.js:43',message:'api() entry',data:{path,method,hasBody:!!body,bodyType:body instanceof FormData ? 'FormData' : typeof body,apiBaseUrl:API_BASE_URL,hasWindow:typeof window !== 'undefined'},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   const requestBody =
     body && typeof body !== "string" && !(body instanceof FormData)
       ? JSON.stringify(body)
       : body;
-
-  const token =
-    typeof window !== "undefined"
-      ? window.localStorage?.getItem("vehndr_token")
-      : null;
 
   const fetchOptions = {
     method,
@@ -67,23 +59,17 @@ export async function api(path, { method = "GET", headers = {}, body, signal, cr
     credentials: credentials ?? "include",
     signal,
   };
-  
+
   // Add cache option for Next.js server components
   if (cache) {
     fetchOptions.cache = cache;
   }
 
   const url = `${API_BASE_URL}${path}`;
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H2',location:'api.js:69',message:'before fetch',data:{url,method,credentials:fetchOptions.credentials,headersKeys:Object.keys(fetchOptions.headers || {}),hasCache:!!fetchOptions.cache,cacheValue:fetchOptions.cache || null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   let response;
   try {
     response = await fetch(url, fetchOptions);
   } catch (err) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'api.js:74',message:'fetch threw',data:{url,errorName:err?.name||'unknown',errorMessage:err?.message||'unknown'},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const error = new Error(`Network error: unable to reach ${API_BASE_URL}`);
     error.isNetworkError = true;
     error.cause = err;
@@ -91,9 +77,6 @@ export async function api(path, { method = "GET", headers = {}, body, signal, cr
   }
 
   if (!response.ok) {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H4',location:'api.js:84',message:'non-2xx response',data:{url,status:response.status,statusText:response.statusText,contentType:response.headers.get('content-type')||''},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     let errorDetail;
     const contentType = response.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
@@ -127,12 +110,7 @@ export async function api(path, { method = "GET", headers = {}, body, signal, cr
   if (contentType.includes("application/json")) {
     return response.json();
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H5',location:'api.js:106',message:'response parsed as text',data:{url,contentType},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   return response.text();
 }
 
 export { API_BASE_URL };
-
-

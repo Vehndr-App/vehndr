@@ -1,7 +1,5 @@
 "use client";
 
-import { Capacitor } from "@capacitor/core";
-import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 import { api } from "./api";
 
 /**
@@ -9,12 +7,13 @@ import { api } from "./api";
  * No-op when not running in the native app (Capacitor WebView).
  */
 export async function registerPushToken() {
-  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) {
-    return;
-  }
+  if (typeof window === "undefined") return;
+  const { Capacitor } = await import("@capacitor/core");
+  if (!Capacitor.isNativePlatform()) return;
   try {
+    const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
     const { token } = await FirebaseMessaging.getToken();
-    const platform = Capacitor.getPlatform(); // "ios" | "android"
+    const platform = Capacitor.getPlatform();
     await api("/api/device_tokens", {
       method: "POST",
       body: { token, platform },
@@ -29,10 +28,11 @@ export async function registerPushToken() {
  * No-op when not running in the native app.
  */
 export async function unregisterPushToken() {
-  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) {
-    return;
-  }
+  if (typeof window === "undefined") return;
+  const { Capacitor } = await import("@capacitor/core");
+  if (!Capacitor.isNativePlatform()) return;
   try {
+    const { FirebaseMessaging } = await import("@capacitor-firebase/messaging");
     const { token } = await FirebaseMessaging.getToken();
     await api("/api/device_tokens", {
       method: "DELETE",
@@ -48,24 +48,32 @@ export async function unregisterPushToken() {
  * Call once when the app loads (e.g. in AuthProvider) and only when on native.
  */
 export function setupTokenRefreshListener() {
-  if (typeof window === "undefined" || !Capacitor.isNativePlatform()) {
-    return () => {};
-  }
-  const unsubscribe = FirebaseMessaging.addListener(
-    "tokenReceived",
-    async (event) => {
-      try {
-        const platform = Capacitor.getPlatform();
-        await api("/api/device_tokens", {
-          method: "POST",
-          body: { token: event.token, platform },
-        });
-      } catch (err) {
-        console.warn("Push token refresh registration failed:", err);
-      }
-    }
-  );
-  return () => {
-    unsubscribe.then((fn) => fn.remove());
-  };
+  if (typeof window === "undefined") return () => {};
+
+  let cleanup = () => {};
+
+  import("@capacitor/core").then(({ Capacitor }) => {
+    if (!Capacitor.isNativePlatform()) return;
+    import("@capacitor-firebase/messaging").then(({ FirebaseMessaging }) => {
+      const listenerPromise = FirebaseMessaging.addListener(
+        "tokenReceived",
+        async (event) => {
+          try {
+            const platform = Capacitor.getPlatform();
+            await api("/api/device_tokens", {
+              method: "POST",
+              body: { token: event.token, platform },
+            });
+          } catch (err) {
+            console.warn("Push token refresh registration failed:", err);
+          }
+        }
+      );
+      cleanup = () => {
+        listenerPromise.then((fn) => fn.remove());
+      };
+    });
+  });
+
+  return () => cleanup();
 }

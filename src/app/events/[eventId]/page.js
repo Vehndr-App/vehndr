@@ -158,6 +158,9 @@ export default async function EventDetailPage({ params }) {
         </div>
       </div>
 
+      {/* Venue Logistics */}
+      <VenueLogistics event={event} />
+
       {/* Vendors Section */}
       <div>
         <div className="mb-8">
@@ -261,5 +264,102 @@ function VendorCard({ vendor, index }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+const LOGISTIC_CONFIG = [
+  { key: "indoorOutdoor",    label: "Setting",   icon: "🌤️", fmt: v => v === "indoor" ? "Indoor" : "Outdoor" },
+  { key: "canopyAllowed",    label: "Canopy",    icon: "⛺", fmt: v => v === "yes" ? "Allowed" : "Not allowed" },
+  { key: "accessToPower",    label: "Power",     icon: "⚡", fmt: v => v === "yes" ? "Available" : "No access" },
+  { key: "accessToWater",    label: "Water",     icon: "💧", fmt: v => v === "yes" ? "Available" : "No access" },
+  { key: "wifiAvailability", label: "WiFi",      icon: "📶", fmt: v => v === "yes" ? "Available" : "Unavailable" },
+  { key: "parkingAvailable", label: "Parking",   icon: "🅿️", fmt: v => v === "yes" ? "On-site" : v === "paid" ? "Paid on-site" : "None" },
+  { key: "securityPresence", label: "Security",  icon: "🔒", fmt: v => v === "yes" ? "On-site" : v === "na" ? "N/A" : "None" },
+];
+
+const SCHEDULE_KEYS = [
+  { key: "eventHours",    label: "Event hours" },
+  { key: "vendorLoadIn",  label: "Vendor load-in" },
+  { key: "vendorLoadOut", label: "Vendor load-out" },
+  { key: "boothSize",     label: "Booth size", fmt: v => v.replace("x", " ft × ") + " ft" },
+  { key: "venueAttendees",label: "Venue capacity", fmt: v => Number(v).toLocaleString() + " people" },
+];
+
+function VenueLogistics({ event }) {
+  const filled = LOGISTIC_CONFIG.filter(c => event[c.key]);
+  const schedule = SCHEDULE_KEYS.map(c => event[c.key] ? { label: c.label, value: c.fmt ? c.fmt(event[c.key]) : event[c.key] } : null).filter(Boolean);
+  const hasReqs = event.requiresCoi || event.rsvpRequired || event.badgeRequired;
+
+  if (!filled.length && !schedule.length && !hasReqs) return null;
+
+  return (
+    <div className="rounded-[var(--radius-3xl)] bg-white shadow-[var(--shadow-lg)] p-6 sm:p-8 mb-10">
+      <h2 className="font-display text-xl sm:text-2xl tracking-tight text-[var(--gray-900)] mb-6">Venue &amp; Logistics</h2>
+
+      {filled.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
+          {filled.map(({ key, label, icon, fmt }) => {
+            const rawValue = event[key];
+            const pos = rawValue === "yes" || rawValue === "indoor" || rawValue === "outdoor";
+            const neg = rawValue === "no";
+            return (
+              <div
+                key={key}
+                className="flex items-center gap-2.5 px-3 py-3 rounded-xl"
+                style={{
+                  background: pos ? "var(--mint-50)" : neg ? "var(--gray-50)" : "var(--amber-50)",
+                  border: `1px solid ${pos ? "var(--mint-100)" : neg ? "var(--gray-200)" : "var(--amber-100)"}`,
+                }}
+              >
+                <span className="text-base leading-none flex-shrink-0">{icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium text-[var(--gray-400)] leading-none">{label}</p>
+                  <p
+                    className="text-xs font-semibold leading-tight mt-0.5"
+                    style={{ color: pos ? "var(--mint-700)" : neg ? "var(--gray-500)" : "var(--amber-700)" }}
+                  >
+                    {fmt(rawValue)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {schedule.length > 0 && (
+        <div className="rounded-xl border border-[var(--gray-100)] overflow-hidden mb-6">
+          {schedule.map(({ label, value }, i) => (
+            <div
+              key={label}
+              className={`flex items-center justify-between px-4 py-2.5 ${i < schedule.length - 1 ? "border-b border-[var(--gray-50)]" : ""}`}
+            >
+              <span className="text-sm text-[var(--gray-500)]">{label}</span>
+              <span className="text-sm font-semibold text-[var(--gray-800)] text-right max-w-[55%]">{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasReqs && (
+        <div className="flex flex-wrap gap-2">
+          {event.requiresCoi && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber-700)] bg-[var(--amber-50)] border border-[var(--amber-100)] px-3 py-1.5 rounded-lg">
+              COI Required
+            </span>
+          )}
+          {event.rsvpRequired && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--violet-700)] bg-[var(--violet-50)] border border-[var(--violet-100)] px-3 py-1.5 rounded-lg">
+              RSVP Required
+            </span>
+          )}
+          {event.badgeRequired && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--violet-700)] bg-[var(--violet-50)] border border-[var(--violet-100)] px-3 py-1.5 rounded-lg">
+              Badge Required
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
