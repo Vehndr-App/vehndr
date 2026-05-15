@@ -4,7 +4,9 @@ import { useState, useRef } from "react";
 import Link from "next/link";
 import { api } from "../../services/api";
 
-const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const recaptchaEnabled =
+  process.env.NEXT_PUBLIC_DISABLE_RECAPTCHA !== "true" &&
+  !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
 
 export default function ForgotPasswordPage() {
@@ -196,4 +198,3 @@ export default function ForgotPasswordPage() {
     </div>
   );
 }
-
