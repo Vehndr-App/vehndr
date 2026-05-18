@@ -331,9 +331,9 @@ export default function ImageEditorModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
-      <div className="w-full max-w-3xl rounded-[var(--radius-2xl)] bg-white overflow-hidden shadow-xl">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--gray-100)]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--radius-2xl)] bg-white shadow-xl">
+        <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b border-[var(--gray-100)]">
           <h3 className="text-base font-semibold text-[var(--gray-900)]">Edit Photo</h3>
           <button
             type="button"
@@ -348,7 +348,7 @@ export default function ImageEditorModal({
 
         <div
           ref={stageRef}
-          className="relative bg-[var(--gray-900)] aspect-[4/3] overflow-hidden touch-none select-none"
+          className="relative min-h-[180px] shrink bg-[var(--gray-900)] aspect-[4/3] max-h-[52dvh] overflow-hidden touch-none select-none"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -439,7 +439,7 @@ export default function ImageEditorModal({
           )}
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="min-h-0 overflow-y-auto p-4 space-y-4">
           <div className="flex flex-wrap gap-2">
             {presets.map((preset) => (
               <button
@@ -503,7 +503,7 @@ export default function ImageEditorModal({
             </button>
           </div>
 
-          <div className="flex gap-3 pt-2">
+          <div className="sticky bottom-0 -mx-4 -mb-4 flex gap-3 border-t border-[var(--gray-100)] bg-white p-4 pt-3">
             <button type="button" onClick={handleClose} className="flex-1 btn btn-outlined">
               Cancel
             </button>
