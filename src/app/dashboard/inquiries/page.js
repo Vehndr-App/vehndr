@@ -114,11 +114,14 @@ function InquiryRow({ inquiry, index }) {
                    : offerAccepted ? "mint"
                    : offerDeclined ? "coral"
                    : meta.color;
+  const inquiryHref = `/dashboard/inquiries/${inquiry.id}`;
 
   return (
-    <div
-      className="group relative grid items-center gap-x-4 gap-y-1 px-6 py-4 border-b border-[var(--gray-50)] hover:bg-[var(--violet-50)] transition-colors duration-150 last:border-0"
+    <Link
+      href={inquiryHref}
+      className="group relative grid items-center gap-x-4 gap-y-1 px-6 py-4 border-b border-[var(--gray-50)] hover:bg-[var(--violet-50)] focus-visible:bg-[var(--violet-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--violet-500)] transition-colors duration-150 last:border-0"
       style={{ gridTemplateColumns: "40px 1fr auto auto auto", animationDelay: `${index * 30}ms` }}
+      aria-label={`View inquiry from ${customer?.name ?? "Coordinator"}`}
     >
       {isNew && (
         <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full bg-[var(--amber-500)]" />
@@ -157,21 +160,20 @@ function InquiryRow({ inquiry, index }) {
 
       {/* Action */}
       <div className="flex items-center gap-1.5">
-        <Link
-          href={`/dashboard/inquiries/${inquiry.id}`}
-          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-700)] hover:bg-[var(--violet-600)] hover:text-white hover:border-[var(--violet-600)] transition-all duration-150 whitespace-nowrap"
+        <span
+          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-700)] group-hover:bg-[var(--violet-600)] group-hover:text-white group-hover:border-[var(--violet-600)] group-focus-visible:bg-[var(--violet-600)] group-focus-visible:text-white group-focus-visible:border-[var(--violet-600)] transition-all duration-150 whitespace-nowrap"
           style={{ boxShadow: "var(--shadow-sm)" }}
         >
           View
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="9 18 15 12 9 6" />
           </svg>
-        </Link>
+        </span>
         {isNew && (
           <span className="w-2 h-2 rounded-full bg-[var(--amber-400)] flex-shrink-0" />
         )}
       </div>
-    </div>
+    </Link>
   );
 }
 
