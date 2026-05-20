@@ -17,8 +17,9 @@ function EventCard({ event, index }) {
   const isUpcoming = event.startDate && new Date(event.startDate) > new Date();
 
   return (
-    <div
-      className="bg-white rounded-2xl overflow-hidden group hover:shadow-[var(--shadow-card-hover)] transition-all duration-200"
+    <Link
+      href={`/buyer-dashboard/events/${event.id}`}
+      className="bg-white rounded-2xl overflow-hidden group hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-1 hover:scale-[1.01] transition-all duration-200 block"
       style={{ boxShadow: "var(--shadow-card)", animationDelay: `${index * 40}ms` }}
     >
       {/* Top gradient strip */}
@@ -74,7 +75,7 @@ function EventCard({ event, index }) {
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
