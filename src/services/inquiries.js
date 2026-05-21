@@ -33,6 +33,10 @@ export async function listVendorInquiries() {
   return res?.inquiries ?? [];
 }
 
+export async function updateInquiry(id, data) {
+  return api(`/api/inquiries/${id}`, { method: "PATCH", body: data });
+}
+
 export async function deleteInquiry(id) {
   return api(`/api/inquiries/${id}`, { method: "DELETE" });
 }

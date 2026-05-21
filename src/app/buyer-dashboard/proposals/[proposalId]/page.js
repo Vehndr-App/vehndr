@@ -59,16 +59,163 @@ const BADGE = {
   gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]   ring-1 ring-[var(--gray-200)]",
 };
 
-// ─── Fee estimate helpers (mirrors MarketplacePricing) ───────────────────────
+// ─── Fee helpers (matches MarketplacePricing) ────────────────────────────────
 
-const FEE_TAX_RATE     = 0.0825;
-const FEE_COORD_RATE   = 0.10;
-const FEE_STRIPE_RATE  = 0.029;
-const FEE_STRIPE_FIXED = 30; // cents
+const VEHNDR_FEE_RATE   = 0.10;
+const STRIPE_FEE_RATE   = 0.029;
+const STRIPE_FEE_FIXED  = 30; // cents
+const TAX_RATE          = 0.0825;
 
-function feePreStripe(base, tip = 0)  { return base + Math.round(base * FEE_TAX_RATE) + Math.round(base * FEE_COORD_RATE) + tip; }
-function feeGrossTotal(base, tip = 0) { return Math.ceil((feePreStripe(base, tip) + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE)); }
-function feeStripe(base, tip = 0)     { return feeGrossTotal(base, tip) - feePreStripe(base, tip); }
+function calcVehndrFee(base)       { return Math.round(base * VEHNDR_FEE_RATE); }
+function calcStripeFee(total)      { return Math.round(total * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED; }
+function calcTaxFee(base)          { return Math.round(base * TAX_RATE); }
+function calcVendorPayout(base, tip = 0) {
+  return base + tip - calcVehndrFee(base) - calcStripeFee(base + tip) - calcTaxFee(base);
+}
+
+const fmtC = (c) => new Intl.NumberFormat("en-US", {
+  style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
+}).format(c / 100);
+
+function formatLoadTime(stored) {
+  if (!stored) return stored;
+  const m = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
+  if (!m) return stored;
+  const d = new Date(m[1] + "T00:00:00");
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
+}
+
+// ─── Proposal details card (pre-offer) ────────────────────────────────────────
+
+function ProposalDetailsCard({ budgetCents, tipCents, coordinatorType, vendorLoadIn, vendorLoadOut }) {
+  const budget = budgetCents ?? 0;
+  const tip    = tipCents ?? 0;
+  const total  = budget + tip;
+  const hasPricing   = budget > 0 || tip > 0;
+  const hasLogistics = vendorLoadIn || vendorLoadOut;
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden animate-spring-up" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="h-1.5 w-full" style={{ background: "var(--gradient-vendor)" }} />
+      <div className="px-4 sm:px-6 py-4 border-b border-[var(--gray-100)]">
+        <h3 className="font-semibold text-[var(--gray-900)] text-[15px]">Your Proposal</h3>
+      </div>
+      <div className="px-4 sm:px-6 py-5 space-y-3">
+        {budget > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">Budget</span>
+            <span className="font-medium text-[var(--gray-800)]">{fmtC(budget)}</span>
+          </div>
+        )}
+        {tip > 0 && (
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">Committed tip</span>
+            <span className="font-medium text-[var(--violet-600)]">+{fmtC(tip)}</span>
+          </div>
+        )}
+        {total > 0 && (
+          <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
+            <span className="font-semibold text-[var(--gray-700)]">Total proposed</span>
+            <span className="font-bold text-[var(--gray-900)]">{fmtC(total)}</span>
+          </div>
+        )}
+        {coordinatorType && (
+          <div className={`flex justify-between text-sm ${hasPricing ? "pt-2.5 border-t border-[var(--gray-100)]" : ""}`}>
+            <span className="text-[var(--gray-500)]">Coordinator type</span>
+            <span className="font-medium text-[var(--gray-800)] capitalize">{coordinatorType.replace(/_/g, " ")}</span>
+          </div>
+        )}
+        {hasLogistics && (
+          <div className={`space-y-3 ${hasPricing || coordinatorType ? "pt-2.5 border-t border-[var(--gray-100)]" : ""}`}>
+            {vendorLoadIn && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-500)]">Vendor load-in</span>
+                <span className="font-medium text-[var(--gray-800)]">{formatLoadTime(vendorLoadIn)}</span>
+              </div>
+            )}
+            {vendorLoadOut && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-500)]">Vendor load-out</span>
+                <span className="font-medium text-[var(--gray-800)]">{formatLoadTime(vendorLoadOut)}</span>
+              </div>
+            )}
+          </div>
+        )}
+        {!hasPricing && !coordinatorType && !hasLogistics && (
+          <p className="text-sm text-[var(--gray-400)]">No details provided.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Pricing card (post-offer) ────────────────────────────────────────────────
+
+function PricingCard({ offer, tipCents, booking }) {
+  const [youPayOpen, setYouPayOpen] = useState(false);
+
+  const base         = offer.totalPriceCents;
+  const committedTip = tipCents ?? 0;
+  const extraTip     = Math.max(0, (booking?.tipCents ?? 0) - committedTip);
+  const totalTip     = committedTip + extraTip;
+  const total        = base + totalTip;
+
+  const ChevronIcon = ({ open }) => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+      strokeLinecap="round" strokeLinejoin="round"
+      className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}>
+      <polyline points="6 9 12 15 18 9"/>
+    </svg>
+  );
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden animate-spring-up" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="h-1.5 w-full" style={{ background: "var(--gradient-vendor)" }} />
+      <div className="px-4 sm:px-6 py-4 border-b border-[var(--gray-100)]">
+        <h3 className="font-semibold text-[var(--gray-900)] text-[15px]">Pricing</h3>
+      </div>
+
+      {/* You Pay */}
+      <div>
+        <button
+          type="button"
+          onClick={() => setYouPayOpen(v => !v)}
+          className="w-full flex items-center justify-between px-4 sm:px-6 py-5 text-left hover:bg-[var(--gray-50)] transition-colors"
+        >
+          <div>
+            <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">You Pay</p>
+            <p className="text-[40px] font-bold text-[var(--gray-900)] leading-none tracking-tight">{fmtC(total)}</p>
+          </div>
+          <span className="text-[var(--gray-400)] flex-shrink-0 ml-3"><ChevronIcon open={youPayOpen} /></span>
+        </button>
+        {youPayOpen && (
+          <div className="px-4 sm:px-6 pb-5 border-t border-[var(--gray-100)] space-y-2.5 pt-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Base service</span>
+              <span className="font-medium text-[var(--gray-800)]">{fmtC(base)}</span>
+            </div>
+            {committedTip > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-500)]">Tip</span>
+                <span className="font-medium text-[var(--violet-600)]">+{fmtC(committedTip)}</span>
+              </div>
+            )}
+            {extraTip > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-500)]">Additional tip</span>
+                <span className="font-medium text-[var(--violet-600)]">+{fmtC(extraTip)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
+              <span className="font-semibold text-[var(--gray-700)]">Total</span>
+              <span className="font-bold text-[var(--gray-900)]">{fmtC(total)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -484,13 +631,14 @@ export default function ProposalDetailPage() {
     );
   }
 
-  const { vendor, status, activeOffer, initialMessage, createdAt, budgetCents, tipCents } = inquiry;
+  const { vendor, status, activeOffer, initialMessage, createdAt, budgetCents, tipCents, coordinatorType } = inquiry;
   const initial   = vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
   const color     = STATUS_COLOR[status] ?? "gray";
   const hasOffer  = activeOffer?.status === "pending";
   const isBooked  = status === "scheduled" || activeOffer?.status === "accepted";
   const isExpired = status === "expired";
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
+  const canEdit   = !isPaid && activeOffer?.status !== "accepted" && status !== "scheduled" && status !== "completed" && status !== "expired";
   const canDelete = !isPaid;
   const booking          = inquiry.marketplaceBooking;
   const isCash           = activeOffer?.proposalType === "cash";
@@ -508,13 +656,6 @@ export default function ProposalDetailPage() {
       setDeleting(false);
     }
   }
-
-  const hasLogistics = event && (
-    event.boothSize || event.canopyAllowed || event.indoorOutdoor ||
-    event.venueAttendees || event.accessToPower || event.accessToWater ||
-    event.wifiAvailability || event.vendorLoadIn || event.vendorLoadOut ||
-    event.eventHours || event.parkingAvailable || event.securityPresence
-  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-5 sm:py-8 space-y-4 sm:space-y-6">
@@ -598,7 +739,7 @@ export default function ProposalDetailPage() {
                 }}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                Review Offer — {formatPrice(activeOffer.totalPriceCents)}
+                Review Offer — {formatPrice(activeOffer.totalPriceCents + (inquiry.marketplaceBooking?.tipCents ?? tipCents ?? 0))}
               </Link>
             )}
 
@@ -624,8 +765,19 @@ export default function ProposalDetailPage() {
             )}
 
             {/* Secondary CTAs — row on mobile, inline on desktop */}
-            {(canTip || vendor?.id || canDelete) && (
+            {(canEdit || canTip || vendor?.id || canDelete) && (
               <div className="flex flex-row flex-wrap gap-2 sm:contents">
+                {canEdit && (
+                  <Link
+                    href={`/buyer-dashboard/proposals/${proposalId}/edit`}
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-[var(--violet-200)] text-[var(--violet-700)] text-sm font-semibold hover:bg-[var(--violet-50)] transition-colors"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                    </svg>
+                    Edit Proposal
+                  </Link>
+                )}
                 {canTip && (
                   <button
                     onClick={() => setShowTipModal(true)}
@@ -700,269 +852,70 @@ export default function ProposalDetailPage() {
         </div>
       )}
 
-      {/* ── Two-column layout ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* ── Pricing summary ── */}
+      {activeOffer?.proposalType === "cash" && activeOffer?.totalPriceCents > 0 ? (
+        <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} />
+      ) : (budgetCents > 0 || tipCents > 0 || coordinatorType || event?.vendorLoadIn || event?.vendorLoadOut) && (
+        <ProposalDetailsCard
+          budgetCents={budgetCents}
+          tipCents={tipCents}
+          coordinatorType={coordinatorType}
+          vendorLoadIn={event?.vendorLoadIn}
+          vendorLoadOut={event?.vendorLoadOut}
+        />
+      )}
 
-        {/* Event details */}
+      {/* ── Event + Message side by side ── */}
+      <div className={`grid grid-cols-1 gap-4 sm:gap-6 ${event && initialMessage ? "sm:grid-cols-2" : ""}`}>
+
+        {/* Event card — links to full event page */}
         {event && (
-          <Card
-            title="Event Details"
-            icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            }
+          <Link
+            href={`/buyer-dashboard/events/${event.id}`}
+            className="block bg-white rounded-2xl overflow-hidden hover:shadow-md transition-shadow"
+            style={{ boxShadow: "var(--shadow-card)" }}
           >
-            <div className="divide-y divide-[var(--gray-50)]">
-              <InfoRow label="Event name" value={event.name} />
-              {event.description && (
-                <InfoRow label="Description">
-                  <span className="text-sm text-[var(--gray-600)] leading-relaxed">{event.description}</span>
-                </InfoRow>
+            <div className="h-1 w-full" style={{ background: "var(--gradient-organizer)" }} />
+            <div className="px-4 sm:px-5 py-4">
+              <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">Event</p>
+              <p className="text-[15px] font-bold text-[var(--gray-900)] leading-snug">{event.name}</p>
+              {(event.startDate) && (
+                <p className="text-xs text-[var(--gray-500)] mt-1">
+                  {fmt(event.startDate)}{event.endDate && event.endDate !== event.startDate ? ` – ${fmt(event.endDate)}` : ""}
+                </p>
               )}
-              <InfoRow label="Date">
-                {event.startDate ? (
-                  <>
-                    {fmt(event.startDate)}
-                    {event.endDate && event.endDate !== event.startDate && ` → ${fmt(event.endDate)}`}
-                  </>
-                ) : "—"}
-              </InfoRow>
               {(event.streetAddress || event.location) && (
-                <InfoRow label="Venue" value={event.streetAddress || event.location} />
+                <p className="text-xs text-[var(--gray-400)] mt-0.5 truncate">{event.streetAddress || event.location}</p>
               )}
-              {event.attendees > 0 && (
-                <InfoRow label="Expected attendees" value={event.attendees.toLocaleString()} />
-              )}
-              {event.ageGroup && (
-                <InfoRow label="Primary audience" value={event.ageGroup} />
-              )}
-              {event.requiresCoi != null && (
-                <InfoRow label="Certificate of Insurance">
-                  <YesNo value={event.requiresCoi} />
-                </InfoRow>
-              )}
-              {/* Venue logistics */}
-              {hasLogistics && (
-                <>
-                  <div className="pt-4 pb-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--gray-400)]">Venue Logistics</p>
-                  </div>
-                  {event.boothSize && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Booth size</span>
-                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.boothSize.replace("x", " ft × ")} ft</span>
-                    </div>
-                  )}
-                  {event.indoorOutdoor && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Indoor or outdoor</span>
-                      <LogisticChip value={event.indoorOutdoor} />
-                    </div>
-                  )}
-                  {event.canopyAllowed && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Canopy allowed</span>
-                      <LogisticChip value={event.canopyAllowed} />
-                    </div>
-                  )}
-                  {event.venueAttendees && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Event attendees</span>
-                      <span className="text-sm font-medium text-[var(--gray-800)]">{Number(event.venueAttendees).toLocaleString()}</span>
-                    </div>
-                  )}
-                  {event.accessToPower && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Access to power</span>
-                      <LogisticChip value={event.accessToPower} />
-                    </div>
-                  )}
-                  {event.accessToWater && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Access to water</span>
-                      <LogisticChip value={event.accessToWater} />
-                    </div>
-                  )}
-                  {event.wifiAvailability && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">WiFi availability</span>
-                      <LogisticChip value={event.wifiAvailability} />
-                    </div>
-                  )}
-                  {event.vendorLoadIn && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Vendor load-in</span>
-                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.vendorLoadIn}</span>
-                    </div>
-                  )}
-                  {event.vendorLoadOut && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Vendor load-out</span>
-                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.vendorLoadOut}</span>
-                    </div>
-                  )}
-                  {event.eventHours && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Event hours</span>
-                      <span className="text-sm font-medium text-[var(--gray-800)]">{event.eventHours}</span>
-                    </div>
-                  )}
-                  {event.parkingAvailable && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Parking on site</span>
-                      <LogisticChip value={event.parkingAvailable} />
-                    </div>
-                  )}
-                  {event.securityPresence && (
-                    <div className="flex items-start justify-between gap-4 py-3">
-                      <span className="text-sm text-[var(--gray-500)]">Security presence</span>
-                      <LogisticChip value={event.securityPresence} />
-                    </div>
-                  )}
-                </>
-              )}
+              <p className="text-xs font-semibold text-[var(--violet-600)] mt-3 flex items-center gap-1">
+                View event
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              </p>
             </div>
-          </Card>
+          </Link>
         )}
 
-        {/* Proposal details */}
-        <Card
-          title="Proposal Details"
-          icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>
-            </svg>
-          }
-        >
-          <div className="divide-y divide-[var(--gray-50)]">
-            <InfoRow label="Status" >
-              <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${BADGE[color]}`}>
-                {STATUS_LABEL[status] ?? status}
-              </span>
-            </InfoRow>
-            <InfoRow label="Submitted" value={fmtDateTime(createdAt)} />
-            {inquiry.viewedAt && <InfoRow label="Viewed by vendor" value={fmtDateTime(inquiry.viewedAt)} />}
-            {inquiry.discussedAt && <InfoRow label="Discussion started" value={fmtDateTime(inquiry.discussedAt)} />}
-            {inquiry.actionsNeededAt && <InfoRow label="Offer received" value={fmtDateTime(inquiry.actionsNeededAt)} />}
-            {inquiry.scheduledAt && <InfoRow label="Booked" value={fmtDateTime(inquiry.scheduledAt)} />}
-            {inquiry.completedAt && <InfoRow label="Completed" value={fmtDateTime(inquiry.completedAt)} />}
-            {inquiry.expiredAt && <InfoRow label="Expired" value={fmtDateTime(inquiry.expiredAt)} />}
-            {budgetCents && (
-              <>
-                <InfoRow label="Your budget" value={formatPrice(budgetCents)} />
-                {(tipCents ?? 0) > 0 && (
-                  <InfoRow label="Tip" value={formatPrice(tipCents)} />
-                )}
-                <InfoRow label="Est. total">
-                  <span className="font-semibold text-[var(--violet-700)]">~{formatPrice(feeGrossTotal(budgetCents, tipCents ?? 0))}</span>
-                  <span className="block text-[10px] text-[var(--gray-400)] font-normal mt-0.5">
-                    Includes 10% fee, 8.25% tax, processing{(tipCents ?? 0) > 0 ? ", and tip" : ""}
-                  </span>
-                </InfoRow>
-              </>
-            )}
+        {/* Initial message */}
+        {initialMessage && (
+          <div className="bg-white rounded-2xl overflow-hidden" style={{ boxShadow: "var(--shadow-card)" }}>
+            <div className="h-1 w-full bg-[var(--gray-100)]" />
+            <div className="px-4 sm:px-5 py-4">
+              <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2">Your Message</p>
+              <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{initialMessage}</p>
+            </div>
           </div>
-        </Card>
-
-        {/* Offer details */}
-        {activeOffer && (
-          <Card
-            title={activeOffer.status === "accepted" ? "Accepted Offer" : "Offer from Vendor"}
-            icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-              </svg>
-            }
-          >
-            <div className="divide-y divide-[var(--gray-50)]">
-              <InfoRow label="Offer price">
-                <span className="font-bold text-[var(--gray-900)] text-base">{formatPrice(activeOffer.totalPriceCents)}</span>
-              </InfoRow>
-              {(tipCents ?? 0) > 0 && (
-                <InfoRow label="Committed tip">
-                  <span className="font-medium text-[var(--violet-700)]">{formatPrice(tipCents)}</span>
-                </InfoRow>
-              )}
-              {activeOffer.depositCents && (
-                <InfoRow label="Deposit">
-                  {formatPrice(activeOffer.depositCents)}
-                  {activeOffer.depositType && (
-                    <span className="text-xs text-[var(--gray-400)] ml-1">({activeOffer.depositType.replace("_", " ")})</span>
-                  )}
-                </InfoRow>
-              )}
-              {activeOffer.remainingBalanceCents && (
-                <InfoRow label="Remaining balance" value={formatPrice(activeOffer.remainingBalanceCents)} />
-              )}
-              <InfoRow label="Offer status">
-                <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  activeOffer.status === "accepted" ? BADGE.mint : activeOffer.status === "declined" ? BADGE.gray : BADGE.coral
-                }`}>
-                  {activeOffer.status === "accepted" ? "Accepted" : activeOffer.status === "declined" ? "Declined" : "Awaiting response"}
-                </span>
-              </InfoRow>
-              {activeOffer.paymentStatus && activeOffer.paymentStatus !== "none" && (
-                <InfoRow label="Payment" value={activeOffer.paymentStatus.replace("_", " ")} />
-              )}
-              {activeOffer.expiresAt && (
-                <InfoRow label="Offer expires" value={fmtDateTime(activeOffer.expiresAt)} />
-              )}
-            </div>
-
-            {hasOffer && (
-              <div className="mt-4 flex gap-2">
-                <Link
-                  href={`/messages/${inquiry.id}/offer`}
-                  className="flex-1 flex items-center justify-center gap-2 h-10 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white text-sm font-semibold hover:shadow-[var(--shadow-button)] transition-all"
-                >
-                  Review & Respond
-                </Link>
-              </div>
-            )}
-          </Card>
-        )}
-
-        {/* Tips card */}
-        {isPaid && (booking?.tipCents ?? 0) > 0 && (
-          <Card
-            title="Tips"
-            icon={
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-              </svg>
-            }
-          >
-            <div className="divide-y divide-[var(--gray-50)]">
-              {(tipCents ?? 0) > 0 && (
-                <InfoRow label="Paid with booking" value={formatPrice(tipCents)} />
-              )}
-              {(booking.tipCents - (tipCents ?? 0)) > 0 && (
-                <InfoRow label="Additional tips sent">
-                  <span className="font-semibold text-[var(--violet-700)]">{formatPrice(booking.tipCents - (tipCents ?? 0))}</span>
-                </InfoRow>
-              )}
-              <InfoRow label="Total sent to vendor">
-                <span className="font-bold text-[var(--gray-900)]">{formatPrice(booking.tipCents)}</span>
-              </InfoRow>
-            </div>
-          </Card>
         )}
 
       </div>
 
-      {/* ── Initial message ── */}
-      {initialMessage && (
-        <Card
-          title="Your Initial Message"
-          icon={
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            </svg>
-          }
+      {/* Offer review CTA — only when offer is pending response */}
+      {hasOffer && (
+        <Link
+          href={`/messages/${inquiry.id}/offer`}
+          className="flex items-center justify-center gap-2 w-full h-11 rounded-2xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white text-sm font-semibold hover:shadow-[var(--shadow-button)] transition-all"
         >
-          <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{initialMessage}</p>
-        </Card>
+          Review &amp; Respond to Offer
+        </Link>
       )}
 
       {/* ── Tip modal ── */}

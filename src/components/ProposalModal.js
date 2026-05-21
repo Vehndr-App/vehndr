@@ -54,8 +54,6 @@ const INITIAL_FORM = {
   venueAttendees: "",
   wifiAvailability: "",
   securityPresence: "",
-  eventHoursStart: "",
-  eventHoursEnd: "",
 };
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -860,21 +858,6 @@ function Step5({ form, setField, onSave, onBack, error, submitting }) {
           </div>
         </div>
 
-        {/* Event hours */}
-        <div>
-          <FieldLabel hint="When does the public event start and end?">Event hours</FieldLabel>
-          <div className="grid grid-cols-2 gap-3">
-            <select value={form.eventHoursStart} onChange={(e) => setField("eventHoursStart", e.target.value)} className="input">
-              <option value="">Start time</option>
-              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-            <select value={form.eventHoursEnd} onChange={(e) => setField("eventHoursEnd", e.target.value)} className="input">
-              <option value="">End time</option>
-              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
-        </div>
-
         {/* WiFi + Security */}
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -1083,11 +1066,6 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       if (form.canopyAllowed)    logisticsPayload.canopy_allowed    = form.canopyAllowed;
       if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
       if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
-      if (form.eventHoursStart || form.eventHoursEnd) {
-        const start = TIME_SLOTS.find((s) => s.value === form.eventHoursStart)?.label;
-        const end   = TIME_SLOTS.find((s) => s.value === form.eventHoursEnd)?.label;
-        logisticsPayload.event_hours = [start, end].filter(Boolean).join(" – ");
-      }
       const eventRes = await createEvent({
         name: form.name.trim(),
         description: form.description.trim() || null,

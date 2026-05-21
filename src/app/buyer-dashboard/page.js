@@ -117,10 +117,10 @@ function ProposalCard({ inquiry, onDelete }) {
   const needsAction = inquiry.status === "actions_needed";
   const isPaid      = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
 
-  const tip   = inquiry.tipCents ?? 0;
+  const tip   = inquiry.marketplaceBooking?.tipCents ?? inquiry.tipCents ?? 0;
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
-    ? formatPrice(feeGrossTotal(offer.totalPriceCents, tip))
+    ? formatPrice(offer.totalPriceCents + tip)
     : null;
 
   return (
@@ -284,11 +284,20 @@ export default function BuyerDashboardHome() {
       {/* ── Sticky header ── */}
       <div className="sticky top-14 z-30 bg-[var(--gray-50)]">
         {/* Title */}
-        <div className="px-4 pt-4 pb-3">
-          <p className="text-[11px] text-[var(--gray-400)] font-medium leading-none mb-0.5">{greeting()}</p>
-          <h1 className="text-[19px] font-display font-bold text-[var(--gray-900)] leading-tight">
-            {user?.name ? user.name.split(" ")[0] : "My"}&rsquo;s Proposals
-          </h1>
+        <div className="px-4 pt-4 pb-3 flex items-end justify-between">
+          <div>
+            <p className="text-[11px] text-[var(--gray-400)] font-medium leading-none mb-0.5">{greeting()}</p>
+            <h1 className="text-[19px] font-display font-bold text-[var(--gray-900)] leading-tight">
+              {user?.name ? user.name.split(" ")[0] : "My"}&rsquo;s Proposals
+            </h1>
+          </div>
+          <a
+            href="/vendors"
+            className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-[var(--gray-900)] text-white text-[13px] font-semibold"
+            style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}
+          >
+            New Proposal
+          </a>
         </div>
 
         {/* Filter chips */}

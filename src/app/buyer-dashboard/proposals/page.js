@@ -120,7 +120,7 @@ function ProposalCard({ inquiry, onDelete }) {
   const tip   = inquiry.tipCents ?? 0;
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
-    ? formatPrice(feeGrossTotal(offer.totalPriceCents, tip))
+    ? formatPrice(offer.totalPriceCents + tip)
     : null;
 
   return (

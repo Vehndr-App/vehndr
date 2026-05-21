@@ -77,6 +77,8 @@ function feeGrossTotal(base, tip = 0)  {
   return Math.ceil((pre + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE));
 }
 function feeStripeToCustomer(base, tip = 0) { return feeGrossTotal(base, tip) - feePreStripe(base, tip); }
+function feeStripeDeduction(base)            { return Math.round(base * FEE_STRIPE_RATE) + FEE_STRIPE_FIXED; }
+function feeVendorNet(base, tip = 0)         { return base - feeCoord(base) - feeTax(base) - feeStripeDeduction(base) + tip; }
 
 function formatFee(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -92,8 +94,8 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
   const tip    = feeBase(tipDollars) || 0;
   const coord  = feeCoord(base);
   const tax    = feeTax(base);
-  const stripe = feeStripeToCustomer(base, tip);
-  const total  = feeGrossTotal(base, tip);
+  const stripe = feeStripeDeduction(base);
+  const total  = feeVendorNet(base, tip);
 
   return (
     <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
@@ -106,7 +108,7 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          <span className="text-xs font-semibold text-[var(--violet-700)]">Est. total</span>
+          <span className="text-xs font-semibold text-[var(--violet-700)]">Vendor receives</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-[var(--violet-900)]">~{formatFee(total)}</span>
@@ -123,20 +125,20 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">{formatFee(coord)}</span>
+            <span className="font-semibold text-[var(--gray-800)]">− {formatFee(coord)}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">{formatFee(tax)}</span>
+            <span className="font-semibold text-[var(--gray-800)]">− {formatFee(tax)}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
-            <span className="font-semibold text-[var(--gray-800)]">~{formatFee(stripe)}</span>
+            <span className="font-semibold text-[var(--gray-800)]">− ~{formatFee(stripe)}</span>
           </div>
           {tip > 0 && (
             <div className="flex justify-between text-xs">
               <span className="text-[var(--violet-700)]">Tip</span>
-              <span className="font-semibold text-[var(--gray-800)]">{formatFee(tip)}</span>
+              <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tip)}</span>
             </div>
           )}
           <p className="text-[10px] text-[var(--violet-500)] leading-relaxed pt-1">
@@ -210,7 +212,9 @@ function NewProposalPageInner() {
 
   const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
   const [fields, setFields] = useState({ serviceRequested: "", budget: "", vendingFee: "", tip: "" });
-  const [logistics, setLogistics] = useState({ boothSize: "", vendorLoadIn: "", vendorLoadOut: "" });
+  const [logistics, setLogistics] = useState({ boothSize: "" });
+  const [loadIn,  setLoadIn]  = useState({ date: "", time: "" });
+  const [loadOut, setLoadOut] = useState({ date: "", time: "" });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -260,10 +264,14 @@ function NewProposalPageInner() {
     setSubmitting(true);
     try {
       // Save vendor-specific logistics to the event
+      const isMultiDay = event?.startDate && event?.endDate &&
+        new Date(event.startDate).toDateString() !== new Date(event.endDate).toDateString();
+      const builtLoadIn  = loadIn.time  ? (isMultiDay && loadIn.date  ? `${loadIn.date} ${TIME_SLOTS.find(s => s.value === loadIn.time)?.label ?? loadIn.time}`  : TIME_SLOTS.find(s => s.value === loadIn.time)?.label)  : null;
+      const builtLoadOut = loadOut.time ? (isMultiDay && loadOut.date ? `${loadOut.date} ${TIME_SLOTS.find(s => s.value === loadOut.time)?.label ?? loadOut.time}` : TIME_SLOTS.find(s => s.value === loadOut.time)?.label) : null;
       const logUpdate = {};
       if (logistics.boothSize) logUpdate.booth_size = logistics.boothSize;
-      if (logistics.vendorLoadIn) logUpdate.vendor_load_in = TIME_SLOTS.find((s) => s.value === logistics.vendorLoadIn)?.label ?? logistics.vendorLoadIn;
-      if (logistics.vendorLoadOut) logUpdate.vendor_load_out = TIME_SLOTS.find((s) => s.value === logistics.vendorLoadOut)?.label ?? logistics.vendorLoadOut;
+      if (builtLoadIn)  logUpdate.vendor_load_in  = builtLoadIn;
+      if (builtLoadOut) logUpdate.vendor_load_out = builtLoadOut;
       if (Object.keys(logUpdate).length > 0) {
         await updateEvent(eventId, logUpdate);
       }
@@ -535,30 +543,59 @@ function NewProposalPageInner() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
-              <select
-                value={logistics.vendorLoadIn}
-                onChange={(e) => setLogistics((prev) => ({ ...prev, vendorLoadIn: e.target.value }))}
-                className="input"
-              >
-                <option value="">Select time</option>
-                {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
-              <select
-                value={logistics.vendorLoadOut}
-                onChange={(e) => setLogistics((prev) => ({ ...prev, vendorLoadOut: e.target.value }))}
-                className="input"
-              >
-                <option value="">Select time</option>
-                {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
-          </div>
+          {(() => {
+            const isMultiDay = event?.startDate && event?.endDate &&
+              new Date(event.startDate).toDateString() !== new Date(event.endDate).toDateString();
+            const minDate = event?.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : undefined;
+            const maxDate = event?.endDate   ? new Date(event.endDate).toISOString().slice(0, 10)   : undefined;
+            return isMultiDay ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="date" value={loadIn.date} min={minDate} max={maxDate}
+                      onChange={(e) => setLoadIn((p) => ({ ...p, date: e.target.value }))} className="input" />
+                    <select value={loadIn.time}
+                      onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))} className="input">
+                      <option value="">Select time</option>
+                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="date" value={loadOut.date} min={minDate} max={maxDate}
+                      onChange={(e) => setLoadOut((p) => ({ ...p, date: e.target.value }))} className="input" />
+                    <select value={loadOut.time}
+                      onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))} className="input">
+                      <option value="">Select time</option>
+                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
+                  <select value={loadIn.time}
+                    onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))} className="input">
+                    <option value="">Select time</option>
+                    {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
+                  <select value={loadOut.time}
+                    onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))} className="input">
+                    <option value="">Select time</option>
+                    {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Message */}
