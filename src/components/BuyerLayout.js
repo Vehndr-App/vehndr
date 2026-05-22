@@ -49,12 +49,23 @@ function BellIcon({ active }) {
   );
 }
 
+function WalletIcon({ active }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="6" width="20" height="14" rx="2" fill={active ? "currentColor" : "none"} />
+      <path d="M2 10h20" stroke={active ? "white" : "currentColor"} />
+      <circle cx="17" cy="14" r="1.2" fill={active ? "white" : "currentColor"} stroke="none" />
+    </svg>
+  );
+}
+
 // ─── Nav config ───────────────────────────────────────────────────────────────
 
 const NAV = [
   { href: "/buyer-dashboard",               label: "Proposals",     Icon: ClipboardIcon, exact: true  },
   { href: "/buyer-dashboard/events",        label: "Events",        Icon: CalendarIcon,  exact: false },
   { href: "/messages",                      label: "Messages",      Icon: ChatIcon,      exact: false },
+  { href: "/buyer-dashboard/payments",      label: "Payouts",       Icon: WalletIcon,    exact: false },
   { href: "/buyer-dashboard/notifications", label: "Notifications", Icon: BellIcon,      exact: false },
 ];
 
