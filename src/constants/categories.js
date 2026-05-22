@@ -11,28 +11,33 @@ const slugify = (value) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-export const EVENT_TYPES = [
-  "Weddings",
-  "Festivals",
-  "Corporate Events",
-  "Private Parties",
-  "Birthday Parties",
-  "Wellness Events",
-  "Retreats",
-  "Brand Activations",
-  "Nightlife / Club Events",
-  "Markets / Pop-Ups",
-  "Conferences",
-  "Fundraisers / Nonprofit Events",
-  "Baby Showers",
-  "Bachelorette / Bachelor Parties",
-  "Kids / Family Events",
-  "Holiday Events",
-  "Fashion Shows",
-  "Art Shows",
-  "Launch Parties",
-  "Community Events"
-].map((label) => ({ label, slug: slugify(label) }));
+export const EVENT_TYPE_DEFINITIONS = [
+  { label: "Weddings", icon: "💍", color: "var(--coral-100)" },
+  { label: "Festivals", icon: "🎪", color: "var(--magenta-100)" },
+  { label: "Corporate Events", icon: "💼", color: "var(--info-100)" },
+  { label: "Private Parties", icon: "🥳", color: "var(--violet-100)" },
+  { label: "Birthday Parties", icon: "🎂", color: "var(--amber-100)" },
+  { label: "Wellness Events", icon: "🧘", color: "var(--mint-100)" },
+  { label: "Retreats", icon: "🌿", color: "var(--mint-100)" },
+  { label: "Brand Activations", icon: "📣", color: "var(--info-50)" },
+  { label: "Nightlife / Club Events", icon: "🪩", color: "var(--violet-50)" },
+  { label: "Markets / Pop-Ups", icon: "🛍️", color: "var(--amber-50)" },
+  { label: "Conferences", icon: "🎤", color: "var(--violet-50)" },
+  { label: "Fundraisers / Nonprofit Events", icon: "❤️", color: "var(--coral-50)" },
+  { label: "Baby Showers", icon: "🍼", color: "var(--magenta-50)" },
+  { label: "Bachelorette / Bachelor Parties", icon: "🍾", color: "var(--amber-50)" },
+  { label: "Kids / Family Events", icon: "🧸", color: "var(--mint-50)" },
+  { label: "Holiday Events", icon: "🎄", color: "var(--mint-50)" },
+  { label: "Fashion Shows", icon: "👗", color: "var(--magenta-100)" },
+  { label: "Art Shows", icon: "🎨", color: "var(--magenta-50)" },
+  { label: "Launch Parties", icon: "🚀", color: "var(--violet-100)" },
+  { label: "Community Events", icon: "🤝", color: "var(--gray-100)" }
+];
+
+export const EVENT_TYPES = EVENT_TYPE_DEFINITIONS.map((eventType) => ({
+  ...eventType,
+  slug: slugify(eventType.label)
+}));
 
 const vendorCategoryDefinitions = [
   { label: "Food & Drink", parent: null, icon: "🍕", color: "var(--coral-100)" },
@@ -207,6 +212,22 @@ Object.entries(CATEGORY_SYNONYMS).forEach(([alias, canonical]) => {
 export const EVENT_TYPE_DISPLAY = EVENT_TYPES.reduce((acc, type) => {
   acc[type.slug] = type.label;
   acc[type.label] = type.label;
+  return acc;
+}, {});
+
+export const EVENT_TYPE_META = EVENT_TYPES.reduce((acc, type) => {
+  acc[type.slug] = {
+    label: type.label,
+    icon: type.icon || "🎉",
+    slug: type.slug,
+    color: type.color || "var(--gray-100)"
+  };
+  acc[type.label] = {
+    label: type.label,
+    icon: type.icon || "🎉",
+    slug: type.slug,
+    color: type.color || "var(--gray-100)"
+  };
   return acc;
 }, {});
 

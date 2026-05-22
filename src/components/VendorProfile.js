@@ -20,6 +20,7 @@ import { api } from "../services/api";
 import SmartImage from "./SmartImage";
 import ImageEditorModal from "./ImageEditorModal";
 import GuidanceModal from "./GuidanceModal";
+import LocationField from "./vendor-profile/LocationField";
 import {
   CATEGORY_DISPLAY,
   EVENT_TYPES,
@@ -76,7 +77,6 @@ export default function VendorProfile({ user, onSuccess }) {
     bookingAcceptsPaid: false,
     bookingStartingFeeDollars: ""
   });
-  const [loadingLocation, setLoadingLocation] = useState(false);
   const [processingImages, setProcessingImages] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null);
   const [savingOrder, setSavingOrder] = useState(false);
@@ -466,78 +466,6 @@ export default function VendorProfile({ user, onSuccess }) {
     }
   };
 
-  const handleUseMyLocation = async () => {
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      return;
-    }
-
-    setLoadingLocation(true);
-    setError(null);
-
-    try {
-      // Get user's coordinates
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject);
-      });
-
-      const { latitude, longitude } = position.coords;
-
-      // Reverse geocode using OpenStreetMap Nominatim API
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=10&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'Vehndr App'
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to get address');
-      }
-
-      const data = await response.json();
-
-      // Format the location string
-      let locationString = '';
-      if (data.address) {
-        const city = data.address.city || data.address.town || data.address.village || data.address.county;
-        const state = data.address.state;
-
-        if (city && state) {
-          locationString = `${city}, ${state}`;
-        } else if (city) {
-          locationString = city;
-        } else if (state) {
-          locationString = state;
-        } else {
-          locationString = data.display_name;
-        }
-      } else {
-        locationString = data.display_name;
-      }
-
-      setFormData(prev => ({
-        ...prev,
-        location: locationString
-      }));
-    } catch (err) {
-      console.error('Error getting location:', err);
-      if (err.code === 1) {
-        setError('Location access denied. Please enable location permissions in your browser.');
-      } else if (err.code === 2) {
-        setError('Location unavailable. Please try again.');
-      } else if (err.code === 3) {
-        setError('Location request timed out. Please try again.');
-      } else {
-        setError('Failed to get location. Please enter manually.');
-      }
-    } finally {
-      setLoadingLocation(false);
-    }
-  };
-
   if (loading) {
     return (
       <div className="space-y-4">
@@ -745,42 +673,11 @@ export default function VendorProfile({ user, onSuccess }) {
               />
             </div>
 
-            {/* Location */}
-            <div>
-              <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
-                Location <span className="text-[var(--error)]">*</span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  required
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                  className="input flex-1"
-                  placeholder="City, State"
-                />
-                <button
-                  type="button"
-                  onClick={handleUseMyLocation}
-                  disabled={loadingLocation}
-                  className="btn btn-outlined whitespace-nowrap flex items-center gap-2 px-4"
-                  title="Use my current location"
-                >
-                  {loadingLocation ? (
-                    <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  )}
-                  <span className="hidden sm:inline">Use My Location</span>
-                </button>
-              </div>
-            </div>
+            <LocationField
+              label="Location"
+              value={formData.location}
+              onChange={(location) => setFormData({ ...formData, location })}
+            />
 
             {/* Tax Setting */}
             <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--gray-50)] border border-[var(--gray-200)]">
