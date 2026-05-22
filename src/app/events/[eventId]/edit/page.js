@@ -9,6 +9,36 @@ import { EVENT_TYPES, VENDOR_CATEGORY_TREE, normalizeEventType, normalizeVendorC
 
 const STATUS_OPTIONS = ["draft", "upcoming", "active", "past"];
 
+const TIME_SLOTS = (() => {
+  const slots = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const hour = h % 12 || 12;
+      const period = h < 12 ? "AM" : "PM";
+      slots.push({
+        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
+        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
+      });
+    }
+  }
+  return slots;
+})();
+
+function parseStoredLoadTime(stored) {
+  if (!stored) return { date: "", time: "" };
+  const m = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
+  if (m) return { date: m[1], time: m[2] };
+  const slot = TIME_SLOTS.find((s) => s.label === stored);
+  return { date: "", time: slot?.value ?? "" };
+}
+
+function buildLoadTimeString(field, isMultiDay) {
+  if (!field.time) return null;
+  const label = TIME_SLOTS.find((s) => s.value === field.time)?.label ?? field.time;
+  if (isMultiDay) return field.date ? `${field.date} ${label}` : label;
+  return label;
+}
+
 export default function EventEditPage() {
   return (
     <AuthGate allowedRoles={["coordinator"]}>
@@ -24,6 +54,8 @@ function EventEditInner() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [eventId, setEventId] = useState(null);
+  const [vendorLoadIn,  setVendorLoadIn]  = useState({ date: "", time: "" });
+  const [vendorLoadOut, setVendorLoadOut] = useState({ date: "", time: "" });
   const [formData, setFormData] = useState({
     name: "",
     description: "",
@@ -62,6 +94,8 @@ function EventEditInner() {
           status: event.status || "draft",
           image: event.image || ""
         });
+        setVendorLoadIn(parseStoredLoadTime(event.vendorLoadIn));
+        setVendorLoadOut(parseStoredLoadTime(event.vendorLoadOut));
       } catch (err) {
         console.error("Failed to load event", err);
         setError("Unable to load event details.");
@@ -83,6 +117,9 @@ function EventEditInner() {
     setError(null);
 
     try {
+      const isMultiDay = formData.startDate && formData.endDate && formData.startDate !== formData.endDate;
+      const loadIn  = buildLoadTimeString(vendorLoadIn,  isMultiDay);
+      const loadOut = buildLoadTimeString(vendorLoadOut, isMultiDay);
       const payload = {
         name: formData.name,
         description: formData.description,
@@ -94,7 +131,9 @@ function EventEditInner() {
         desired_vendor_categories: normalizeVendorCategories(formData.desiredVendorCategories),
         attendees: formData.attendees ? Number(formData.attendees) : 0,
         status: formData.status,
-        image: formData.image || null
+        image: formData.image || null,
+        ...(loadIn  !== null && { vendor_load_in:  loadIn  }),
+        ...(loadOut !== null && { vendor_load_out: loadOut }),
       };
 
       await api(`/api/events/${eventId}`, {
@@ -308,6 +347,71 @@ function EventEditInner() {
               />
             </div>
           </div>
+
+          {/* Vendor load-in / load-out */}
+          {(() => {
+            const isMultiDay = formData.startDate && formData.endDate && formData.startDate !== formData.endDate;
+            const minDate = formData.startDate || undefined;
+            const maxDate = formData.endDate   || undefined;
+            return (
+              <div className="space-y-4">
+                <label className="text-sm font-semibold text-[var(--gray-700)]">Vendor Schedule</label>
+                {isMultiDay ? (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--gray-500)] mb-1.5">Vendor load-in</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="date" value={vendorLoadIn.date} min={minDate} max={maxDate}
+                          onChange={(e) => setVendorLoadIn((p) => ({ ...p, date: e.target.value }))}
+                          className="input" />
+                        <select value={vendorLoadIn.time}
+                          onChange={(e) => setVendorLoadIn((p) => ({ ...p, time: e.target.value }))}
+                          className="input">
+                          <option value="">Select time</option>
+                          {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--gray-500)] mb-1.5">Vendor load-out</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="date" value={vendorLoadOut.date} min={minDate} max={maxDate}
+                          onChange={(e) => setVendorLoadOut((p) => ({ ...p, date: e.target.value }))}
+                          className="input" />
+                        <select value={vendorLoadOut.time}
+                          onChange={(e) => setVendorLoadOut((p) => ({ ...p, time: e.target.value }))}
+                          className="input">
+                          <option value="">Select time</option>
+                          {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--gray-500)] mb-1.5">Vendor load-in</label>
+                      <select value={vendorLoadIn.time}
+                        onChange={(e) => setVendorLoadIn((p) => ({ ...p, time: e.target.value }))}
+                        className="input">
+                        <option value="">Select time</option>
+                        {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-[var(--gray-500)] mb-1.5">Vendor load-out</label>
+                      <select value={vendorLoadOut.time}
+                        onChange={(e) => setVendorLoadOut((p) => ({ ...p, time: e.target.value }))}
+                        className="input">
+                        <option value="">Select time</option>
+                        {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
             <Link

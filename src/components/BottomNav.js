@@ -56,6 +56,7 @@ export default function BottomNav() {
       return [
         { href: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
         { href: '/dashboard/inquiries', label: 'Inquiries', icon: MessagesIcon, badge: newInquiriesCount > 0 ? newInquiriesCount : null },
+        { href: '/dashboard/events', label: 'Events', icon: EventsIcon },
         { href: '/dashboard/storefront', label: 'Storefront', icon: StorefrontIcon },
         { href: '/dashboard/profile', label: 'Account', icon: ProfileIcon },
       ];
@@ -102,13 +103,17 @@ export default function BottomNav() {
 
   const navItems = getNavItems();
 
+  // Find the single best-matching nav item (longest prefix wins)
+  const activeHref = navItems
+    .filter(item => pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/')))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? (pathname === '/' ? '/' : null);
+
   return (
     <>
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[var(--gray-200)] safe-area-bottom">
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
           {navItems.map((item, index) => {
-            const isActive = pathname === item.href ||
-              (item.href !== '/' && pathname.startsWith(item.href));
+            const isActive = item.href === activeHref;
             const Icon = item.icon;
             
             return (

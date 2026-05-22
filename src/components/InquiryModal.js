@@ -4,6 +4,30 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createInquiry } from "../services/inquiries";
 
+// ─── Load-in / load-out helpers ───────────────────────────────────────────────
+
+const TIME_SLOTS = (() => {
+  const slots = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const hour = h % 12 || 12;
+      const period = h < 12 ? "AM" : "PM";
+      slots.push({
+        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
+        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
+      });
+    }
+  }
+  return slots;
+})();
+
+function buildLoadTimeString(date, time, isMultiDay) {
+  if (!time) return null;
+  const label = TIME_SLOTS.find((s) => s.value === time)?.label ?? time;
+  if (isMultiDay) return date ? `${date} ${label}` : label;
+  return label;
+}
+
 // ─── Coordinator types ────────────────────────────────────────────────────────
 
 const COORDINATOR_TYPES = [
@@ -108,28 +132,28 @@ function BudgetFeeEstimate({ budgetDollars }) {
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated cost if vendor matches your budget</p>
+        <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated vendor payout if vendor matches your budget</p>
       </div>
       <div className="px-3.5 py-2.5 space-y-1">
         <div className="flex justify-between text-[11px]">
-          <span className="text-[var(--violet-600)]">Base (your budget)</span>
+          <span className="text-[var(--violet-600)]">Your budget</span>
           <span className="font-semibold text-[var(--gray-800)]">{_fmt(base)}</span>
         </div>
         <div className="flex justify-between text-[11px]">
           <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{_fmt(_feeCoord(base))}</span>
+          <span className="font-semibold text-[var(--gray-800)]">− {_fmt(_feeCoord(base))}</span>
         </div>
         <div className="flex justify-between text-[11px]">
           <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{_fmt(_feeTax(base))}</span>
+          <span className="font-semibold text-[var(--gray-800)]">− {_fmt(_feeTax(base))}</span>
         </div>
         <div className="flex justify-between text-[11px]">
           <span className="text-[var(--violet-600)]">Processing fee (Stripe)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{_fmt(_feeStripe(base))}</span>
+          <span className="font-semibold text-[var(--gray-800)]">− {_fmt(_feeStripe(base))}</span>
         </div>
         <div className="flex justify-between text-[11px] font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
-          <span className="text-[var(--violet-900)]">Est. total you&apos;d pay</span>
-          <span className="text-[var(--violet-900)]">{_fmt(_feeGrossTotal(base))}</span>
+          <span className="text-[var(--violet-900)]">Vendor receives</span>
+          <span className="text-[var(--violet-900)]">~{_fmt(base - _feeCoord(base) - _feeTax(base) - _feeStripe(base))}</span>
         </div>
       </div>
     </div>
@@ -225,6 +249,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
   const [fields, setFields] = useState({
     eventName: "",
     eventDate: "",
+    eventEndDate: "",
     location: "",
     guestCount: "",
     serviceRequested: "",
@@ -241,12 +266,12 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
     accessToPower: null,
     accessToWater: null,
     wifiAvailability: null,
-    vendorLoadIn: "",
-    vendorLoadOut: "",
     eventHours: "",
     parkingAvailable: null,
     securityPresence: null,
   });
+  const [loadIn,  setLoadIn]  = useState({ date: "", time: "" });
+  const [loadOut, setLoadOut] = useState({ date: "", time: "" });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -271,13 +296,14 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
     if (!isOpen) {
       setCoordinatorType(defaultCoordinatorType);
       setFields({
-        eventName: "", eventDate: "", location: "", guestCount: "",
+        eventName: "", eventDate: "", eventEndDate: "", location: "", guestCount: "",
         serviceRequested: "", budget: "", tip: "", vendingFee: "", eventLink: "",
         boothWidth: "", boothDepth: "", canopyAllowed: null, indoorOutdoor: null,
         attendees: "", accessToPower: null, accessToWater: null, wifiAvailability: null,
-        vendorLoadIn: "", vendorLoadOut: "", eventHours: "",
-        parkingAvailable: null, securityPresence: null,
+        eventHours: "", parkingAvailable: null, securityPresence: null,
       });
+      setLoadIn({ date: "", time: "" });
+      setLoadOut({ date: "", time: "" });
       setMessage("");
       setMessageEdited(false);
       setError(null);
@@ -344,8 +370,11 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
       if (fields.accessToPower) logistics.access_to_power = fields.accessToPower;
       if (fields.accessToWater) logistics.access_to_water = fields.accessToWater;
       if (fields.wifiAvailability) logistics.wifi_availability = fields.wifiAvailability;
-      if (fields.vendorLoadIn) logistics.vendor_load_in = fields.vendorLoadIn;
-      if (fields.vendorLoadOut) logistics.vendor_load_out = fields.vendorLoadOut;
+      const isMultiDay = fields.eventDate && fields.eventEndDate && fields.eventDate !== fields.eventEndDate;
+      const builtLoadIn  = buildLoadTimeString(loadIn.date,  loadIn.time,  isMultiDay);
+      const builtLoadOut = buildLoadTimeString(loadOut.date, loadOut.time, isMultiDay);
+      if (builtLoadIn)  logistics.vendor_load_in  = builtLoadIn;
+      if (builtLoadOut) logistics.vendor_load_out = builtLoadOut;
       if (fields.eventHours) logistics.event_hours = fields.eventHours;
       if (fields.parkingAvailable) logistics.parking_available = fields.parkingAvailable;
       if (fields.securityPresence) logistics.security_presence = fields.securityPresence;
@@ -493,13 +522,25 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-                      Date <span className="text-[var(--coral-500)]">*</span>
+                      Start Date <span className="text-[var(--coral-500)]">*</span>
                     </label>
                     <input
                       type="date"
                       required
                       value={fields.eventDate}
                       onChange={(e) => set("eventDate", e.target.value)}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
+                      End Date <span className="text-xs font-normal text-[var(--gray-400)]">(multi-day)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={fields.eventEndDate}
+                      min={fields.eventDate || undefined}
+                      onChange={(e) => set("eventEndDate", e.target.value)}
                       className="input"
                     />
                   </div>
@@ -741,30 +782,65 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                 </div>
 
                 {/* Load In / Load Out */}
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-                    Vendor Load-In Day / Time
-                  </label>
-                  <input
-                    type="text"
-                    value={fields.vendorLoadIn}
-                    onChange={(e) => set("vendorLoadIn", e.target.value)}
-                    placeholder="e.g. Saturday, April 20 at 8:00 AM"
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-                    Vendor Load-Out Day / Time
-                  </label>
-                  <input
-                    type="text"
-                    value={fields.vendorLoadOut}
-                    onChange={(e) => set("vendorLoadOut", e.target.value)}
-                    placeholder="e.g. Saturday, April 20 at 9:00 PM"
-                    className="input"
-                  />
-                </div>
+                {(() => {
+                  const isMultiDay = fields.eventDate && fields.eventEndDate && fields.eventDate !== fields.eventEndDate;
+                  const minDate = fields.eventDate    || undefined;
+                  const maxDate = fields.eventEndDate || undefined;
+                  return (
+                    <>
+                      <div>
+                        <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
+                          Vendor Load-In
+                        </label>
+                        {isMultiDay ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            <input type="date" value={loadIn.date} min={minDate} max={maxDate}
+                              onChange={(e) => setLoadIn((p) => ({ ...p, date: e.target.value }))}
+                              className="input" />
+                            <select value={loadIn.time}
+                              onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))}
+                              className="input">
+                              <option value="">Select time</option>
+                              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <select value={loadIn.time}
+                            onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))}
+                            className="input">
+                            <option value="">Select time</option>
+                            {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                          </select>
+                        )}
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
+                          Vendor Load-Out
+                        </label>
+                        {isMultiDay ? (
+                          <div className="grid grid-cols-2 gap-3">
+                            <input type="date" value={loadOut.date} min={minDate} max={maxDate}
+                              onChange={(e) => setLoadOut((p) => ({ ...p, date: e.target.value }))}
+                              className="input" />
+                            <select value={loadOut.time}
+                              onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))}
+                              className="input">
+                              <option value="">Select time</option>
+                              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            </select>
+                          </div>
+                        ) : (
+                          <select value={loadOut.time}
+                            onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))}
+                            className="input">
+                            <option value="">Select time</option>
+                            {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {/* Event Date / Hours */}
                 <div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import ProductCard from "../../../components/ProductCard";
 import ProposalModal from "../../../components/ProposalModal";
@@ -15,6 +15,7 @@ import {
   VENDOR_BOOKING_FOOTER_SUBTITLE,
 } from "../../../utils/vendorBookingDisplay";
 import { useAuth } from "../../../contexts/AuthContext";
+import { getEvent } from "../../../services/events";
 
 function clampFocalPoint(value) {
   const numeric = Number(value);
@@ -28,6 +29,9 @@ function getHeroObjectPosition(vendor) {
 
 export default function StorefrontPage() {
   const { vendorId } = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const preselectedEventId = searchParams.get("event_id");
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [sort, setSort] = useState("recommended");
@@ -38,6 +42,7 @@ export default function StorefrontPage() {
   const [shareStatus, setShareStatus] = useState(null);
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [authWallOpen, setAuthWallOpen] = useState(false);
+  const [preselectedEvent, setPreselectedEvent] = useState(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -48,6 +53,11 @@ export default function StorefrontPage() {
       setProducts(p);
     })();
   }, [vendorId]);
+
+  useEffect(() => {
+    if (!preselectedEventId) return;
+    getEvent(preselectedEventId).then(setPreselectedEvent).catch(() => {});
+  }, [preselectedEventId]);
 
   const filteredProducts = useMemo(() => {
     if (activeTab === "products") return products.filter((p) => !p.isService);
@@ -82,6 +92,10 @@ export default function StorefrontPage() {
   function handleBookClick() {
     if (!user) {
       setAuthWallOpen(true);
+      return;
+    }
+    if (preselectedEventId) {
+      router.push(`/buyer-dashboard/proposals/new?vendor_id=${vendor.id}&event_id=${preselectedEventId}`);
       return;
     }
     setInquiryOpen(true);
@@ -286,26 +300,40 @@ export default function StorefrontPage() {
 
       {/* Sticky booking bar — Airbnb Reserve style */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-[var(--gray-100)] footer-safe"
+        className="fixed bottom-0 left-0 right-0 z-30 footer-safe overflow-hidden"
         style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
       >
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-base font-bold text-[var(--gray-900)] underline decoration-[var(--gray-300)] underline-offset-2">
-              {footerPriceLabel}
-            </p>
-            <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-snug">
-              {VENDOR_BOOKING_FOOTER_SUBTITLE}
-            </p>
+        {preselectedEvent && (
+          <div className="bg-[var(--gray-900)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5">
+            <div className="mx-auto max-w-6xl w-full flex items-center gap-2.5">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 opacity-70">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              <p className="text-[12px] text-white/60 flex-shrink-0">Event:</p>
+              <p className="text-[12px] font-semibold text-white truncate">{preselectedEvent.name}</p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleBookClick}
-            className="tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold text-white whitespace-nowrap min-w-[140px] sm:min-w-[160px]"
-            style={{ background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }}
-          >
-            Request to Book
-          </button>
+        )}
+
+        <div className="bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)]">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-bold text-[var(--gray-900)] underline decoration-[var(--gray-300)] underline-offset-2">
+                {footerPriceLabel}
+              </p>
+              <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-snug">
+                {preselectedEvent ? "Ready to send your request" : VENDOR_BOOKING_FOOTER_SUBTITLE}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleBookClick}
+              className="tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold text-white whitespace-nowrap min-w-[140px] sm:min-w-[160px]"
+              style={{ background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }}
+            >
+              Request to Book
+            </button>
+          </div>
         </div>
       </div>
 

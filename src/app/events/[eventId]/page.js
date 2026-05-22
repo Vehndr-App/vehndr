@@ -268,10 +268,18 @@ const LOGISTIC_CONFIG = [
   { key: "securityPresence", label: "Security",  icon: "🔒", fmt: v => v === "yes" ? "On-site" : v === "na" ? "N/A" : "None" },
 ];
 
+function formatLoadTime(stored) {
+  if (!stored) return stored;
+  const m = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
+  if (!m) return stored;
+  const d = new Date(m[1] + "T00:00:00");
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
+}
+
 const SCHEDULE_KEYS = [
   { key: "eventHours",    label: "Event hours" },
-  { key: "vendorLoadIn",  label: "Vendor load-in" },
-  { key: "vendorLoadOut", label: "Vendor load-out" },
+  { key: "vendorLoadIn",  label: "Vendor load-in",  fmt: formatLoadTime },
+  { key: "vendorLoadOut", label: "Vendor load-out", fmt: formatLoadTime },
   { key: "boothSize",     label: "Booth size", fmt: v => v.replace("x", " ft × ") + " ft" },
   { key: "venueAttendees",label: "Venue capacity", fmt: v => Number(v).toLocaleString() + " people" },
 ];

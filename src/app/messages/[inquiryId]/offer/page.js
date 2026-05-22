@@ -23,28 +23,13 @@ function fmtExact(cents) {
   }).format(cents / 100);
 }
 
-// ─── Fee helpers ──────────────────────────────────────────────────────────────
-const OF_TAX    = 0.0825;
-const OF_COORD  = 0.10;
-const OF_ST_PCT = 0.029;
-const OF_ST_FIX = 30;
-
-function ofTax(b)             { return Math.round(b * OF_TAX); }
-function ofCoord(b)           { return Math.round(b * OF_COORD); }
-function ofPreStripe(b, tip=0){ return b + ofTax(b) + ofCoord(b) + tip; }
-function ofGrossTotal(b, tip=0){ return Math.ceil((ofPreStripe(b, tip) + OF_ST_FIX) / (1 - OF_ST_PCT)); }
-function ofStripe(b, tip=0)   { return ofGrossTotal(b, tip) - ofPreStripe(b, tip); }
-
 function CostBreakdown({ offer, tipCents = 0 }) {
   const [open, setOpen] = useState(false);
   const base       = offer.totalPriceCents;
   const tip        = tipCents ?? 0;
-  const coord      = ofCoord(base);
-  const tax        = ofTax(base);
-  const stripe     = ofStripe(base, tip);
-  const total      = ofGrossTotal(base, tip);
+  const total      = base + tip;
   const hasDeposit = offer.depositCents > 0;
-  const depTotal   = hasDeposit ? ofGrossTotal(offer.depositCents) : 0;
+  const depTotal   = hasDeposit ? offer.depositCents : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -80,22 +65,10 @@ function CostBreakdown({ offer, tipCents = 0 }) {
             <span className="text-[var(--violet-700)]">Base service</span>
             <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coord)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
-            <span className="font-semibold text-[var(--gray-800)]">~{fmtExact(stripe)}</span>
-          </div>
           {tip > 0 ? (
             <div className="flex justify-between text-xs">
               <span className="text-[var(--violet-700)]">Tip</span>
-              <span className="font-semibold text-[var(--violet-700)]">{formatPrice(tip)}</span>
+              <span className="font-semibold text-[var(--violet-700)]">+{formatPrice(tip)}</span>
             </div>
           ) : (
             <div className="flex justify-between text-xs">
@@ -117,6 +90,7 @@ function CostBreakdown({ offer, tipCents = 0 }) {
               </div>
             )}
           </div>
+          <p className="text-[10px] text-[var(--violet-400)] pt-1">Platform fee &amp; processing deducted from vendor payout</p>
         </div>
       )}
     </div>
@@ -604,7 +578,7 @@ export default function OfferPage() {
           {/* Active offer price in header when pending */}
           {activeOffer?.status === "pending" && !isActiveExpired && (
             <span className="flex-shrink-0 text-[13px] font-bold text-[var(--violet-600)] bg-[var(--violet-50)] px-3 py-1 rounded-full">
-              {formatPrice(activeOffer.totalPriceCents)}
+              {formatPrice(activeOffer.totalPriceCents + (inquiry?.marketplaceBooking?.tipCents ?? inquiry?.tipCents ?? 0))}
             </span>
           )}
         </div>
@@ -711,7 +685,7 @@ export default function OfferPage() {
               {activeOffer && (
                 <div className="flex items-center justify-between mb-3 px-1">
                   <p className="text-[12px] text-[var(--gray-500)]">Offer from <span className="font-semibold text-[var(--gray-700)]">{vendorName}</span></p>
-                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents)}</p>
+                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents + (inquiry?.marketplaceBooking?.tipCents ?? inquiry?.tipCents ?? 0))}</p>
                 </div>
               )}
               {/* Accept — full-width, prominent */}

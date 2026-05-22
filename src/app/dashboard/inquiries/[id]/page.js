@@ -34,6 +34,14 @@ const PROPOSAL_TYPE_LABELS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function formatLoadTime(stored) {
+  if (!stored) return stored;
+  const m = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
+  if (!m) return stored;
+  const d = new Date(m[1] + "T00:00:00");
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
+}
+
 function fmt$(cents) {
   if (cents == null) return "—";
   return new Intl.NumberFormat("en-US", {
@@ -211,8 +219,8 @@ function HeroCard({
         <div className="px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5">
           {coordinatorType === "hiring_vendor" && budgetCents > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Their Budget</span>
-              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(budgetCents)}</span>
+              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You'd receive</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(calcVendorBase(budgetCents))}</span>
             </div>
           )}
           {coordinatorType === "charges_fees" && vendingFeeCents > 0 && (
@@ -336,150 +344,37 @@ function HeroCard({
   );
 }
 
-// ─── Event brief ──────────────────────────────────────────────────────────────
+// ─── Event card ───────────────────────────────────────────────────────────────
 
 function EventBrief({ event }) {
-  const [expanded, setExpanded] = useState(false);
   if (!event) return null;
 
-  const startDt    = event.startDate ? new Date(event.startDate) : null;
-  const endDt      = event.endDate   ? new Date(event.endDate)   : null;
-  const address    = event.streetAddress || event.location;
-  const dateStr    = startDt ? startDt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" }) : null;
-  const timeStr    = startDt ? startDt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : null;
-  const endTimeStr = endDt   ? endDt.toLocaleTimeString("en-US",   { hour: "numeric", minute: "2-digit" }) : null;
-  const boothDisplay = event.boothSize ? event.boothSize.replace("x", " × ") + " ft" : null;
-
-  const logistics = [
-    event.indoorOutdoor === "indoor"   && { label: "Setting",  value: "Indoor"          },
-    event.indoorOutdoor === "outdoor"  && { label: "Setting",  value: "Outdoor"         },
-    event.indoorOutdoor === "both"     && { label: "Setting",  value: "Indoor & Outdoor"},
-    boothDisplay                       && { label: "Booth",    value: boothDisplay      },
-    event.accessToPower === "yes"      && { label: "Power",    value: "Available"       },
-    event.accessToPower === "no"       && { label: "Power",    value: "No access"       },
-    event.accessToPower === "limited"  && { label: "Power",    value: "Limited"         },
-    event.accessToWater === "yes"      && { label: "Water",    value: "Available"       },
-    event.accessToWater === "no"       && { label: "Water",    value: "No access"       },
-    event.canopyAllowed === "yes"      && { label: "Canopy",   value: "Allowed"         },
-    event.canopyAllowed === "no"       && { label: "Canopy",   value: "Not allowed"     },
-    event.parkingAvailable === "yes"   && { label: "Parking",  value: "On-site"         },
-    event.parkingAvailable === "paid"  && { label: "Parking",  value: "Paid"            },
-    event.parkingAvailable === "no"    && { label: "Parking",  value: "None"            },
-    event.wifiAvailability === "yes"   && { label: "WiFi",     value: "Available"       },
-    event.securityPresence === "yes"   && { label: "Security", value: "On-site"         },
-  ].filter(Boolean);
-
-  const scheduleRows = [
-    event.eventHours    && { label: "Event hours",     value: event.eventHours    },
-    event.vendorLoadIn  && { label: "Vendor load-in",  value: event.vendorLoadIn  },
-    event.vendorLoadOut && { label: "Vendor load-out", value: event.vendorLoadOut },
-  ].filter(Boolean);
-
-  const requirements = [
-    event.requiresCoi   && "COI Required",
-    event.rsvpRequired  && "RSVP Required",
-    event.badgeRequired && "Badge Required",
-  ].filter(Boolean);
-
-  const hasExtra = event.description || scheduleRows.length > 0 || requirements.length > 0 || event.eventUrl || event.perks?.length > 0;
+  const startDt = event.startDate ? new Date(event.startDate) : null;
+  const address = event.streetAddress || event.location;
+  const dateStr = startDt
+    ? startDt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+    : null;
 
   return (
-    <Card className="h-full flex flex-col">
-      <div className="px-5 pt-5 pb-4 border-b border-[var(--gray-50)]">
+    <Link
+      href={`/events/${event.id}`}
+      className="block bg-white rounded-2xl overflow-hidden hover:shadow-md transition-shadow h-full"
+      style={{ boxShadow: "0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)" }}
+    >
+      <div className="h-1 w-full" style={{ background: "var(--gradient-organizer)" }} />
+      <div className="px-5 py-4">
         <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">Event</p>
-        <h2 className="text-[16px] font-bold text-[var(--gray-900)] leading-snug">{event.name}</h2>
+        <p className="text-[15px] font-bold text-[var(--gray-900)] leading-snug">{event.name}</p>
+        {dateStr && <p className="text-xs text-[var(--gray-500)] mt-1">{dateStr}</p>}
+        {address && <p className="text-xs text-[var(--gray-400)] mt-0.5 truncate">{address}</p>}
+        <p className="text-xs font-semibold text-[var(--violet-600)] mt-3 flex items-center gap-1">
+          View event
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
+        </p>
       </div>
-      <div className="px-5 py-4 flex-1 space-y-2.5">
-        {dateStr && (
-          <div className="flex items-start gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--gray-50)]">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            </div>
-            <div>
-              <p className="text-[13px] font-semibold text-[var(--gray-800)] leading-snug">{dateStr}</p>
-              {(timeStr || endTimeStr) && (
-                <p className="text-xs text-[var(--gray-400)] mt-0.5">{timeStr}{endTimeStr ? ` – ${endTimeStr}` : ""}</p>
-              )}
-            </div>
-          </div>
-        )}
-        {address && (
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--gray-50)]">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
-              </svg>
-            </div>
-            <p className="text-[13px] font-semibold text-[var(--gray-800)]">{address}</p>
-          </div>
-        )}
-        {event.attendees > 0 && (
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 bg-[var(--gray-50)]">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              </svg>
-            </div>
-            <p className="text-[13px] font-semibold text-[var(--gray-800)]">{Number(event.attendees).toLocaleString()} attendees</p>
-          </div>
-        )}
-
-        {logistics.length > 0 && (
-          <div className="pt-2 grid grid-cols-2 gap-1">
-            {logistics.map((item, i) => (
-              <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-[var(--gray-50)]">
-                <span className="text-[11px] text-[var(--gray-400)]">{item.label}</span>
-                <span className="text-[11px] font-semibold text-[var(--gray-700)]">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {hasExtra && (
-          <>
-            <button type="button" onClick={() => setExpanded(v => !v)}
-              className="flex items-center gap-1 text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)] transition-colors pt-1">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}>
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-              {expanded ? "Less" : "More details"}
-            </button>
-
-            {expanded && (
-              <div className="space-y-3 pt-1">
-                {event.description && (
-                  <p className="text-[13px] text-[var(--gray-600)] leading-relaxed">{event.description}</p>
-                )}
-                {scheduleRows.map((r, i) => (
-                  <div key={i} className="flex justify-between text-[13px]">
-                    <span className="text-[var(--gray-400)]">{r.label}</span>
-                    <span className="font-medium text-[var(--gray-700)]">{r.value}</span>
-                  </div>
-                ))}
-                {requirements.map((r, i) => (
-                  <span key={i} className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--amber-50)] text-[var(--amber-700)] mr-1">{r}</span>
-                ))}
-                {event.perks?.map((p, i) => (
-                  <span key={i} className="inline-block text-[11px] font-medium px-2 py-0.5 rounded-full bg-[var(--violet-50)] text-[var(--violet-700)] mr-1">{p}</span>
-                ))}
-                {event.eventUrl && (
-                  <a href={event.eventUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-xs font-semibold text-[var(--violet-600)] hover:underline">
-                    View event page
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/>
-                    </svg>
-                  </a>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </div>
-    </Card>
+    </Link>
   );
 }
 
@@ -511,93 +406,73 @@ function MessageCard({ customer, initialMessage }) {
 function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevise, isConfirmed, inquiryId }) {
   if (!offer) return null;
 
-  const borderColor = offerAccepted ? "var(--mint-200)" : offerDeclined ? "#fecaca" : "var(--gray-200)";
-  const headerBg    = offerAccepted ? "var(--mint-50)"  : offerDeclined ? "#fef2f2"  : "var(--gray-50)";
+  const statusColor = offerAccepted ? "mint" : offerDeclined ? "red" : "amber";
+  const statusLabel = offerAccepted ? "Accepted" : offerDeclined ? "Declined" : "Pending";
+  const isCash = offer.proposalType === "cash";
 
   return (
-    <Card style={{ border: `1px solid ${borderColor}` }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor, background: headerBg }}>
+    <Card>
+      <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--gray-100)]">
         <div className="flex items-center gap-2">
           <span className="text-[13px] font-semibold text-[var(--gray-800)]">
             {offerAccepted ? "Accepted Offer" : "Your Offer"}
           </span>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/80 text-[var(--gray-400)]">v{offer.versionNumber}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {offer.proposalType && (
-            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/80 text-[var(--gray-500)]">
-              {PROPOSAL_TYPE_LABELS[offer.proposalType]}
-            </span>
+          {offer.versionNumber > 1 && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--gray-100)] text-[var(--gray-400)]">v{offer.versionNumber}</span>
           )}
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-            offerAccepted ? "bg-[var(--mint-100)] text-[var(--mint-700)]"
-            : offerDeclined ? "bg-red-100 text-red-600"
-            : "bg-[var(--amber-50)] text-[var(--amber-600)]"
-          }`}>
-            {offerAccepted ? "✓ Accepted" : offerDeclined ? "Declined" : "Pending"}
-          </span>
         </div>
+        <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+          statusColor === "mint"  ? "bg-[var(--mint-50)]  text-[var(--mint-700)]"
+        : statusColor === "red"   ? "bg-red-50 text-red-600"
+        :                           "bg-[var(--amber-50)] text-[var(--amber-600)]"
+        }`}>{statusLabel}</span>
       </div>
 
-      <div className="p-6">
-        {/* Price + deposit side by side */}
-        <div className="flex items-end justify-between gap-6 mb-6">
-          <div>
-            <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1.5">
-              {offer.proposalType === "product" ? "You Pay" : offer.proposalType === "both" ? "Total" : "Customer Pays"}
-            </p>
-            <p className="text-[40px] font-bold text-[var(--gray-900)] leading-none tracking-tight">{fmt$(offer.totalPriceCents)}</p>
-            {offer.proposalType === "cash" && tipCents > 0 && (
-              <p className="text-[13px] font-medium text-[var(--violet-600)] mt-2">+ {fmt$(tipCents)} tip committed</p>
-            )}
-          </div>
-          {offer.depositCents > 0 && (
-            <div className="text-right flex-shrink-0">
-              <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">Deposit</p>
-              <p className="text-[20px] font-bold text-[var(--gray-700)]">{fmt$(offer.depositCents)}</p>
-              {offer.depositType && (
-                <p className="text-[11px] text-[var(--gray-400)] capitalize mt-0.5">{offer.depositType.replace(/_/g, " ")}</p>
-              )}
-            </div>
-          )}
+      <div className="px-5 py-4 space-y-3">
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm text-[var(--gray-500)]">{isCash ? "Your base" : offer.proposalType === "product" ? "You pay" : "Price"}</span>
+          <span className="text-[22px] font-bold text-[var(--gray-900)] tabular-nums">
+            {isCash ? fmt$(calcVendorBase(offer.totalPriceCents)) : fmt$(offer.totalPriceCents)}
+          </span>
         </div>
-
-        {/* Secondary meta */}
-        {(offer.remainingBalanceCents > 0 || offer.expiresAt || (isConfirmed && offer.paymentStatus && offer.paymentStatus !== "none")) && (
-          <div className="flex flex-wrap gap-6 pt-4 border-t border-[var(--gray-50)] mb-4">
-            {offer.remainingBalanceCents > 0 && (
-              <div>
-                <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-0.5">Remaining</p>
-                <p className="text-[13px] font-semibold text-[var(--gray-700)]">{fmt$(offer.remainingBalanceCents)}</p>
-              </div>
-            )}
-            {offer.expiresAt && (
-              <div>
-                <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-0.5">Expires</p>
-                <p className="text-[13px] font-semibold text-[var(--gray-700)]">{fmtDate(offer.expiresAt)}</p>
-              </div>
-            )}
-            {isConfirmed && offer.paymentStatus && offer.paymentStatus !== "none" && (
-              <div>
-                <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-0.5">Payment</p>
-                <p className="text-[13px] font-semibold capitalize" style={{ color: "var(--mint-600)" }}>
-                  {offer.paymentStatus.replace(/_/g, " ")}
-                </p>
-              </div>
-            )}
+        {isCash && tipCents > 0 && (
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-[var(--gray-500)]">Committed tip</span>
+            <span className="text-sm font-semibold text-[var(--violet-600)] tabular-nums">+{fmt$(tipCents)}</span>
           </div>
         )}
-
+        {offer.depositCents > 0 && (
+          <div className="flex items-baseline justify-between pt-2 border-t border-[var(--gray-100)]">
+            <span className="text-sm text-[var(--gray-500)]">Deposit{offer.depositType ? ` (${offer.depositType.replace(/_/g, " ")})` : ""}</span>
+            <span className="text-sm font-semibold text-[var(--gray-700)] tabular-nums">{fmt$(offer.depositCents)}</span>
+          </div>
+        )}
+        {offer.remainingBalanceCents > 0 && (
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-[var(--gray-500)]">Remaining balance</span>
+            <span className="text-sm font-semibold text-[var(--gray-700)] tabular-nums">{fmt$(offer.remainingBalanceCents)}</span>
+          </div>
+        )}
+        {offer.expiresAt && (
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-[var(--gray-500)]">Expires</span>
+            <span className="text-sm font-semibold text-[var(--gray-700)]">{fmtDate(offer.expiresAt)}</span>
+          </div>
+        )}
+        {isConfirmed && offer.paymentStatus && offer.paymentStatus !== "none" && (
+          <div className="flex items-baseline justify-between">
+            <span className="text-sm text-[var(--gray-500)]">Payment</span>
+            <span className="text-sm font-semibold capitalize" style={{ color: "var(--mint-600)" }}>{offer.paymentStatus.replace(/_/g, " ")}</span>
+          </div>
+        )}
         {offer.description && (
-          <div className={offer.remainingBalanceCents > 0 || offer.expiresAt ? "" : "pt-4 border-t border-[var(--gray-50)]"}>
-            <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2">Offer Terms</p>
+          <div className="pt-2 border-t border-[var(--gray-100)]">
+            <p className="text-xs text-[var(--gray-400)] font-semibold uppercase tracking-wider mb-1">Terms</p>
             <p className="text-[13px] text-[var(--gray-600)] leading-relaxed">{offer.description}</p>
           </div>
         )}
-
         {canRevise && (
-          <div className="mt-5 pt-4 border-t border-[var(--gray-50)]">
+          <div className="pt-1">
             <Link href={`/dashboard/inquiries/${inquiryId}/offer/new`}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)] transition-colors">
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -668,88 +543,72 @@ function OfferHistory({ offers }) {
 
 // ─── Earnings card ────────────────────────────────────────────────────────────
 
-const VENDOR_FEE_RATE = 0.10;
+const VENDOR_FEE_RATE  = 0.10;
+const STRIPE_FEE_RATE  = 0.029;
+const STRIPE_FEE_FIXED = 30; // cents
+const TAX_RATE         = 0.0825;
 
-function calcVendorEarnings(baseCents, tipCents = 0) {
-  const vehndrFee   = Math.round(baseCents * VENDOR_FEE_RATE);
-  const netService  = baseCents - vehndrFee;
-  const totalPayout = netService + tipCents;
-  return { vehndrFee, netService, totalPayout };
+// Layer 1: coordinator budget → vendor base (deducts VEHNDR fee, Stripe, and VAT)
+function calcVendorBase(coordinatorBudgetCents) {
+  const vehndrFee = Math.round(coordinatorBudgetCents * VENDOR_FEE_RATE);
+  const stripeFee = Math.round(coordinatorBudgetCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
+  const tax       = Math.round(coordinatorBudgetCents * TAX_RATE);
+  return Math.max(coordinatorBudgetCents - vehndrFee - stripeFee - tax, 0);
 }
 
-function EarningsCard({ offer, tipCents = 0, committedTipCents = 0, budgetCents = 0, submittedAt }) {
-  const baseCents      = offer.totalPriceCents ?? 0;
-  const postPaymentTip = Math.max(0, tipCents - committedTipCents);
-  const { vehndrFee, netService, totalPayout } = calcVendorEarnings(baseCents, tipCents);
+function EarningsCard({ offer, tipCents = 0 }) {
+  const coordinatorBudget = offer.totalPriceCents ?? 0;
+  const vendorBase        = calcVendorBase(coordinatorBudget);
+  const vehndrFee         = Math.round(vendorBase * VENDOR_FEE_RATE);
+  const payout            = vendorBase - vehndrFee + tipCents;
 
   const f = (c) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD",
       minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(c / 100);
 
-  const rows = [
-    budgetCents > 0 && { label: "Customer's Budget",           value: f(budgetCents),        muted: true  },
-    { label: "Agreed Offer Price",                              value: f(baseCents),           muted: false },
-    { label: "VEHNDR Platform Fee (10%)",                       value: `−${f(vehndrFee)}`,     red: true    },
-    { label: "Net Service Earnings",                            value: f(netService),          bold: true   },
-    committedTipCents > 0 && { label: "Tip (committed with proposal)", value: `+${f(committedTipCents)}`, mint: true },
-    postPaymentTip > 0    && { label: "Additional Tip (post-payment)", value: `+${f(postPaymentTip)}`,    violet: true },
-  ].filter(Boolean);
-
   return (
     <Card style={{ border: "1px solid var(--mint-200)" }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[var(--mint-100)]"
+      <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--mint-100)]"
         style={{ background: "var(--mint-50)" }}>
-        <span className="text-[13px] font-semibold" style={{ color: "var(--mint-800)" }}>Earnings Breakdown</span>
-        <span className="flex items-center gap-1.5 text-[11px] font-bold" style={{ color: "var(--mint-600)" }}>
+        <span className="text-[13px] font-semibold" style={{ color: "var(--mint-800)" }}>Your Payout</span>
+        <span className="flex items-center gap-1 text-[11px] font-bold" style={{ color: "var(--mint-600)" }}>
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="20 6 9 17 4 12"/>
           </svg>
-          Payment Received
+          Payment confirmed
         </span>
       </div>
 
-      {/* Two-column interior: hero | table */}
-      <div className="grid grid-cols-1 sm:grid-cols-[auto_1fr] divide-y sm:divide-y-0 sm:divide-x divide-[var(--gray-100)]">
+      <div className="px-5 py-5 space-y-3">
+        <p className="text-[38px] font-bold leading-none tracking-tight" style={{ color: "var(--mint-700)" }}>
+          {f(payout)}
+        </p>
 
-        {/* Left: payout hero */}
-        <div className="px-6 py-6 flex flex-col justify-center sm:min-w-[220px]">
-          <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1.5">Total Payout</p>
-          <p className="text-[42px] font-bold leading-none tracking-tight" style={{ color: "var(--mint-700)" }}>
-            {f(totalPayout)}
-          </p>
-          {submittedAt && (
-            <p className="text-xs text-[var(--gray-400)] mt-3">
-              Inquiry received<br />{timeAgo(submittedAt)}
-            </p>
-          )}
-        </div>
-
-        {/* Right: breakdown table */}
-        <div className="divide-y divide-[var(--gray-50)]">
-          {rows.map((row, i) => (
-            <div key={i} className={`flex items-center justify-between px-5 py-3 ${row.muted ? "bg-[var(--gray-50)]" : "bg-white"}`}>
-              <span className={`text-xs ${row.bold ? "font-semibold text-[var(--gray-700)]" : "text-[var(--gray-400)]"}`}>{row.label}</span>
-              <span className={`text-xs font-semibold tabular-nums ${
-                row.red    ? "text-red-500"
-                : row.mint   ? "text-[var(--mint-600)]"
-                : row.violet ? "text-[var(--violet-600)]"
-                : row.bold   ? "text-[var(--gray-800)] text-sm font-bold"
-                : "text-[var(--gray-600)]"
-              }`}>{row.value}</span>
+        <div className="space-y-2 pt-1">
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">Your base</span>
+            <span className="font-medium text-[var(--gray-800)] tabular-nums">{f(vendorBase)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+            <span className="font-medium text-red-500 tabular-nums">−{f(vehndrFee)}</span>
+          </div>
+          {tipCents > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Tips</span>
+              <span className="font-medium text-[var(--violet-600)] tabular-nums">+{f(tipCents)}</span>
             </div>
-          ))}
-          {/* Total row */}
-          <div className="flex items-center justify-between px-5 py-3.5" style={{ background: "var(--mint-50)" }}>
-            <span className="text-[13px] font-bold" style={{ color: "var(--mint-800)" }}>Total Payout</span>
-            <span className="text-[15px] font-bold tabular-nums" style={{ color: "var(--mint-700)" }}>{f(totalPayout)}</span>
+          )}
+          <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
+            <span className="font-semibold text-[var(--gray-700)]">You receive</span>
+            <span className="font-bold tabular-nums" style={{ color: "var(--mint-700)" }}>{f(payout)}</span>
           </div>
         </div>
       </div>
 
-      <div className="px-6 py-3 border-t border-[var(--gray-100)]">
-        <p className="text-[11px] text-[var(--gray-400)] leading-relaxed">
-          Customer pays the Stripe processing fee — it does not come out of your payout. Funds transfer within 2–7 business days via Stripe Connect.
+      <div className="px-5 py-3 border-t border-[var(--gray-100)]">
+        <p className="text-[11px] text-[var(--gray-400)]">
+          Includes a 10% VEHNDR fee on your base. Transfers within 2–7 business days.
         </p>
       </div>
     </Card>
@@ -840,8 +699,8 @@ function VendorInquiryDetailInner() {
   const isConfirmed      = status === "scheduled" || status === "completed";
   const fresh            = isRecent(submittedAt);
 
-  const vendorPaid     = offerAccepted && activeOffer?.proposalType === "product" && status === "scheduled";
-  const needsVendorPay = offerAccepted && activeOffer?.proposalType === "product" && status !== "scheduled";
+  const vendorPaid     = hasOffer && activeOffer?.proposalType === "product" && status === "scheduled";
+  const needsVendorPay = hasOffer && activeOffer?.proposalType === "product" && status !== "scheduled";
   const cashPending    = offerAccepted && activeOffer?.proposalType === "cash" && !isConfirmed;
   const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both";
   const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined;
@@ -892,7 +751,15 @@ function VendorInquiryDetailInner() {
           id={id}
         />
 
-        {/* 2. Message + event — side by side */}
+        {/* 2. Earnings / payment info — visible as soon as offer is accepted */}
+        {(offerAccepted || isConfirmed) && displayOffer?.proposalType === "cash" && (
+          <EarningsCard
+            offer={displayOffer}
+            tipCents={bookingTipCents}
+          />
+        )}
+
+        {/* 3. Message + event — side by side */}
         {(initialMessage || event) && (
           <div className={`grid gap-4 ${initialMessage && event ? "grid-cols-1 lg:grid-cols-2" : "grid-cols-1"}`}>
             <MessageCard customer={customer} initialMessage={initialMessage} />
@@ -900,7 +767,7 @@ function VendorInquiryDetailInner() {
           </div>
         )}
 
-        {/* 3. Status banners */}
+        {/* 4. Status banners */}
         {offerDeclined && (
           <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-red-50 border border-red-100">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
@@ -949,7 +816,7 @@ function VendorInquiryDetailInner() {
           </div>
         )}
 
-        {/* 4. Offer card */}
+        {/* 5. Offer card */}
         {displayOffer && (
           <OfferCard
             offer={displayOffer}
@@ -962,19 +829,9 @@ function VendorInquiryDetailInner() {
           />
         )}
 
-        {/* 5. Revision history */}
+        {/* 6. Revision history */}
         {offers.length > 1 && <OfferHistory offers={offers} />}
 
-        {/* 6. Earnings card */}
-        {isConfirmed && displayOffer?.proposalType === "cash" && (
-          <EarningsCard
-            offer={displayOffer}
-            tipCents={bookingTipCents}
-            committedTipCents={proposalTipCents ?? 0}
-            budgetCents={budgetCents ?? 0}
-            submittedAt={submittedAt}
-          />
-        )}
       </div>
 
       {/* Mobile footer */}

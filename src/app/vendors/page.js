@@ -12,6 +12,7 @@ import {
   normalizeVendorCategories
 } from "../../constants/categories";
 import { getStorefrontPath } from "../../utils/storefrontLinks";
+import EventStickyBanner from "../../components/EventStickyBanner";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
@@ -20,6 +21,7 @@ export default async function VendorsSelectPage({ searchParams }) {
   const eventType = typeof params?.event_type === "string" ? normalizeEventType(params.event_type) : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
   const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
+  const eventId = typeof params?.event_id === "string" ? params.event_id : null;
   // #region agent log
   fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:14',message:'Parsed vendor search params',data:{searchQuery,category,minPrice,maxPrice},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H2'})}).catch(()=>{});
   // #endregion
@@ -184,6 +186,7 @@ export default async function VendorsSelectPage({ searchParams }) {
                 category={cat}
                 vendors={vendorsByCategory[cat]}
                 isFiltered={category !== null}
+                eventId={eventId}
               />
             ))
           ) : (
@@ -191,6 +194,9 @@ export default async function VendorsSelectPage({ searchParams }) {
           )}
         </div>
       </div>
+
+      {/* Event sticky banner */}
+      {eventId && <EventStickyBanner eventId={eventId} />}
     </div>
   );
 }
@@ -232,7 +238,7 @@ function QuickActionCard({ href, icon, label, color, badge, isActive }) {
   );
 }
 
-function CategorySection({ category, vendors, isFiltered }) {
+function CategorySection({ category, vendors, isFiltered, eventId }) {
   return (
     <section className="animate-slide-up">
       <div className="flex items-center justify-between mb-4">
@@ -241,7 +247,7 @@ function CategorySection({ category, vendors, isFiltered }) {
         </h2>
         {!isFiltered && (
           <Link
-            href={`/vendors?category=${encodeURIComponent(category)}`}
+            href={`/vendors?category=${encodeURIComponent(category)}${eventId ? `&event_id=${eventId}` : ""}`}
             className="flex items-center gap-1 text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]"
           >
             View all
@@ -253,20 +259,23 @@ function CategorySection({ category, vendors, isFiltered }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {vendors.map((vendor, index) => (
-          <VendorCard key={vendor.id} vendor={vendor} index={index} />
+          <VendorCard key={vendor.id} vendor={vendor} index={index} eventId={eventId} />
         ))}
       </div>
     </section>
   );
 }
 
-function VendorCard({ vendor, index }) {
+function VendorCard({ vendor, index, eventId }) {
   const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
   const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id);
-  
+  const storefrontHref = eventId
+    ? `${getStorefrontPath(vendor)}?event_id=${eventId}`
+    : getStorefrontPath(vendor);
+
   return (
     <Link
-      href={getStorefrontPath(vendor)}
+      href={storefrontHref}
       className="group"
       style={{ animationDelay: `${index * 50}ms` }}
     >

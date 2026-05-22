@@ -19,32 +19,17 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-// ── Fee constants (mirror MarketplacePricing in the API) ──────────────────────
-const TAX_RATE                = 0.0825;
+// ── Fee constants — fees are deducted from vendor payout, never added to coordinator charge ───
 const COORDINATOR_FEE_PERCENT = 0.10;
-const APPLICATION_FEE_PERCENT = 0.20;
 const STRIPE_FEE_PERCENT      = 0.029;
 const STRIPE_FEE_FIXED_CENTS  = 30;
+const TAX_RATE                = 0.0825;
 
-function calcTax(base)            { return Math.round(base * TAX_RATE); }
-function calcCoordinatorFee(base) { return Math.round(base * COORDINATOR_FEE_PERCENT); }
-function calcApplicationFee(base) { return Math.round(base * APPLICATION_FEE_PERCENT); }
-
-function calcPreStripeTotal(base, tip = 0) {
-  return base + calcTax(base) + calcCoordinatorFee(base) + tip;
-}
-
-function calcGrossTotal(base, tip = 0) {
-  const preStripe = calcPreStripeTotal(base, tip);
-  return Math.ceil((preStripe + STRIPE_FEE_FIXED_CENTS) / (1 - STRIPE_FEE_PERCENT));
-}
-
-function calcStripeFeeToCustomer(base, tip = 0) {
-  return calcGrossTotal(base, tip) - calcPreStripeTotal(base, tip);
-}
-
+function calcPlatformFee(base)       { return Math.round(base * COORDINATOR_FEE_PERCENT); }
+function calcStripeProcessing(total) { return Math.round(total * STRIPE_FEE_PERCENT) + STRIPE_FEE_FIXED_CENTS; }
+function calcTax(base)               { return Math.round(base * TAX_RATE); }
 function calcVendorPayout(base, tip = 0) {
-  return Math.round(base * 0.90) + tip;
+  return base + tip - calcPlatformFee(base) - calcStripeProcessing(base + tip) - calcTax(base);
 }
 
 function fmt(cents) {
@@ -173,18 +158,18 @@ function DevPaymentForm({ amountCents, label = "Pay", onSuccess }) {
 
 // ── Money Flow Bar ────────────────────────────────────────────────────────────
 
-function MoneyFlowBar({ baseCents, tipCents = 0, stripeFeeCents = null }) {
-  const total  = calcGrossTotal(baseCents, tipCents);
-  const stripe = stripeFeeCents ?? calcStripeFeeToCustomer(baseCents, tipCents);
-  const appFee = calcApplicationFee(baseCents);
-  const tax    = calcTax(baseCents);
-  const vendor = calcVendorPayout(baseCents, tipCents);
+function MoneyFlowBar({ baseCents, tipCents = 0 }) {
+  const total       = baseCents + tipCents;
+  const platformFee = calcPlatformFee(baseCents);
+  const stripeProc  = calcStripeProcessing(total);
+  const tax         = calcTax(baseCents);
+  const vendor      = total - platformFee - stripeProc - tax;
 
   const segments = [
-    { label: "Vendor",  value: vendor,  color: "bg-violet-500",  textColor: "text-violet-700",  bg: "bg-violet-50"  },
-    { label: "VEHNDR",  value: appFee,  color: "bg-emerald-500", textColor: "text-emerald-700", bg: "bg-emerald-50" },
-    { label: "Tax",     value: tax,     color: "bg-amber-400",   textColor: "text-amber-700",   bg: "bg-amber-50"   },
-    { label: "Stripe",  value: stripe,  color: "bg-gray-400",    textColor: "text-gray-600",    bg: "bg-gray-50"    },
+    { label: "Vendor",  value: vendor,       color: "bg-violet-500",  textColor: "text-violet-700",  bg: "bg-violet-50"  },
+    { label: "VEHNDR",  value: platformFee,  color: "bg-emerald-500", textColor: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "Stripe",  value: stripeProc,   color: "bg-gray-400",    textColor: "text-gray-600",    bg: "bg-gray-50"    },
+    { label: "Tax",     value: tax,          color: "bg-amber-400",   textColor: "text-amber-700",   bg: "bg-amber-50"   },
   ];
 
   return (
@@ -207,7 +192,7 @@ function MoneyFlowBar({ baseCents, tipCents = 0, stripeFeeCents = null }) {
         ))}
       </div>
       <p className="text-[10px] text-gray-400 mt-2.5 text-center leading-relaxed">
-        Stripe processing fee (~{fmtExact(stripe)}) included.{tipCents > 0 && " Tip goes 100% to vendor."}
+        VEHNDR fee &amp; Stripe processing deducted from vendor payout — not added to your charge.
       </p>
     </div>
   );
@@ -335,7 +320,7 @@ function PostPaymentTip({ booking, inquiry, onTipAdded }) {
 
 // ── Confirmation Screen ───────────────────────────────────────────────────────
 
-function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, stripeFeeCents: stripeFeeCentsProp, onBackToThread }) {
+function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, onBackToThread }) {
   const [currentBooking, setCurrentBooking] = useState(booking);
   const [tipDone, setTipDone] = useState(false);
   const offer      = inquiry?.activeOffer;
@@ -343,7 +328,6 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
   const baseCents  = offer?.totalPriceCents ?? 0;
   const isCash     = offer?.proposalType === "cash";
   const totalTip   = currentBooking?.tip_cents ?? currentBooking?.tipCents ?? tipCents ?? 0;
-  const stripeFeeCents = stripeFeeCentsProp ?? (isCash ? calcStripeFeeToCustomer(baseCents, totalTip) : 0);
 
   return (
     <div className="space-y-5 pb-8">
@@ -376,13 +360,6 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
         <div className="divide-y divide-gray-50">
           <ReceiptRow label="Vendor" value={inquiry?.vendor?.name} bold />
           {offer?.totalPriceCents && <ReceiptRow label="Base service" value={fmt(baseCents)} />}
-          {isCash && (
-            <>
-              <ReceiptRow label={`VEHNDR fee (${Math.round(COORDINATOR_FEE_PERCENT * 100)}%)`} value={fmt(calcCoordinatorFee(baseCents))} />
-              <ReceiptRow label={`Tax (${(TAX_RATE * 100).toFixed(2)}%)`} value={fmt(calcTax(baseCents))} />
-              <ReceiptRow label="Processing fee" value={fmtExact(stripeFeeCents)} />
-            </>
-          )}
           {totalTip > 0 && <ReceiptRow label="Tip" value={fmt(totalTip)} accent />}
           <ReceiptRow label="Paid now" value={fmtExact(paidCents)} green />
           {!fullyPaid && offer?.remainingBalanceCents > 0 && (
@@ -398,7 +375,7 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
       </div>
 
       {isCash && baseCents > 0 && (
-        <MoneyFlowBar baseCents={baseCents} tipCents={totalTip} stripeFeeCents={stripeFeeCents} />
+        <MoneyFlowBar baseCents={baseCents} tipCents={totalTip} />
       )}
 
       {!fullyPaid && offer?.remainingBalanceCents > 0 && (
@@ -519,10 +496,7 @@ export default function MarketplaceCheckoutPage() {
     ? (payDeposit ? offer.depositCents : offer.totalPriceCents)
     : offer?.remainingBalanceCents ?? offer?.totalPriceCents ?? 0;
 
-  const taxCents            = isCash ? calcTax(baseCents)                          : 0;
-  const coordinatorFeeCents = isCash ? calcCoordinatorFee(baseCents)               : 0;
-  const stripeFeeCents      = isCash ? calcStripeFeeToCustomer(baseCents, tipCents) : 0;
-  const chargeTotal         = isCash ? calcGrossTotal(baseCents, tipCents)          : baseCents + tipCents;
+  const chargeTotal = baseCents + tipCents;
 
   const handleTipChange = useCallback((cents) => setTipCents(cents), []);
 
@@ -657,7 +631,6 @@ export default function MarketplaceCheckoutPage() {
               paidCents={paidCents}
               isDeposit={intentData?.isDeposit}
               tipCents={intentData?.tipCents ?? tipCents}
-              stripeFeeCents={intentData?.stripeFeeCents}
               onBackToThread={() => router.push(`/messages/${inquiryId}`)}
             />
           </div>
@@ -734,22 +707,6 @@ export default function MarketplaceCheckoutPage() {
                   <span className="text-gray-500">Base service</span>
                   <span className="font-medium text-gray-900">{fmt(baseCents)}</span>
                 </div>
-                {isCash && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">VEHNDR fee ({Math.round(COORDINATOR_FEE_PERCENT * 100)}%)</span>
-                      <span className="font-medium text-gray-900">{fmt(coordinatorFeeCents)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Tax ({(TAX_RATE * 100).toFixed(2)}%)</span>
-                      <span className="font-medium text-gray-900">{fmt(taxCents)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Processing fee</span>
-                      <span className="font-medium text-gray-900">{fmtExact(stripeFeeCents)}</span>
-                    </div>
-                  </>
-                )}
                 {depositAvailable && offer.remainingBalanceCents > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Remaining after today</span>
@@ -772,6 +729,9 @@ export default function MarketplaceCheckoutPage() {
                   <span className="text-gray-800">Total due today</span>
                   <span className="text-gray-900">{fmtExact(chargeTotal)}</span>
                 </div>
+                {isCash && (
+                  <p className="text-[10px] text-gray-400 pt-1">Platform fee &amp; processing deducted from vendor payout</p>
+                )}
 
                 {/* Money flow — collapsible sub-section */}
                 {isCash && baseCents > 0 && (
