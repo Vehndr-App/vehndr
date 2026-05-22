@@ -70,12 +70,18 @@ function VerifyEmailContent() {
 
     const verify = async () => {
       try {
-        await verifyEmail(token);
+        const result = await verifyEmail(token);
         setStatus("success");
         await refreshUser();
-        // Redirect to dashboard after a short delay
+        const verifiedUser = result?.user;
+        const destination =
+          verifiedUser?.role === "vendor"
+            ? "/dashboard/setup"
+            : verifiedUser?.role === "coordinator"
+              ? "/coordinator-dashboard"
+              : "/dashboard";
         setTimeout(() => {
-          router.push("/dashboard");
+          router.push(destination);
         }, 2000);
       } catch (err) {
         setStatus("error");

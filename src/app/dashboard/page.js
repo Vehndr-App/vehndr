@@ -6,7 +6,8 @@ import { api } from "../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import { useVendorOrders } from "../../hooks/useVendorOrders";
 import Link from "next/link";
-import OnboardingChecklist from "../../components/OnboardingChecklist";
+import OnboardingResumeCard from "../../components/onboarding/OnboardingResumeCard";
+import { ONBOARDING_SKIP_STORAGE_KEY } from "../../constants/vendorOnboardingSteps";
 
 export default function DashboardPage() {
   return (
@@ -22,6 +23,8 @@ function DashboardInner() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [accountStatus, setAccountStatus] = useState(null);
+  const [onboarding, setOnboarding] = useState(null);
+  const [showSetupBanner, setShowSetupBanner] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState(null);
 
@@ -56,21 +59,43 @@ function DashboardInner() {
     }
   }, []);
 
+  const fetchOnboarding = useCallback(async (vendorId) => {
+    try {
+      const data = await api(`/api/vendors/${vendorId}/onboarding`);
+      setOnboarding(data);
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch onboarding status", err);
+      setOnboarding(null);
+      return null;
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       const u = await getCurrentUser();
       setUser(u);
 
       if (u?.vendorId) {
-        await Promise.all([
+        const [, , , onboardingData] = await Promise.all([
           fetchVendor(u.vendorId),
           fetchOrders(u.vendorId),
           fetchAccountStatus(u.vendorId),
+          fetchOnboarding(u.vendorId),
         ]);
+        if (onboardingData && !onboardingData.isComplete) {
+          const skippedAt =
+            typeof window !== "undefined"
+              ? parseInt(window.localStorage.getItem(ONBOARDING_SKIP_STORAGE_KEY) || "", 10)
+              : NaN;
+          const skippedRecently =
+            Number.isFinite(skippedAt) && Date.now() - skippedAt < 24 * 60 * 60 * 1000;
+          setShowSetupBanner(!skippedRecently);
+        }
       }
       setLoading(false);
     })();
-  }, [fetchVendor, fetchOrders, fetchAccountStatus]);
+  }, [fetchVendor, fetchOrders, fetchAccountStatus, fetchOnboarding]);
 
   const handleBiometricAuth = async () => {
     setAuthError(null);
@@ -166,7 +191,7 @@ function DashboardInner() {
             </div>
             <h2 className="text-h2 text-white mb-2">Set Up Your Store</h2>
             <p className="text-white/80 mb-6">Create your vendor profile to start selling</p>
-            <Link href="/dashboard/profile" className="btn btn-primary bg-white text-[var(--violet-700)]">
+            <Link href="/dashboard/setup" className="btn btn-primary bg-white text-[var(--violet-700)]">
               Get Started
             </Link>
           </div>
@@ -177,15 +202,7 @@ function DashboardInner() {
 
   const isNewVendor = orders.length === 0;
 
-  // Calculate onboarding progress (5 steps for vendor)
-  const onboardingSteps = 5;
-  const completedSteps = [
-    vendor?.heroImage, // cover photo
-    vendor?.description, // profile description
-    accountStatus?.chargesEnabled, // payments connected
-  ].filter(Boolean).length;
-  // We don't have direct access to offerings/availability count here, so estimate based on vendor profile completeness
-  const estimatedProgress = Math.round((completedSteps / onboardingSteps) * 100);
+  const setupProgress = onboarding?.percentComplete ?? 0;
 
   return (
     <div className="min-h-screen bg-[var(--background)] pb-24">
@@ -252,7 +269,7 @@ function DashboardInner() {
                           stroke="url(#progressGradient)"
                           strokeWidth="4"
                           strokeLinecap="round"
-                          strokeDasharray={`${estimatedProgress * 2.26} 226`}
+                          strokeDasharray={`${setupProgress * 2.26} 226`}
                           transform="rotate(-90 40 40)"
                         />
                         <defs>
@@ -291,7 +308,7 @@ function DashboardInner() {
                       <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[var(--violet-50)]">
                         <div className="w-2 h-2 rounded-full bg-[var(--violet-500)]" />
                         <span className="text-xs font-semibold text-[var(--violet-700)]">
-                          {estimatedProgress}% Setup
+                          {setupProgress}% Setup
                         </span>
                       </div>
                     </div>
@@ -343,9 +360,28 @@ function DashboardInner() {
         </div>
       )}
 
+      {showSetupBanner && onboarding && !onboarding.isComplete && (
+        <div className="px-4 mt-4 safe-area-top">
+          <div className="max-w-lg mx-auto">
+            <div className="flex items-center justify-between gap-3 p-4 rounded-[var(--radius-xl)] bg-gradient-primary text-white shadow-[var(--shadow-card)]">
+              <div className="min-w-0">
+                <p className="font-semibold text-sm">Finish setup to get booked</p>
+                <p className="text-xs text-white/80 mt-0.5">{onboarding.percentComplete}% complete</p>
+              </div>
+              <Link
+                href="/dashboard/setup"
+                className="shrink-0 btn bg-white text-[var(--violet-700)] h-9 px-4 text-sm"
+              >
+                Continue
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={`px-4 ${isNewVendor ? 'mt-4' : '-mt-6'}`}>
         <div className="max-w-lg mx-auto">
-          <OnboardingChecklist role="vendor" />
+          <OnboardingResumeCard onboarding={onboarding} className="mb-4" />
         </div>
       </div>
 
