@@ -1,31 +1,62 @@
 // Placeholder images for vendors based on category
 // Using Unsplash Source API for high-quality, relevant images
+import { normalizeVendorCategory } from "../constants/categories";
 
 const categoryImages = {
+  'Food & Drink': [
+    'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80',
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80',
+    'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80',
+  ],
   'Food & Beverage': [
     'https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&q=80', // Street food
     'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600&q=80', // Food platter
     'https://images.unsplash.com/photo-1567620905732-2d1ec7ab7445?w=600&q=80', // Pancakes
+  ],
+  'Fashion / Apparel': [
+    'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&q=80',
+    'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80',
+    'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=600&q=80',
   ],
   'Clothing & Accessories': [
     'https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=600&q=80', // Clothing store
     'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=600&q=80', // Fashion accessories
     'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?w=600&q=80', // Colorful clothing
   ],
+  'Wellness': [
+    'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&q=80',
+    'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&q=80',
+    'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80',
+  ],
   'Health & Wellness': [
     'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&q=80', // Yoga
     'https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=600&q=80', // Spa stones
     'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?w=600&q=80', // Massage
+  ],
+  'Performers': [
+    'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80',
+    'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80',
+    'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=600&q=80',
   ],
   'Entertainment': [
     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600&q=80', // Concert
     'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600&q=80', // Live music
     'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?w=600&q=80', // Festival crowd
   ],
+  'Photo & Video': [
+    'https://images.unsplash.com/photo-1554048612-b6a482bc67e5?w=600&q=80',
+    'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&q=80',
+    'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=600&q=80',
+  ],
   'Photography': [
     'https://images.unsplash.com/photo-1554048612-b6a482bc67e5?w=600&q=80', // Camera
     'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=600&q=80', // Photography gear
     'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=600&q=80', // Photo shoot
+  ],
+  'DJs / Music': [
+    'https://images.unsplash.com/photo-1571266028243-e4733b0f0bb0?w=600&q=80',
+    'https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=600&q=80',
+    'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600&q=80',
   ],
   'Rentals': [
     'https://images.unsplash.com/photo-1478827536114-da961b7f86d2?w=600&q=80', // Event setup
@@ -46,11 +77,6 @@ const categoryImages = {
     'https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9?w=600&q=80', // Makeup
     'https://images.unsplash.com/photo-1487412912498-0447578fcca8?w=600&q=80', // Beauty products
     'https://images.unsplash.com/photo-1560066984-138dadb4c035?w=600&q=80', // Salon
-  ],
-  'Other': [
-    'https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600&q=80', // Market booth
-    'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=600&q=80', // Event
-    'https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=600&q=80', // Celebration
   ],
 };
 
@@ -73,6 +99,11 @@ export function getVendorPlaceholderImage(categories = [], vendorId = '') {
   
   // Try to find an image based on the first matching category
   for (const category of categories) {
+    const normalizedCategory = normalizeVendorCategory(category);
+    if (categoryImages[normalizedCategory]) {
+      const images = categoryImages[normalizedCategory];
+      return images[hash % images.length];
+    }
     if (categoryImages[category]) {
       const images = categoryImages[category];
       return images[hash % images.length];

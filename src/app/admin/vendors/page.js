@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "../../../services/api";
+import { EVENT_TYPES, VENDOR_CATEGORIES, normalizeEventType, normalizeVendorCategory, normalizeVendorCategories } from "../../../constants/categories";
 
 export default function AdminVendorsPage() {
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function AdminVendorsPage() {
   // Edit modal
   const [editingVendor, setEditingVendor] = useState(null);
   const [editForm, setEditForm] = useState({
-    name: "", description: "", location: "", collect_tax: true, booking_advance_minutes: 60, categories: []
+    name: "", description: "", location: "", collect_tax: true, booking_advance_minutes: 60, categories: [], event_types: []
   });
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState(null);
@@ -28,10 +29,7 @@ export default function AdminVendorsPage() {
   const [deletingVendor, setDeletingVendor] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const vendorCategories = [
-    "Catering", "Photography", "Videography", "DJ/Music", "Florist",
-    "Decor", "Venue", "Bakery", "Entertainment", "Transportation", "Other"
-  ];
+  const vendorCategories = VENDOR_CATEGORIES;
 
   const fetchVendors = useCallback(async (page = 1) => {
     try {
@@ -68,7 +66,8 @@ export default function AdminVendorsPage() {
       location: vendor.location || "",
       collect_tax: vendor.collectTax ?? true,
       booking_advance_minutes: vendor.bookingAdvanceMinutes ?? 60,
-      categories: vendor.categories || [],
+      categories: normalizeVendorCategories(vendor.categories || []),
+      event_types: (vendor.eventTypes || []).map(normalizeEventType).filter(Boolean),
     });
     setSaveError(null);
   };
@@ -79,11 +78,22 @@ export default function AdminVendorsPage() {
   };
 
   const toggleCategory = (cat) => {
+    const normalizedCategory = normalizeVendorCategory(cat);
     setEditForm((prev) => ({
       ...prev,
-      categories: prev.categories.includes(cat)
-        ? prev.categories.filter((c) => c !== cat)
-        : [...prev.categories, cat],
+      categories: prev.categories.includes(normalizedCategory)
+        ? prev.categories.filter((c) => c !== normalizedCategory)
+        : [...prev.categories, normalizedCategory],
+    }));
+  };
+
+  const toggleEventType = (eventType) => {
+    const normalizedEventType = normalizeEventType(eventType);
+    setEditForm((prev) => ({
+      ...prev,
+      event_types: prev.event_types.includes(normalizedEventType)
+        ? prev.event_types.filter((type) => type !== normalizedEventType)
+        : [...prev.event_types, normalizedEventType],
     }));
   };
 
@@ -95,7 +105,7 @@ export default function AdminVendorsPage() {
       setSaveError(null);
       const res = await api(`/api/admin/vendors/${editingVendor.id}`, {
         method: "PATCH",
-        body: { vendor: editForm },
+        body: { vendor: { ...editForm, categories: normalizeVendorCategories(editForm.categories), event_types: editForm.event_types } },
       });
       setVendors((prev) => prev.map((v) => (v.id === editingVendor.id ? res.vendor : v)));
       closeEditModal();
@@ -412,6 +422,26 @@ export default function AdminVendorsPage() {
                         }`}
                       >
                         {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Bookable Event Types</label>
+                  <p className="text-xs text-[var(--gray-500)] mb-2">Leave blank if this vendor is open to any event type.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {EVENT_TYPES.map((type) => (
+                      <button
+                        key={type.slug}
+                        type="button"
+                        onClick={() => toggleEventType(type.slug)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          editForm.event_types.includes(type.slug)
+                            ? "bg-[var(--violet-600)] text-white"
+                            : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]"
+                        }`}
+                      >
+                        {type.label}
                       </button>
                     ))}
                   </div>

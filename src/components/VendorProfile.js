@@ -20,7 +20,15 @@ import { api } from "../services/api";
 import SmartImage from "./SmartImage";
 import ImageEditorModal from "./ImageEditorModal";
 import GuidanceModal from "./GuidanceModal";
-import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
+import {
+  CATEGORY_DISPLAY,
+  EVENT_TYPES,
+  VENDOR_CATEGORIES,
+  VENDOR_CATEGORY_TREE,
+  normalizeEventType,
+  normalizeVendorCategory,
+  normalizeVendorCategories
+} from "../constants/categories";
 import {
   resizeImage,
   resizeImages,
@@ -61,7 +69,12 @@ export default function VendorProfile({ user, onSuccess }) {
     heroFocalY: DEFAULT_HERO_FOCAL_POINT.y,
     galleryImages: [],           // New files to upload (File objects)
     existingGalleryImages: [],   // Existing images from server [{id, url}]
-    categories: []
+    categories: [],
+    eventTypes: [],
+    bookingAcceptsFree: false,
+    bookingAcceptsTrade: false,
+    bookingAcceptsPaid: false,
+    bookingStartingFeeDollars: ""
   });
   const [loadingLocation, setLoadingLocation] = useState(false);
   const [processingImages, setProcessingImages] = useState(false);
@@ -138,7 +151,15 @@ export default function VendorProfile({ user, onSuccess }) {
         // Use galleryImagesData if available (has id+url), fallback to galleryImages URLs
         existingGalleryImages: vendorData.galleryImagesData ||
           (vendorData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url })),
-        categories: vendorData.categories || []
+        categories: normalizeVendorCategories(vendorData.categories || []),
+        eventTypes: (vendorData.eventTypes || vendorData.event_types || []).map(normalizeEventType).filter(Boolean),
+        bookingAcceptsFree: vendorData.bookingAcceptsFree ?? vendorData.booking_accepts_free ?? false,
+        bookingAcceptsTrade: vendorData.bookingAcceptsTrade ?? vendorData.booking_accepts_trade ?? false,
+        bookingAcceptsPaid: vendorData.bookingAcceptsPaid ?? vendorData.booking_accepts_paid ?? false,
+        bookingStartingFeeDollars: (() => {
+          const cents = vendorData.bookingStartingFeeCents ?? vendorData.booking_starting_fee_cents;
+          return cents != null && cents > 0 ? String(cents / 100) : "";
+        })()
       };
       setFormData(newFormData);
       const existingItems = (vendorData.galleryImagesData ||
@@ -187,9 +208,27 @@ export default function VendorProfile({ user, onSuccess }) {
       formDataToSend.append('vendor[collect_tax]', formData.collectTax ? 'true' : 'false');
 
       // Add categories as an array
-      formData.categories.forEach(category => {
+      normalizeVendorCategories(formData.categories).forEach(category => {
         formDataToSend.append('vendor[categories][]', category);
       });
+
+      formData.eventTypes.forEach(eventType => {
+        formDataToSend.append('vendor[event_types][]', eventType);
+      });
+
+      formDataToSend.append('vendor[booking_accepts_free]', formData.bookingAcceptsFree ? 'true' : 'false');
+      formDataToSend.append('vendor[booking_accepts_trade]', formData.bookingAcceptsTrade ? 'true' : 'false');
+      formDataToSend.append('vendor[booking_accepts_paid]', formData.bookingAcceptsPaid ? 'true' : 'false');
+      if (formData.bookingAcceptsPaid && formData.bookingStartingFeeDollars !== "") {
+        const dollars = parseFloat(formData.bookingStartingFeeDollars);
+        if (!Number.isNaN(dollars) && dollars > 0) {
+          formDataToSend.append('vendor[booking_starting_fee_cents]', Math.round(dollars * 100).toString());
+        } else {
+          formDataToSend.append('vendor[booking_starting_fee_cents]', '');
+        }
+      } else {
+        formDataToSend.append('vendor[booking_starting_fee_cents]', '');
+      }
 
       // Add profile image if a new file was selected
       if (formData.profileImage) {
@@ -263,7 +302,14 @@ export default function VendorProfile({ user, onSuccess }) {
         galleryImages: [],
         slug: resultData.slug || prev.slug,
         existingGalleryImages: resultData.galleryImagesData ||
-          (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
+          (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url })),
+        bookingAcceptsFree: resultData.bookingAcceptsFree ?? resultData.booking_accepts_free ?? false,
+        bookingAcceptsTrade: resultData.bookingAcceptsTrade ?? resultData.booking_accepts_trade ?? false,
+        bookingAcceptsPaid: resultData.bookingAcceptsPaid ?? resultData.booking_accepts_paid ?? false,
+        bookingStartingFeeDollars: (() => {
+          const cents = resultData.bookingStartingFeeCents ?? resultData.booking_starting_fee_cents;
+          return cents != null && cents > 0 ? String(cents / 100) : "";
+        })()
       }));
       const nextGalleryItems = (resultData.galleryImagesData ||
         (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url }))
@@ -296,11 +342,22 @@ export default function VendorProfile({ user, onSuccess }) {
   );
 
   const toggleCategory = (category) => {
+    const normalizedCategory = normalizeVendorCategory(category);
     setFormData(prev => ({
       ...prev,
-      categories: prev.categories.includes(category)
-        ? prev.categories.filter(c => c !== category)
-        : [...prev.categories, category]
+      categories: prev.categories.includes(normalizedCategory)
+        ? prev.categories.filter(c => c !== normalizedCategory)
+        : [...prev.categories, normalizedCategory]
+    }));
+  };
+
+  const toggleEventType = (eventType) => {
+    const normalizedEventType = normalizeEventType(eventType);
+    setFormData(prev => ({
+      ...prev,
+      eventTypes: prev.eventTypes.includes(normalizedEventType)
+        ? prev.eventTypes.filter(type => type !== normalizedEventType)
+        : [...prev.eventTypes, normalizedEventType]
     }));
   };
 
@@ -1109,26 +1166,64 @@ export default function VendorProfile({ user, onSuccess }) {
             Select categories that best describe your business
           </p>
           
-          <div className="flex flex-wrap gap-2">
-            {VENDOR_CATEGORIES.map((category) => (
-              <button
-                key={category}
-                type="button"
-                onClick={() => toggleCategory(category)}
-                className={`chip ${
-                  formData.categories.includes(category)
-                    ? 'chip-active'
-                    : 'chip-outlined'
-                }`}
-              >
-                {formData.categories.includes(category) && (
-                  <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {CATEGORY_DISPLAY[category]?.label || category}
-              </button>
-            ))}
+          <div className="space-y-4">
+            {VENDOR_CATEGORY_TREE.filter((category) => !category.parent).map((parent) => {
+              const children = VENDOR_CATEGORY_TREE.filter((category) => (
+                category.parent === parent.slug || category.groups?.includes(parent.slug)
+              ));
+              const options = [parent, ...children];
+
+              return (
+                <div key={parent.slug}>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gray-500)] mb-2">
+                    {parent.label}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {options.map((category) => (
+                      <button
+                        key={category.slug}
+                        type="button"
+                        onClick={() => toggleCategory(category.label)}
+                        className={`chip ${
+                          formData.categories.includes(category.label)
+                            ? 'chip-active'
+                            : 'chip-outlined'
+                        }`}
+                      >
+                        {formData.categories.includes(category.label) && (
+                          <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {CATEGORY_DISPLAY[category.label]?.label || category.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {formData.categories.some((category) => !VENDOR_CATEGORIES.includes(category)) && (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--gray-500)] mb-2">
+                  Custom tags
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {formData.categories.filter((category) => !VENDOR_CATEGORIES.includes(category)).map((category) => (
+                    <button
+                      key={category}
+                      type="button"
+                      onClick={() => toggleCategory(category)}
+                      className="chip chip-active"
+                    >
+                      <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      {category}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           
           {formData.categories.length === 0 && (
@@ -1138,6 +1233,110 @@ export default function VendorProfile({ user, onSuccess }) {
               </svg>
               Please select at least one category
             </p>
+          )}
+        </div>
+
+        <div className="card bg-white p-5">
+          <h3 className="text-h4 mb-2">Bookable Event Types</h3>
+          <p className="text-sm text-[var(--gray-500)] mb-4">
+            Select the types of events you are open to being booked for. Leave blank if you are open to any event type.
+          </p>
+
+          <div className="flex flex-wrap gap-2">
+            {EVENT_TYPES.map((eventType) => (
+              <button
+                key={eventType.slug}
+                type="button"
+                onClick={() => toggleEventType(eventType.slug)}
+                className={`chip ${
+                  formData.eventTypes.includes(eventType.slug)
+                    ? 'chip-active'
+                    : 'chip-outlined'
+                }`}
+              >
+                {formData.eventTypes.includes(eventType.slug) && (
+                  <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+                {eventType.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="card bg-white p-5">
+          <h3 className="text-h4 mb-2">Event Booking Preferences</h3>
+          <p className="text-sm text-[var(--gray-500)] mb-4">
+            How can customers book you for their whole event? This appears on your storefront (not your product prices).
+          </p>
+
+          <div className="flex flex-col gap-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.bookingAcceptsFree}
+                onChange={(e) => setFormData((prev) => ({ ...prev, bookingAcceptsFree: e.target.checked }))}
+                className="mt-1 w-4 h-4 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+              />
+              <span>
+                <span className="text-sm font-medium text-[var(--gray-900)]">Free events</span>
+                <span className="block text-xs text-[var(--gray-500)]">Open to bookings at no charge (shows $0+ on your storefront)</span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.bookingAcceptsTrade}
+                onChange={(e) => setFormData((prev) => ({ ...prev, bookingAcceptsTrade: e.target.checked }))}
+                className="mt-1 w-4 h-4 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+              />
+              <span>
+                <span className="text-sm font-medium text-[var(--gray-900)]">Trade / barter</span>
+                <span className="block text-xs text-[var(--gray-500)]">Willing to trade services or goods instead of cash</span>
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.bookingAcceptsPaid}
+                onChange={(e) => setFormData((prev) => ({
+                  ...prev,
+                  bookingAcceptsPaid: e.target.checked,
+                  ...(e.target.checked ? {} : { bookingStartingFeeDollars: "" })
+                }))}
+                className="mt-1 w-4 h-4 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
+              />
+              <span>
+                <span className="text-sm font-medium text-[var(--gray-900)]">Paid bookings</span>
+                <span className="block text-xs text-[var(--gray-500)]">Available for paid event bookings only</span>
+              </span>
+            </label>
+          </div>
+
+          {formData.bookingAcceptsPaid && (
+            <div className="mt-4 pl-7">
+              <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                Starting fee (optional)
+              </label>
+              <div className="relative max-w-[200px]">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-500)] text-sm">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  value={formData.bookingStartingFeeDollars}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, bookingStartingFeeDollars: e.target.value }))}
+                  className="w-full pl-7 pr-3 py-2.5 rounded-xl border border-[var(--gray-200)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)]"
+                />
+              </div>
+              <p className="text-xs text-[var(--gray-500)] mt-1">
+                Leave blank if you prefer to quote per event. Shown as &quot;From $X&quot; when set.
+              </p>
+            </div>
           )}
         </div>
 

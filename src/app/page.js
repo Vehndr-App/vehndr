@@ -6,7 +6,14 @@ import HeroMedia from "../components/HeroMedia";
 import HomeToggle from "../components/HomeToggle";
 import UserTypePopup from "../components/UserTypePopup";
 import { getVendorPlaceholderImage } from "../utils/placeholderImages";
-import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../constants/categories";
+import {
+  EVENT_TYPE_DISPLAY,
+  HOMEPAGE_VENDOR_GROUPS,
+  getVendorCategoryLabel,
+  normalizeEventType,
+  normalizeVendorCategories,
+  vendorMatchesAnyCategory
+} from "../constants/categories";
 import { getStorefrontPath } from "../utils/storefrontLinks";
 
 // Fetch events function
@@ -14,7 +21,7 @@ async function listEvents(params = {}) {
   try {
     const queryParams = new URLSearchParams();
     if (params.search) queryParams.set("search", params.search);
-    if (params.type) queryParams.set("type", params.type);
+    if (params.type) queryParams.set("event_type", normalizeEventType(params.type));
     if (params.date) queryParams.set("date", params.date);
     
     const url = `/api/events${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
@@ -33,7 +40,11 @@ export default async function Home({ searchParams }) {
   const category = typeof params?.category === "string" ? params.category : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
   const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
-  const eventType = typeof params?.type === "string" ? params.type : null;
+  const eventType = typeof params?.event_type === "string"
+    ? params.event_type
+    : typeof params?.type === "string"
+      ? params.type
+      : null;
   const eventDate = typeof params?.date === "string" ? params.date : null;
 
   // Fetch data based on mode
@@ -46,17 +57,18 @@ export default async function Home({ searchParams }) {
   } else {
     // Fetch all vendors once; derive categories from the full list, filter client-side
     const allVendors = await listVendors({ search, minPrice, maxPrice });
+    const categoryFilters = category ? category.split(",").filter(Boolean) : [];
     allCategories = Array.from(
-      new Set(allVendors.flatMap((v) => v.categories ?? []))
+      new Set(allVendors.flatMap((v) => normalizeVendorCategories(v.categories ?? [])))
     ).sort();
     vendors = category
-      ? allVendors.filter((v) => (v.categories ?? []).includes(category))
+      ? allVendors.filter((v) => vendorMatchesAnyCategory(v.categories ?? [], categoryFilters))
       : allVendors;
   }
 
   // Group vendors by category
   const vendorsByCategory = vendors.reduce((acc, vendor) => {
-    const categories = vendor.categories ?? ["Uncategorized"];
+    const categories = normalizeVendorCategories(vendor.categories ?? []);
     categories.forEach((cat) => {
       if (!acc[cat]) {
         acc[cat] = [];
@@ -67,8 +79,9 @@ export default async function Home({ searchParams }) {
   }, {});
 
   // If a category is selected, only show that category
+  const categoryFilters = category ? category.split(",").filter(Boolean) : [];
   const sortedCategories = category
-    ? [category]
+    ? Array.from(new Set(vendors.flatMap((vendor) => normalizeVendorCategories(vendor.categories ?? [])))).sort()
     : Object.keys(vendorsByCategory).sort();
 
   return (
@@ -105,22 +118,15 @@ export default async function Home({ searchParams }) {
         <section className="bg-white border-b border-[var(--gray-100)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
             <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
-              <QuickActionCard
-                href="/?mode=events"
-                icon="🗓️"
-                label="Events"
-              color="var(--violet-100)"
-              />
-              {VENDOR_CATEGORIES.filter(category => allCategories.includes(category)).map((category) => {
-                const display = CATEGORY_DISPLAY[category];
+              {HOMEPAGE_VENDOR_GROUPS.map((group) => {
                 return (
                   <QuickActionCard
-                    key={category}
-                    href={`/vendors?category=${encodeURIComponent(category)}`}
-                    icon={display.icon}
-                    label={display.label}
-                    color={display.color}
-                    badge={category === "Food & Beverage" ? "Popular" : undefined}
+                    key={group.slug}
+                    href={group.href || `/vendors?category=${encodeURIComponent(group.slug)}`}
+                    icon={group.icon}
+                    label={group.label}
+                    color={group.color}
+                    badge={group.slug === "food-drink" ? "Popular" : undefined}
                   />
                 );
               })}
@@ -134,49 +140,9 @@ export default async function Home({ searchParams }) {
         <section className="bg-white border-b border-[var(--gray-100)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
             <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
-              <QuickActionCard 
-                href="/?mode=vendors" 
-                icon="🏪" 
-                label="Vendors"
-                color="var(--violet-50)"
-              />
-              <QuickActionCard 
-                href="/?mode=events&type=party" 
-                icon="🎉" 
-                label="Parties"
-                color="var(--magenta-100)"
-                badge="Hot"
-              />
-              <QuickActionCard 
-                href="/?mode=events&type=wedding" 
-                icon="💒" 
-                label="Weddings"
-                color="var(--coral-100)"
-              />
-              <QuickActionCard 
-                href="/?mode=events&type=concert" 
-                icon="🎸" 
-                label="Concerts"
-                color="var(--amber-100)"
-              />
-              <QuickActionCard 
-                href="/?mode=events&type=festival" 
-                icon="🎪" 
-                label="Festivals"
-                color="var(--info-50)"
-              />
-              <QuickActionCard 
-                href="/?mode=events&type=corporate" 
-                icon="💼" 
-                label="Corporate"
-                color="var(--violet-50)"
-              />
-              <QuickActionCard 
-                href="/?mode=events&type=wellness" 
-                icon="🧘" 
-                label="Wellness"
-                color="var(--mint-100)"
-              />
+              <QuickActionCard href="/events/new" icon="🗓️" label="Create Event" color="var(--violet-100)" />
+              <QuickActionCard href="/events/plan" icon="🪄" label="Plan With Recommendations" color="var(--magenta-100)" badge="Soon" />
+              <QuickActionCard href="/coordinator-dashboard" icon="📋" label="My Events" color="var(--mint-100)" />
             </div>
           </div>
         </section>
@@ -191,9 +157,9 @@ export default async function Home({ searchParams }) {
               {search && (
                 <FilterBadge label={`"${search}"`} href="/" />
               )}
-              {category && (
-                <FilterBadge label={CATEGORY_DISPLAY[category]?.label || category} href={search ? `/?search=${encodeURIComponent(search)}` : "/"} />
-              )}
+              {categoryFilters.map((cat) => (
+                <FilterBadge key={cat} label={getVendorCategoryLabel(cat)} href={search ? `/?search=${encodeURIComponent(search)}` : "/"} />
+              ))}
               {(minPrice || maxPrice) && (
                 <FilterBadge 
                   label={`$${minPrice || '0'} - $${maxPrice || '∞'}`} 
@@ -221,7 +187,7 @@ export default async function Home({ searchParams }) {
                 <FilterBadge label={`"${search}"`} href="/?mode=events" />
               )}
               {eventType && (
-                <FilterBadge label={eventType} href="/?mode=events" />
+                <FilterBadge label={EVENT_TYPE_DISPLAY[normalizeEventType(eventType)] || eventType} href="/?mode=events" />
               )}
               {eventDate && (
                 <FilterBadge label={eventDate} href="/?mode=events" />
@@ -248,7 +214,7 @@ export default async function Home({ searchParams }) {
                   {search 
                     ? `Results for "${search}"` 
                     : category 
-                      ? `${category} Vendors` 
+                      ? `${categoryFilters.map(getVendorCategoryLabel).join(", ")} Vendors` 
                       : "All Vendors"}
                 </h2>
                 <p className="text-sm text-[var(--gray-500)]">

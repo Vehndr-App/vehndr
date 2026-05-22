@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchFilters from "./SearchFilters";
+import { EVENT_TYPES } from "../constants/categories";
 
 export default function HomeToggle({ categories = [], initialMode = "vendors" }) {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
     // Clear filters when switching modes
     params.delete("search");
     params.delete("category");
+    params.delete("type");
+    params.delete("event_type");
     params.delete("minPrice");
     params.delete("maxPrice");
     router.push(`/?${params.toString()}`);
@@ -114,20 +117,12 @@ function EventSearchFilters() {
     const params = new URLSearchParams();
     params.set("mode", "events");
     if (search) params.set("search", search);
-    if (eventType) params.set("type", eventType);
+    if (eventType) params.set("event_type", eventType);
     if (date) params.set("date", date);
     router.push(`/?${params.toString()}`);
   };
 
-  const eventTypes = [
-    { id: "", label: "All Events" },
-    { id: "party", label: "Parties" },
-    { id: "wedding", label: "Weddings" },
-    { id: "corporate", label: "Corporate" },
-    { id: "festival", label: "Festivals" },
-    { id: "concert", label: "Concerts" },
-    { id: "wellness", label: "Wellness" },
-  ];
+  const eventTypes = [{ slug: "", label: "All Events" }, ...EVENT_TYPES];
 
   return (
     <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] border border-[var(--gray-100)] p-2">
@@ -173,7 +168,7 @@ function EventSearchFilters() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-[var(--gray-500)]">Type</div>
+              <div className="text-xs font-medium text-[var(--gray-500)]">Event Type</div>
               <select
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
@@ -181,7 +176,7 @@ function EventSearchFilters() {
                 style={{ fontSize: '16px' }}
               >
                 {eventTypes.map(type => (
-                  <option key={type.id} value={type.id}>{type.label}</option>
+                  <option key={type.slug} value={type.slug}>{type.label}</option>
                 ))}
               </select>
             </div>
