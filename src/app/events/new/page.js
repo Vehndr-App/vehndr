@@ -7,6 +7,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import AuthGate from "../../../components/AuthGate";
 import { api } from "../../../services/api";
 import ImageEditorModal from "../../../components/ImageEditorModal";
+import { EVENT_TYPES, VENDOR_CATEGORY_TREE, normalizeVendorCategory, vendorMatchesAnyCategory } from "../../../constants/categories";
 
 const EVENT_THEMES = [
   { id: "party", emoji: "🎉", label: "Party", gradient: "from-pink-500 to-purple-600" },
@@ -36,19 +37,6 @@ const DRESS_CODES = [
   { id: "none", label: "No Dress Code", description: "Wear whatever" },
 ];
 
-const VENDOR_CATEGORIES = [
-  { id: "catering", emoji: "🍕", label: "Catering" },
-  { id: "photography", emoji: "📸", label: "Photography" },
-  { id: "dj", emoji: "🎧", label: "DJ/Music" },
-  { id: "florist", emoji: "💐", label: "Florist" },
-  { id: "decor", emoji: "🎈", label: "Decor" },
-  { id: "bartender", emoji: "🍸", label: "Bartender" },
-  { id: "rentals", emoji: "⛺", label: "Rentals" },
-  { id: "entertainment", emoji: "🎪", label: "Entertainment" },
-  { id: "beauty", emoji: "💄", label: "Hair & Makeup" },
-  { id: "transport", emoji: "🚗", label: "Transportation" },
-];
-
 export default function NewEventPage() {
   return (
     <AuthGate allowedRoles={["coordinator"]}>
@@ -74,6 +62,9 @@ function NewEventInner() {
   const [eventData, setEventData] = useState({
     name: "",
     theme: null,
+    eventType: "",
+    category: "",
+    desiredVendorCategories: [],
     coverImage: null,
     coverPreview: null,
     date: "",
@@ -138,6 +129,11 @@ function NewEventInner() {
       formData.append("event[location]", eventData.location);
       formData.append("event[dress_code]", eventData.dressCode);
       formData.append("event[theme]", eventData.theme);
+      formData.append("event[category]", eventData.category);
+      formData.append("event[event_type]", eventData.eventType);
+      eventData.desiredVendorCategories.forEach((category) => {
+        formData.append("event[desired_vendor_categories][]", category);
+      });
       formData.append("event[is_private]", eventData.isPrivate);
       if (eventData.coverImage) {
         formData.append("event[cover_image]", eventData.coverImage);
@@ -161,10 +157,23 @@ function NewEventInner() {
     }
   };
 
-  const filteredVendors = availableVendors.filter(v => 
-    v.name?.toLowerCase().includes(vendorSearch.toLowerCase()) ||
-    v.categories?.some(c => c.toLowerCase().includes(vendorSearch.toLowerCase()))
-  );
+  const filteredVendors = availableVendors.filter(v => {
+    const query = vendorSearch.toLowerCase();
+    return v.name?.toLowerCase().includes(query) ||
+      v.categories?.some(c => c.toLowerCase().includes(query)) ||
+      (eventData.desiredVendorCategories.length > 0 && vendorMatchesAnyCategory(v.categories || [], eventData.desiredVendorCategories));
+  });
+
+  const toggleDesiredVendorCategory = (category) => {
+    const normalizedCategory = normalizeVendorCategory(category);
+    setEventData((prev) => ({
+      ...prev,
+      desiredVendorCategories: prev.desiredVendorCategories.includes(normalizedCategory)
+        ? prev.desiredVendorCategories.filter((item) => item !== normalizedCategory)
+        : [...prev.desiredVendorCategories, normalizedCategory]
+    }));
+    setVendorSearch(normalizedCategory);
+  };
 
   const totalSteps = 4;
   const progress = (step / totalSteps) * 100;
@@ -245,6 +254,32 @@ function NewEventInner() {
                     >
                       <span className="text-2xl">{theme.emoji}</span>
                       <span className="text-xs font-medium text-[var(--gray-700)]">{theme.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-3">
+                  <label className="block text-base font-semibold text-[var(--gray-900)]">
+                    Event Type *
+                  </label>
+                  <p className="text-sm text-[var(--gray-500)] mt-1">
+                    This helps match your event with the right vendors.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {EVENT_TYPES.map((type) => (
+                    <button
+                      key={type.slug}
+                      onClick={() => setEventData(prev => ({ ...prev, eventType: type.slug, category: type.label }))}
+                      className={`px-3 py-3 rounded-xl text-sm font-medium text-left transition-colors ${
+                        eventData.eventType === type.slug
+                          ? "bg-[var(--violet-600)] text-white"
+                          : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]"
+                      }`}
+                    >
+                      {type.label}
                     </button>
                   ))}
                 </div>
@@ -501,13 +536,16 @@ function NewEventInner() {
                   What do you need?
                 </label>
                 <div className="flex flex-wrap gap-2">
-                  {VENDOR_CATEGORIES.map((cat) => (
+                  {VENDOR_CATEGORY_TREE.map((cat) => (
                     <button
-                      key={cat.id}
-                      onClick={() => setVendorSearch(cat.label)}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-[var(--gray-100)] hover:bg-[var(--violet-100)] text-[var(--gray-700)] hover:text-[var(--violet-700)] text-sm font-medium transition-colors"
+                      key={cat.slug}
+                      onClick={() => toggleDesiredVendorCategory(cat.label)}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-colors ${
+                        eventData.desiredVendorCategories.includes(cat.label)
+                          ? "bg-[var(--violet-600)] text-white"
+                          : "bg-[var(--gray-100)] hover:bg-[var(--violet-100)] text-[var(--gray-700)] hover:text-[var(--violet-700)]"
+                      }`}
                     >
-                      <span>{cat.emoji}</span>
                       {cat.label}
                     </button>
                   ))}

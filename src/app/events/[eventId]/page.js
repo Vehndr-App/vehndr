@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getEvent } from "../../../services/events";
 import { listVendors } from "../../../services/vendors";
 import { getStorefrontPath } from "../../../utils/storefrontLinks";
+import { normalizeVendorCategories } from "../../../constants/categories";
 
 export default async function EventDetailPage({ params }) {
   const { eventId } = await params;
@@ -33,25 +34,15 @@ export default async function EventDetailPage({ params }) {
   // Get vendor details for this event
   const eventVendors = allVendors.filter(v => event.vendorIds.includes(v.id));
 
-  // Helper function to map vendor to single category
   const getCategoryForVendor = (vendor) => {
-    const categories = vendor.categories ?? ["Uncategorized"];
-
-    // Check if vendor has food/beverage category (priority category)
-    const hasFoodCategory = categories.some(cat =>
-      cat.toLowerCase().includes('food') || cat.toLowerCase().includes('beverage')
-    );
-
-    if (hasFoodCategory) {
-      return "Food and Drink";
-    }
-
-    return "Artisan & Craft";
+    const categories = normalizeVendorCategories(vendor.categories ?? []);
+    return categories[0] || null;
   };
 
   // Group vendors by their assigned category (each vendor in ONE section only)
   const vendorsByCategory = eventVendors.reduce((acc, vendor) => {
     const category = getCategoryForVendor(vendor);
+    if (!category) return acc;
     if (!acc[category]) {
       acc[category] = [];
     }

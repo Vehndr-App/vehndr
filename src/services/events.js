@@ -26,10 +26,17 @@ function fallbackFind(id) {
   return FALLBACK_EVENTS.find((e) => e.id === id) ?? null;
 }
 
-export async function listEvents() {
+export async function listEvents(params = {}) {
   try {
+    const queryParams = new URLSearchParams();
+    if (params.search) queryParams.set("search", params.search);
+    if (params.category) queryParams.set("category", params.category);
+    if (params.eventType) queryParams.set("event_type", params.eventType);
+    if (params.startDate) queryParams.set("start_date", params.startDate);
+    if (params.endDate) queryParams.set("end_date", params.endDate);
+    const query = queryParams.toString();
     // Disable caching to always get fresh data
-    return await api("/api/events", { cache: 'no-store' });
+    return await api(`/api/events${query ? `?${query}` : ""}`, { cache: 'no-store' });
   } catch (_) {
     return fallbackList();
   }

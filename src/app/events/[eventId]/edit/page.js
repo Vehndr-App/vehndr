@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
 import { api } from "../../../../services/api";
+import { EVENT_TYPES, VENDOR_CATEGORY_TREE, normalizeEventType, normalizeVendorCategory, normalizeVendorCategories } from "../../../../constants/categories";
 
 const STATUS_OPTIONS = ["draft", "upcoming", "active", "past"];
 
@@ -64,6 +65,8 @@ function EventEditInner() {
     endDate: "",
     endTime: "",
     category: "",
+    eventType: "",
+    desiredVendorCategories: [],
     attendees: "",
     status: "draft",
     image: ""
@@ -85,6 +88,8 @@ function EventEditInner() {
           endDate: formatDateInput(event.endDate),
           endTime: formatTimeInput(event.endDate),
           category: event.category || "",
+          eventType: normalizeEventType(event.eventType || event.category || ""),
+          desiredVendorCategories: normalizeVendorCategories(event.desiredVendorCategories || []),
           attendees: event.attendees || "",
           status: event.status || "draft",
           image: event.image || ""
@@ -122,6 +127,8 @@ function EventEditInner() {
         start_date: buildDateTime(formData.startDate, formData.startTime),
         end_date: buildDateTime(formData.endDate, formData.endTime),
         category: formData.category,
+        event_type: formData.eventType,
+        desired_vendor_categories: normalizeVendorCategories(formData.desiredVendorCategories),
         attendees: formData.attendees ? Number(formData.attendees) : 0,
         status: formData.status,
         image: formData.image || null,
@@ -141,6 +148,16 @@ function EventEditInner() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleDesiredVendorCategory = (category) => {
+    const normalizedCategory = normalizeVendorCategory(category);
+    setFormData((prev) => ({
+      ...prev,
+      desiredVendorCategories: prev.desiredVendorCategories.includes(normalizedCategory)
+        ? prev.desiredVendorCategories.filter((item) => item !== normalizedCategory)
+        : [...prev.desiredVendorCategories, normalizedCategory]
+    }));
   };
 
   if (loading) {
@@ -251,13 +268,23 @@ function EventEditInner() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-semibold text-[var(--gray-700)]">Category</label>
-              <input
-                type="text"
-                value={formData.category}
-                onChange={(e) => handleChange("category", e.target.value)}
+              <label className="text-sm font-semibold text-[var(--gray-700)]">Event Type</label>
+              <select
+                value={formData.eventType}
+                onChange={(e) => {
+                  const selected = EVENT_TYPES.find((type) => type.slug === e.target.value);
+                  handleChange("eventType", e.target.value);
+                  handleChange("category", selected?.label || "");
+                }}
                 className="input mt-2"
-              />
+              >
+                <option value="">Select event type</option>
+                {EVENT_TYPES.map((type) => (
+                  <option key={type.slug} value={type.slug}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="text-sm font-semibold text-[var(--gray-700)]">Expected Attendees</label>
@@ -268,6 +295,29 @@ function EventEditInner() {
                 onChange={(e) => handleChange("attendees", e.target.value)}
                 className="input mt-2"
               />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--gray-700)]">Desired Vendor Categories</label>
+            <p className="text-xs text-[var(--gray-500)] mt-1 mb-3">
+              Used for vendor matching and recommendations.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {VENDOR_CATEGORY_TREE.map((category) => (
+                <button
+                  key={category.slug}
+                  type="button"
+                  onClick={() => toggleDesiredVendorCategory(category.label)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    formData.desiredVendorCategories.includes(category.label)
+                      ? "bg-[var(--violet-600)] text-white"
+                      : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]"
+                  }`}
+                >
+                  {category.label}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function EventFilters({ categories = [], vibes = [] }) {
+export default function EventFilters({ categories = [], eventTypes = [] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -12,6 +12,8 @@ export default function EventFilters({ categories = [], vibes = [] }) {
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [selectedStartDate, setSelectedStartDate] = useState(null);
   const [selectedEndDate, setSelectedEndDate] = useState(null);
+  const [eventType, setEventType] = useState(searchParams.get("event_type") || "");
+  const [category, setCategory] = useState(searchParams.get("category") || "");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectingEnd, setSelectingEnd] = useState(false);
   
@@ -35,6 +37,8 @@ export default function EventFilters({ categories = [], vibes = [] }) {
   const applyFilters = () => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("search", searchQuery);
+    if (eventType) params.set("event_type", eventType);
+    if (category) params.set("category", category);
     if (selectedStartDate) params.set("startDate", selectedStartDate.toISOString().split('T')[0]);
     if (selectedEndDate) params.set("endDate", selectedEndDate.toISOString().split('T')[0]);
     
@@ -125,6 +129,34 @@ export default function EventFilters({ categories = [], vibes = [] }) {
           />
         </div>
       </div>
+
+      <select
+        value={eventType}
+        onChange={(e) => setEventType(e.target.value)}
+        className="h-12 px-4 rounded-[var(--radius-xl)] bg-[var(--gray-50)] border border-[var(--gray-200)] text-sm font-medium text-[var(--gray-700)] outline-none"
+      >
+        <option value="">All event types</option>
+        {eventTypes.map((type) => (
+          <option key={type.slug} value={type.slug}>
+            {type.label}
+          </option>
+        ))}
+      </select>
+
+      {categories.length > 0 && (
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value)}
+          className="h-12 px-4 rounded-[var(--radius-xl)] bg-[var(--gray-50)] border border-[var(--gray-200)] text-sm font-medium text-[var(--gray-700)] outline-none"
+        >
+          <option value="">All categories</option>
+          {categories.map((item) => (
+            <option key={item} value={item}>
+              {item}
+            </option>
+          ))}
+        </select>
+      )}
 
       {/* Date Range Picker */}
       <div ref={calendarRef} className="relative">

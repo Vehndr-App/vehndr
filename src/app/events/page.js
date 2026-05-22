@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listEvents } from "../../services/events";
 import EventFilters from "../../components/EventFilters";
+import { EVENT_TYPES, EVENT_TYPE_DISPLAY, normalizeEventType } from "../../constants/categories";
 
 // Force dynamic rendering to always get fresh data
 export const dynamic = 'force-dynamic';
@@ -11,9 +12,13 @@ export default async function EventsPage({ searchParams }) {
   const category = typeof params?.category === "string" ? params.category : null;
   const startDate = typeof params?.startDate === "string" ? params.startDate : null;
   const endDate = typeof params?.endDate === "string" ? params.endDate : null;
-  const vibe = typeof params?.vibe === "string" ? params.vibe : null;
+  const eventType = typeof params?.event_type === "string"
+    ? normalizeEventType(params.event_type)
+    : typeof params?.vibe === "string"
+      ? normalizeEventType(params.vibe)
+      : null;
 
-  const events = await listEvents();
+  const events = await listEvents({ category, eventType, startDate, endDate });
 
   // Filter events based on params
   let filteredEvents = events;
@@ -49,21 +54,8 @@ export default async function EventsPage({ searchParams }) {
     return acc;
   }, {});
 
-  // Event vibes/categories for quick filters
-  const eventVibes = [
-    { id: 'all', label: 'All Events', emoji: '✨' },
-    { id: 'festival', label: 'Festival', emoji: '🎪' },
-    { id: 'party', label: 'Party', emoji: '🎉' },
-    { id: 'chill', label: 'Chill', emoji: '🧘' },
-    { id: 'market', label: 'Market', emoji: '🛍️' },
-    { id: 'food', label: 'Food & Drink', emoji: '🍕' },
-    { id: 'music', label: 'Music', emoji: '🎵' },
-    { id: 'wellness', label: 'Wellness', emoji: '💆' },
-    { id: 'educational', label: 'Educational', emoji: '📚' },
-    { id: 'networking', label: 'Networking', emoji: '🤝' },
-    { id: 'sports', label: 'Sports', emoji: '⚽' },
-    { id: 'art', label: 'Art & Culture', emoji: '🎨' },
-  ];
+  // Event type quick filters
+  const eventVibes = [{ slug: "all", label: "All Events" }, ...EVENT_TYPES];
 
   return (
     <div className="w-full">
@@ -86,10 +78,18 @@ export default async function EventsPage({ searchParams }) {
         </div>
       </div>
 
+      <div className="bg-white border-b border-[var(--gray-100)]">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5 grid gap-3 sm:grid-cols-3">
+          <PlanningCard href="/events/new" title="Create Event" description="Create and publish a new event." />
+          <PlanningCard href="/events/plan" title="Plan With Recommendations" description="Save a planning request for future recommendations." />
+          <PlanningCard href="/coordinator-dashboard" title="My Events" description="Manage current and past event records." />
+        </div>
+      </div>
+
       {/* Search & Filters */}
       <div className="bg-white border-b border-[var(--gray-100)] sticky top-14 z-40">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-4">
-          <EventFilters categories={allCategories} vibes={eventVibes} />
+          <EventFilters categories={allCategories} eventTypes={EVENT_TYPES} />
         </div>
       </div>
 
@@ -99,15 +99,14 @@ export default async function EventsPage({ searchParams }) {
           <div className="scroll-horizontal scrollbar-hide gap-2 -mx-4 px-4">
             {eventVibes.map((vibeItem) => (
               <Link
-                key={vibeItem.id}
-                href={vibeItem.id === 'all' ? '/events' : `/events?vibe=${vibeItem.id}`}
+                key={vibeItem.slug}
+                href={vibeItem.slug === 'all' ? '/events' : `/events?event_type=${vibeItem.slug}`}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-                  (!vibe && vibeItem.id === 'all') || vibe === vibeItem.id
+                  (!eventType && vibeItem.slug === 'all') || eventType === vibeItem.slug
                     ? 'bg-[var(--violet-600)] text-white shadow-md'
                     : 'bg-white text-[var(--gray-700)] border border-[var(--gray-200)] hover:border-[var(--violet-300)] hover:bg-[var(--violet-50)]'
                 }`}
               >
-                <span className="text-base">{vibeItem.emoji}</span>
                 {vibeItem.label}
               </Link>
             ))}
@@ -116,7 +115,7 @@ export default async function EventsPage({ searchParams }) {
       </div>
 
       {/* Active Filters */}
-      {(category || startDate || endDate || vibe) && (
+      {(category || startDate || endDate || eventType) && (
         <div className="bg-white border-b border-[var(--gray-100)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3">
             <div className="flex items-center gap-2 flex-wrap">
@@ -124,8 +123,8 @@ export default async function EventsPage({ searchParams }) {
               {category && (
                 <FilterBadge label={category} href="/events" />
               )}
-              {vibe && (
-                <FilterBadge label={eventVibes.find(v => v.id === vibe)?.label || vibe} href="/events" />
+              {eventType && (
+                <FilterBadge label={EVENT_TYPE_DISPLAY[eventType] || eventType} href="/events" />
               )}
               {startDate && (
                 <FilterBadge label={`From ${startDate}`} href="/events" />
@@ -191,6 +190,18 @@ function FilterBadge({ label, href }) {
         <line x1="18" y1="6" x2="6" y2="18"/>
         <line x1="6" y1="6" x2="18" y2="18"/>
       </svg>
+    </Link>
+  );
+}
+
+function PlanningCard({ href, title, description }) {
+  return (
+    <Link
+      href={href}
+      className="rounded-[var(--radius-2xl)] border border-[var(--gray-100)] bg-[var(--gray-50)] p-4 hover:border-[var(--violet-300)] hover:bg-[var(--violet-50)] transition-colors"
+    >
+      <p className="font-semibold text-[var(--gray-900)]">{title}</p>
+      <p className="mt-1 text-sm text-[var(--gray-500)]">{description}</p>
     </Link>
   );
 }

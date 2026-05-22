@@ -7,25 +7,13 @@ import AuthGate from "../../../components/AuthGate";
 import Link from "next/link";
 import { api } from "../../../services/api";
 import ImageEditorModal from "../../../components/ImageEditorModal";
+import { EVENT_TYPES, VENDOR_CATEGORY_TREE, normalizeVendorCategory } from "../../../constants/categories";
 
 const EVENT_THEMES = [
   { id: "classic", name: "Classic", font: "font-body", style: "elegant" },
   { id: "eclectic", name: "Eclectic", font: "font-display", style: "playful" },
   { id: "fancy", name: "Fancy", font: "italic", style: "luxurious" },
   { id: "literary", name: "Literary", font: "serif", style: "refined" },
-];
-
-const EVENT_CATEGORIES = [
-  { id: "festival", label: "Festival", emoji: "🎪" },
-  { id: "party", label: "Party", emoji: "🎉" },
-  { id: "market", label: "Market", emoji: "🛍️" },
-  { id: "food", label: "Food & Drink", emoji: "🍕" },
-  { id: "music", label: "Music", emoji: "🎵" },
-  { id: "wellness", label: "Wellness", emoji: "💆" },
-  { id: "educational", label: "Educational", emoji: "📚" },
-  { id: "networking", label: "Networking", emoji: "🤝" },
-  { id: "art", label: "Art & Culture", emoji: "🎨" },
-  { id: "sports", label: "Sports", emoji: "⚽" },
 ];
 
 const COVER_STYLES = [
@@ -60,6 +48,8 @@ function CreateEventInner() {
     endDate: "",
     endTime: "",
     category: "",
+    eventType: "",
+    desiredVendorCategories: [],
     attendees: "",
     theme: "classic",
     coverStyle: "gradient-primary",
@@ -158,6 +148,8 @@ function CreateEventInner() {
         start_date: startDateTime,
         end_date: endDateTime,
         category: eventData.category,
+        event_type: eventData.eventType,
+        desired_vendor_categories: eventData.desiredVendorCategories,
         attendees: eventData.attendees ? parseInt(eventData.attendees) : 0,
         status: status,
         image: eventData.coverImagePreview || null,
@@ -181,6 +173,15 @@ function CreateEventInner() {
   };
 
   const selectedCover = COVER_STYLES.find(c => c.id === eventData.coverStyle);
+  const toggleDesiredVendorCategory = (category) => {
+    const normalizedCategory = normalizeVendorCategory(category);
+    handleInputChange(
+      "desiredVendorCategories",
+      eventData.desiredVendorCategories.includes(normalizedCategory)
+        ? eventData.desiredVendorCategories.filter((item) => item !== normalizedCategory)
+        : [...eventData.desiredVendorCategories, normalizedCategory]
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[var(--gray-900)]">
@@ -621,21 +622,49 @@ function CreateEventInner() {
           />
         </div>
 
-        {/* Category Selection */}
-        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
-          <h3 className="text-white font-semibold mb-4">Event Category</h3>
-          <div className="flex gap-2 flex-wrap">
-            {EVENT_CATEGORIES.map((cat) => (
+        {/* Event Type Selection */}
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-[var(--violet-400)]/30 shadow-lg shadow-[var(--violet-500)]/10">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--violet-300)] mb-1">Required</p>
+              <h3 className="text-white text-xl font-semibold">Event Type</h3>
+              <p className="text-sm text-white/50 mt-1">Choose the kind of event you are planning.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {EVENT_TYPES.map((cat) => (
               <button
-                key={cat.id}
-                onClick={() => handleInputChange("category", cat.label)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  eventData.category === cat.label
+                key={cat.slug}
+                onClick={() => {
+                  handleInputChange("category", cat.label);
+                  handleInputChange("eventType", cat.slug);
+                }}
+                className={`px-4 py-3 rounded-xl text-sm font-medium text-left transition-all ${
+                  eventData.eventType === cat.slug
                     ? "bg-[var(--violet-500)] text-white"
                     : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80"
                 }`}
               >
-                <span>{cat.emoji}</span>
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+          <h3 className="text-white font-semibold mb-2">Looking For</h3>
+          <p className="text-sm text-white/50 mb-4">Choose desired vendor categories for matching and recommendations.</p>
+          <div className="flex gap-2 flex-wrap">
+            {VENDOR_CATEGORY_TREE.map((cat) => (
+              <button
+                key={cat.slug}
+                onClick={() => toggleDesiredVendorCategory(cat.label)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  eventData.desiredVendorCategories.includes(cat.label)
+                    ? "bg-[var(--magenta-500)] text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80"
+                }`}
+              >
                 {cat.label}
               </button>
             ))}

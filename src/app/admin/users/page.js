@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { api } from "../../../services/api";
+import { EVENT_TYPES, VENDOR_CATEGORIES, normalizeEventType, normalizeVendorCategory, normalizeVendorCategories } from "../../../constants/categories";
 
 const getRoleLabel = (role) => {
   if (role === "coordinator") return "Event Organizer";
@@ -36,7 +37,7 @@ export default function AdminUsersPage() {
     password: "",
     role: "customer",
     sendPasswordEmail: true,
-    vendorProfile: { name: "", description: "", location: "", categories: [] }
+    vendorProfile: { name: "", description: "", location: "", categories: [], eventTypes: [] }
   });
   const [creating, setCreating] = useState(false);
 
@@ -47,19 +48,7 @@ export default function AdminUsersPage() {
   const [sendingPasswordEmail, setSendingPasswordEmail] = useState(null);
 
   // Available vendor categories
-  const vendorCategories = [
-    "Catering",
-    "Photography",
-    "Videography",
-    "DJ/Music",
-    "Florist",
-    "Decor",
-    "Venue",
-    "Bakery",
-    "Entertainment",
-    "Transportation",
-    "Other"
-  ];
+  const vendorCategories = VENDOR_CATEGORIES;
 
   const fetchUsers = useCallback(async (page = 1) => {
     try {
@@ -161,7 +150,7 @@ export default function AdminUsersPage() {
       password: "",
       role: "customer",
       sendPasswordEmail: true,
-      vendorProfile: { name: "", description: "", location: "", categories: [] }
+      vendorProfile: { name: "", description: "", location: "", categories: [], eventTypes: [] }
     });
     setShowCreateModal(true);
   };
@@ -174,7 +163,7 @@ export default function AdminUsersPage() {
       password: "",
       role: "customer",
       sendPasswordEmail: true,
-      vendorProfile: { name: "", description: "", location: "", categories: [] }
+      vendorProfile: { name: "", description: "", location: "", categories: [], eventTypes: [] }
     });
   };
 
@@ -196,7 +185,8 @@ export default function AdminUsersPage() {
           name: vendorProfile.name,
           description: vendorProfile.description,
           location: vendorProfile.location,
-          categories: vendorProfile.categories
+          categories: normalizeVendorCategories(vendorProfile.categories),
+          event_types: (vendorProfile.eventTypes || []).map(normalizeEventType).filter(Boolean)
         };
       }
 
@@ -853,10 +843,11 @@ export default function AdminUsersPage() {
                           key={category}
                           type="button"
                           onClick={() => {
+                            const normalizedCategory = normalizeVendorCategory(category);
                             const currentCategories = createForm.vendorProfile.categories || [];
-                            const newCategories = currentCategories.includes(category)
-                              ? currentCategories.filter((c) => c !== category)
-                              : [...currentCategories, category];
+                            const newCategories = currentCategories.includes(normalizedCategory)
+                              ? currentCategories.filter((c) => c !== normalizedCategory)
+                              : [...currentCategories, normalizedCategory];
                             setCreateForm({
                               ...createForm,
                               vendorProfile: { ...createForm.vendorProfile, categories: newCategories }
@@ -869,6 +860,38 @@ export default function AdminUsersPage() {
                           }`}
                         >
                           {category}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--gray-700)] mb-1">
+                      Bookable Event Types
+                    </label>
+                    <p className="text-xs text-[var(--gray-500)] mb-2">Leave blank if open to any event type.</p>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {EVENT_TYPES.map((eventType) => (
+                        <button
+                          key={eventType.slug}
+                          type="button"
+                          onClick={() => {
+                            const normalizedEventType = normalizeEventType(eventType.slug);
+                            const currentEventTypes = createForm.vendorProfile.eventTypes || [];
+                            const newEventTypes = currentEventTypes.includes(normalizedEventType)
+                              ? currentEventTypes.filter((type) => type !== normalizedEventType)
+                              : [...currentEventTypes, normalizedEventType];
+                            setCreateForm({
+                              ...createForm,
+                              vendorProfile: { ...createForm.vendorProfile, eventTypes: newEventTypes }
+                            });
+                          }}
+                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                            (createForm.vendorProfile.eventTypes || []).includes(eventType.slug)
+                              ? "bg-[var(--violet-600)] text-white"
+                              : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]"
+                          }`}
+                        >
+                          {eventType.label}
                         </button>
                       ))}
                     </div>
