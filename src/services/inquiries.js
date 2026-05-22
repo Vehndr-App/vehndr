@@ -45,6 +45,15 @@ export async function declineInquiry(id) {
   return api(`/api/inquiries/${id}/decline`, { method: "PATCH" });
 }
 
+// Cancel an unpaid proposal (no booking / no refund). For a paid booking use
+// cancelMarketplaceBooking() in services/checkout.js instead.
+export async function cancelInquiry(id, { reason } = {}) {
+  return api(`/api/inquiries/${id}/cancel`, {
+    method: "PATCH",
+    body: reason ? { reason } : {},
+  });
+}
+
 export async function updateInquiryTip(id, tipCents) {
   return api(`/api/inquiries/${id}/tip`, {
     method: "PATCH",

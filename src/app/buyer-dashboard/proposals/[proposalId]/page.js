@@ -8,6 +8,7 @@ import { getInquiry, deleteInquiry } from "../../../../services/inquiries";
 import { getEvent } from "../../../../services/events";
 import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
 import TipSelector from "../../../../components/TipSelector";
+import CancelBookingModal from "../../../../components/CancelBookingModal";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -586,6 +587,7 @@ export default function ProposalDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
   const [showTipModal, setShowTipModal] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   async function refreshInquiry() {
     try {
@@ -634,16 +636,21 @@ export default function ProposalDetailPage() {
   const { vendor, status, activeOffer, initialMessage, createdAt, budgetCents, tipCents, coordinatorType } = inquiry;
   const initial   = vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
   const color     = STATUS_COLOR[status] ?? "gray";
-  const hasOffer  = activeOffer?.status === "pending";
-  const isBooked  = status === "scheduled" || activeOffer?.status === "accepted";
+  const hasOffer    = activeOffer?.status === "pending";
+  const isCancelled = inquiry.marketplaceBooking?.status === "cancelled" || status === "cancelled";
+  const isBooked    = (status === "scheduled" || activeOffer?.status === "accepted") && !isCancelled;
   const isExpired = status === "expired";
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
   const canEdit   = !isPaid && activeOffer?.status !== "accepted" && status !== "scheduled" && status !== "completed" && status !== "expired";
-  const canDelete = !isPaid;
   const booking          = inquiry.marketplaceBooking;
   const isCash           = activeOffer?.proposalType === "cash";
   const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);
-  const canTip           = isPaid && isCash && !!booking && !hasPostPaymentTip;
+  const canTip           = isPaid && isCash && !!booking && !hasPostPaymentTip && !isCancelled;
+  // Deletable only until the vendor views it; cancellable once viewed (any non-terminal state).
+  const TERMINAL_STATUSES = ["completed", "expired", "vendor_declined", "cancelled"];
+  const canDelete = status === "submitted" && !isCancelled;
+  const canCancel = !canDelete && !isCancelled && !TERMINAL_STATUSES.includes(status);
+  const cancelLabel = booking ? "Cancel Booking" : "Cancel Proposal";
 
   async function handleDelete() {
     setDeleting(true);
@@ -701,7 +708,7 @@ export default function ProposalDetailPage() {
           </div>
 
           {/* Timeline */}
-          {!isExpired && (
+          {!isExpired && !isCancelled && (
             <div className="mt-5 sm:mt-8 mb-2">
               <Timeline status={status} />
             </div>
@@ -765,7 +772,7 @@ export default function ProposalDetailPage() {
             )}
 
             {/* Secondary CTAs — row on mobile, inline on desktop */}
-            {(canEdit || canTip || vendor?.id || canDelete) && (
+            {(canEdit || canTip || vendor?.id || canDelete || canCancel) && (
               <div className="flex flex-row flex-wrap gap-2 sm:contents">
                 {canEdit && (
                   <Link
@@ -810,6 +817,18 @@ export default function ProposalDetailPage() {
                     Delete
                   </button>
                 )}
+
+                {canCancel && (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl border border-red-200 text-red-600 text-sm font-medium hover:bg-red-50 transition-colors sm:ml-auto"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+                    </svg>
+                    {cancelLabel}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -848,6 +867,32 @@ export default function ProposalDetailPage() {
                 {deleting ? "Deleting…" : "Delete"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Cancel booking modal ── */}
+      {showCancelModal && (
+        <CancelBookingModal
+          inquiry={inquiry}
+          booking={booking}
+          role="coordinator"
+          onClose={() => setShowCancelModal(false)}
+          onCancelled={() => { setShowCancelModal(false); refreshInquiry(); }}
+        />
+      )}
+
+      {/* ── Cancelled banner ── */}
+      {isCancelled && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-start gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+          <div className="text-sm text-red-700">
+            <p className="font-semibold">This {booking ? "booking" : "proposal"} was cancelled{booking?.cancelledByRole ? ` by the ${booking.cancelledByRole}` : ""}.</p>
+            {(booking?.refundAmountCents ?? 0) > 0 && (
+              <p className="mt-0.5">A refund of {formatPrice(booking.refundAmountCents)} {booking?.refundStatus === "full_refund" ? "(full)" : "(partial)"} is being processed.</p>
+            )}
           </div>
         </div>
       )}
