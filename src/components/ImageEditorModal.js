@@ -156,6 +156,7 @@ export default function ImageEditorModal({
   const [flip, setFlip] = useState({ horizontal: false, vertical: false });
   const [selectedAspect, setSelectedAspect] = useState(initialAspect);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const cropPixels = useMemo(() => {
     if (!cropBox || !imageMeta.width || !imageMeta.height) return null;
@@ -191,13 +192,30 @@ export default function ImageEditorModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setImageMeta({ width: 0, height: 0 });
-    setImageRect({ x: 0, y: 0, width: 0, height: 0 });
-    setCropBox(null);
+    const loadedImage =
+      imageRef.current &&
+      imageRef.current.complete &&
+      imageRef.current.naturalWidth > 0 &&
+      imageRef.current.naturalHeight > 0;
+
+    if (loadedImage) {
+      const nextMeta = {
+        width: imageRef.current.naturalWidth,
+        height: imageRef.current.naturalHeight
+      };
+      setImageMeta(nextMeta);
+      setCropBox((current) => getDefaultCropBox(initialAspect, nextMeta, current));
+      requestAnimationFrame(updateImageRect);
+    } else {
+      setImageMeta({ width: 0, height: 0 });
+      setImageRect({ x: 0, y: 0, width: 0, height: 0 });
+      setCropBox(null);
+    }
     setRotation(0);
     setFlip({ horizontal: false, vertical: false });
     setSelectedAspect(initialAspect);
-  }, [imageSrc, initialAspect, isOpen]);
+    setSaveError("");
+  }, [imageSrc, initialAspect, isOpen, updateImageRect]);
 
   useEffect(() => {
     if (!isOpen || !stageRef.current) return;
@@ -295,34 +313,51 @@ export default function ImageEditorModal({
   }, [endInteraction, handlePointerMove, isOpen]);
 
   const handleAspectChange = (aspect) => {
+    setSaveError("");
     setSelectedAspect(aspect);
     setCropBox((current) => getDefaultCropBox(aspect, imageMeta, current));
   };
 
-  const handleClose = () => {
-    if (saving) return;
+  const handleClose = (force = false) => {
+    if (saving && !force) return;
     setRotation(0);
     setFlip({ horizontal: false, vertical: false });
     setCropBox(null);
     setSelectedAspect(initialAspect);
+    setSaveError("");
     onClose?.();
   };
 
   const handleSave = async () => {
-    if (!cropPixels || !imageSrc) return;
+    if (!imageSrc) {
+      setSaveError("Could not load image. Please re-upload and try again.");
+      return;
+    }
+    const effectiveCropPixels = cropPixels || (
+      imageMeta.width && imageMeta.height
+        ? { x: 0, y: 0, width: imageMeta.width, height: imageMeta.height }
+        : null
+    );
+    if (!effectiveCropPixels) {
+      setSaveError("Image is still loading. Please wait a moment and tap Save again.");
+      return;
+    }
+
+    setSaveError("");
     setSaving(true);
     try {
       const edited = await getEditedImageFile({
         imageSrc,
-        cropPixels,
+        cropPixels: effectiveCropPixels,
         rotation,
         flip,
         sourceName: fileName || "image"
       });
-      onSave?.(edited);
-      handleClose();
+      await Promise.resolve(onSave?.(edited));
+      handleClose(true);
     } catch (error) {
       console.error("Failed to edit image", error);
+      setSaveError(error?.message || "Failed to save this photo. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -503,6 +538,10 @@ export default function ImageEditorModal({
             </button>
           </div>
 
+          {saveError ? (
+            <p className="text-sm text-[var(--error)]">{saveError}</p>
+          ) : null}
+
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={handleClose} className="flex-1 btn btn-outlined">
               Cancel
@@ -510,7 +549,7 @@ export default function ImageEditorModal({
             <button
               type="button"
               onClick={handleSave}
-              disabled={saving || !cropPixels}
+              disabled={saving || !imageSrc}
               className="flex-1 btn btn-gradient"
             >
               {saving ? "Saving..." : "Save"}
