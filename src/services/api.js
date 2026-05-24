@@ -1,6 +1,12 @@
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "";
 
+function isFormDataLike(value) {
+  if (!value) return false;
+  if (typeof FormData !== "undefined" && value instanceof FormData) return true;
+  return Object.prototype.toString.call(value) === "[object FormData]";
+}
+
 function getOrCreateCartToken() {
   if (typeof window === "undefined") return null;
 
@@ -22,7 +28,7 @@ function getOrCreateCartToken() {
 
 function buildHeaders(extraHeaders = {}, body) {
   const headers = { ...extraHeaders };
-  const hasFormData = typeof FormData !== "undefined" && body instanceof FormData;
+  const hasFormData = isFormDataLike(body);
   if (!hasFormData) {
     headers["Content-Type"] = headers["Content-Type"] || "application/json";
     headers["Accept"] = headers["Accept"] || "application/json";
@@ -47,14 +53,15 @@ function buildHeaders(extraHeaders = {}, body) {
 }
 
 export async function api(path, { method = "GET", headers = {}, body, signal, credentials, cache } = {}) {
+  const isMultipartBody = isFormDataLike(body);
   const requestBody =
-    body && typeof body !== "string" && !(body instanceof FormData)
+    body && typeof body !== "string" && !isMultipartBody
       ? JSON.stringify(body)
       : body;
 
   const fetchOptions = {
     method,
-    headers: buildHeaders(headers, body),
+    headers: buildHeaders(headers, isMultipartBody ? body : requestBody),
     body: requestBody,
     credentials: credentials ?? "include",
     signal,
