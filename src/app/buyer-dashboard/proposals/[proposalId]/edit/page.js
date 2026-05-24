@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry, updateInquiry } from "../../../../../services/inquiries";
+import { getCoordinatorStripeAccount } from "../../../../../services/coordinators";
 
 
 const COORDINATOR_TYPES = [
@@ -59,6 +60,13 @@ function EditProposalInner() {
   const [budget, setBudget]         = useState("");
   const [tip, setTip]               = useState("");
   const [vendingFee, setVendingFee] = useState("");
+  const [stripeConnected, setStripeConnected] = useState(false);
+
+  useEffect(() => {
+    getCoordinatorStripeAccount()
+      .then((res) => setStripeConnected(res?.chargesEnabled === true))
+      .catch(() => setStripeConnected(false));
+  }, []);
 
   useEffect(() => {
     getInquiry(proposalId)
@@ -157,28 +165,39 @@ async function handleSubmit(e) {
           <div className="space-y-2">
             {COORDINATOR_TYPES.map((type) => {
               const selected = coordinatorType === type.value;
+              const locked = type.value === "charges_fees" && !stripeConnected;
               return (
                 <button
                   key={type.value}
                   type="button"
-                  onClick={() => handleTypeChange(type.value)}
+                  onClick={() => !locked && handleTypeChange(type.value)}
                   className="w-full flex items-center gap-3 px-3.5 py-3 rounded-[var(--radius-lg)] border-2 text-left transition-all"
                   style={{
                     borderColor: selected ? "var(--violet-500)" : "var(--gray-200)",
                     background: selected ? "var(--violet-50)" : "white",
+                    opacity: locked ? 0.5 : 1,
+                    cursor: locked ? "not-allowed" : "pointer",
                   }}
                 >
                   <span style={{ color: selected ? "var(--violet-600)" : "var(--gray-400)" }}>{type.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-semibold leading-tight ${selected ? "text-[var(--violet-800)]" : "text-[var(--gray-800)]"}`}>{type.label}</p>
-                    <p className={`text-xs mt-0.5 leading-tight ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>{type.description}</p>
+                    <p className={`text-xs mt-0.5 leading-tight ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>
+                      {locked ? "Connect your Stripe account to enable this option" : type.description}
+                    </p>
                   </div>
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
-                    style={{ borderColor: selected ? "var(--violet-500)" : "var(--gray-300)", background: selected ? "var(--violet-500)" : "white" }}
-                  >
-                    {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
+                  {locked ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                      <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ) : (
+                    <div
+                      className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                      style={{ borderColor: selected ? "var(--violet-500)" : "var(--gray-300)", background: selected ? "var(--violet-500)" : "white" }}
+                    >
+                      {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  )}
                 </button>
               );
             })}
