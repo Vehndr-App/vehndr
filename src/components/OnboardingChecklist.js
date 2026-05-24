@@ -169,6 +169,22 @@ const CHECKLISTS = {
         "Start accepting RSVPs and bookings",
       ],
     },
+    {
+      id: "coordinator_payments",
+      title: "Connect payments",
+      description: "Link your Stripe account to receive vendor participation fees.",
+      href: "/coordinator-dashboard/payments",
+      cta: "Connect Stripe",
+      icon: "💳",
+      iconClass: "bg-[var(--mint-50)] text-[var(--mint-600)]",
+      guidanceTitle: "Connect Payments",
+      guidanceBullets: [
+        "Complete Stripe onboarding (takes ~5 minutes)",
+        "Vendor participation fees go directly to your bank",
+        "Required to receive payments from vendors",
+        "Stripe handles all secure payment processing",
+      ],
+    },
   ],
 };
 

@@ -229,7 +229,7 @@ function VendorPayInner() {
             </svg>
             Back to Inquiry
           </Link>
-          <h1 className="text-xl font-bold text-[var(--gray-900)]">Pay to Participate</h1>
+          <h1 className="text-xl font-bold text-[var(--gray-900)]">Pay Vending Fee</h1>
           {inquiry?.event?.name && (
             <p className="text-sm text-[var(--gray-500)] mt-1">{inquiry.event.name}</p>
           )}

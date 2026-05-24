@@ -24,6 +24,23 @@ const TIME_SLOTS = (() => {
 
 const AGE_GROUPS = ["All Ages", "Family / Kids Welcome", "18+", "21+", "Seniors (55+)"];
 
+function dateRange(start, end) {
+  const dates = [];
+  let cur = new Date(start + "T00:00:00");
+  const last = new Date(end + "T00:00:00");
+  while (cur <= last) {
+    dates.push(cur.toISOString().split("T")[0]);
+    cur = new Date(cur.getTime() + 86400000);
+  }
+  return dates;
+}
+
+function fmtDayLabel(dateStr) {
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  } catch { return dateStr; }
+}
+
 const STEP_META = {
   1: { title: "About Your Event",    subtitle: "Give the vendor context on what you're organizing." },
   2: { title: "Venue & Location",    subtitle: "Where will this event take place?" },
@@ -54,6 +71,9 @@ const INITIAL_FORM = {
   venueAttendees: "",
   wifiAvailability: "",
   securityPresence: "",
+  vendorLoadIn: "",
+  vendorLoadOut: "",
+  isPublic: false,
 };
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -686,7 +706,25 @@ function Step2({ form, setField, onNext, onBack, error }) {
 
 // ─── Step 3: Date & Time ──────────────────────────────────────────────────────
 
-function Step3({ form, setField, onNext, onBack, error }) {
+function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack, error }) {
+  const [scheduleError, setScheduleError] = useState(null);
+
+  const showPerDay = form.isMultiDay && form.startDate && form.endDate && dailySchedule.length > 1;
+
+  function updateDay(date, field, value) {
+    setDailySchedule((prev) => prev.map((d) => d.date === date ? { ...d, [field]: value } : d));
+  }
+
+  function applyAllHours() {
+    const first = dailySchedule[0];
+    if (!first?.startTime || !first?.endTime) {
+      setScheduleError("Enter a start and end time for the first day before applying to all days.");
+      return;
+    }
+    setScheduleError(null);
+    setDailySchedule((prev) => prev.map((d) => ({ ...d, startTime: first.startTime, endTime: first.endTime })));
+  }
+
   return (
     <>
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -712,21 +750,56 @@ function Step3({ form, setField, onNext, onBack, error }) {
             </div>
           )}
 
-          {/* Times */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel required>Start time</FieldLabel>
-              <select value={form.startTime} onChange={(e) => setField("startTime", e.target.value)} className="input">
-                {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
+          {/* Times — per day when multi-day, single pair otherwise */}
+          {showPerDay ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-[var(--gray-800)]">Hours per day</p>
+                <button
+                  type="button"
+                  onClick={applyAllHours}
+                  className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-800)] underline underline-offset-2 transition-colors flex-shrink-0"
+                >
+                  Same hours every day
+                </button>
+              </div>
+              {scheduleError && <ErrorBox message={scheduleError} />}
+              {dailySchedule.map((day) => (
+                <div key={day.date} className="p-4 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)]">
+                  <p className="text-xs font-bold text-[var(--gray-600)] uppercase tracking-wide mb-3">{fmtDayLabel(day.date)}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <FieldLabel required>Start time</FieldLabel>
+                      <select value={day.startTime} onChange={(e) => updateDay(day.date, "startTime", e.target.value)} className="input">
+                        {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <FieldLabel required>End time</FieldLabel>
+                      <select value={day.endTime} onChange={(e) => updateDay(day.date, "endTime", e.target.value)} className="input">
+                        {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div>
-              <FieldLabel required>End time</FieldLabel>
-              <select value={form.endTime} onChange={(e) => setField("endTime", e.target.value)} className="input">
-                {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <FieldLabel required>Start time</FieldLabel>
+                <select value={form.startTime} onChange={(e) => setField("startTime", e.target.value)} className="input">
+                  {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <FieldLabel required>End time</FieldLabel>
+                <select value={form.endTime} onChange={(e) => setField("endTime", e.target.value)} className="input">
+                  {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         <ErrorBox message={error} />
@@ -820,7 +893,23 @@ const CHIP_YES_NO       = [{ value: "yes", label: "Yes" }, { value: "no", label:
 const CHIP_YES_NO_LTD   = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, { value: "limited", label: "Limited" }];
 const CHIP_INDOOR_OUT   = [{ value: "indoor", label: "Indoor" }, { value: "outdoor", label: "Outdoor" }, { value: "both", label: "Both" }];
 
-function Step5({ form, setField, onSave, onBack, error, submitting }) {
+function Step5({ form, setField, dailySchedule, setDailySchedule, onSave, onBack, error, submitting }) {
+  const showPerDay = form.isMultiDay && dailySchedule.length > 1;
+
+  function updateDay(date, field, value) {
+    setDailySchedule((prev) => prev.map((d) => d.date === date ? { ...d, [field]: value } : d));
+  }
+
+  function applyLoadTimesToAll() {
+    const first = dailySchedule[0];
+    if (!first) return;
+    setDailySchedule((prev) => prev.map((d) => ({
+      ...d,
+      vendorLoadIn: first.vendorLoadIn,
+      vendorLoadOut: first.vendorLoadOut,
+    })));
+  }
+
   return (
     <>
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
@@ -868,6 +957,90 @@ function Step5({ form, setField, onSave, onBack, error, submitting }) {
             <FieldLabel>Security on site?</FieldLabel>
             <ChipGroup value={form.securityPresence} onChange={(v) => setField("securityPresence", v)} options={CHIP_YES_NO} />
           </div>
+        </div>
+
+        {/* Vendor Load-In / Load-Out */}
+        {showPerDay ? (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <FieldLabel hint="When can vendors load in and out each day?">Load times per day</FieldLabel>
+              <button
+                type="button"
+                onClick={applyLoadTimesToAll}
+                className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-800)] underline underline-offset-2 transition-colors flex-shrink-0"
+              >
+                Same times every day
+              </button>
+            </div>
+            {dailySchedule.map((day) => (
+              <div key={day.date} className="p-4 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)]">
+                <p className="text-xs font-bold text-[var(--gray-600)] uppercase tracking-wide mb-3">{fmtDayLabel(day.date)}</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <FieldLabel>Load-in</FieldLabel>
+                    <select value={day.vendorLoadIn} onChange={(e) => updateDay(day.date, "vendorLoadIn", e.target.value)} className="input">
+                      <option value="">Not set</option>
+                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel>Load-out</FieldLabel>
+                    <select value={day.vendorLoadOut} onChange={(e) => updateDay(day.date, "vendorLoadOut", e.target.value)} className="input">
+                      <option value="">Not set</option>
+                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <FieldLabel hint="When can vendors begin setting up?">Vendor load-in</FieldLabel>
+              <select value={form.vendorLoadIn} onChange={(e) => setField("vendorLoadIn", e.target.value)} className="input">
+                <option value="">Not set</option>
+                {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <FieldLabel hint="When must vendors be fully packed out?">Vendor load-out</FieldLabel>
+              <select value={form.vendorLoadOut} onChange={(e) => setField("vendorLoadOut", e.target.value)} className="input">
+                <option value="">Not set</option>
+                {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Public / Private visibility */}
+        <div
+          className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--gray-200)] cursor-pointer select-none"
+          onClick={() => setField("isPublic", !form.isPublic)}
+        >
+          <div>
+            <p className="text-sm font-semibold text-[var(--gray-900)]">
+              {form.isPublic ? "Public event" : "Private event"}
+            </p>
+            <p className="text-xs text-[var(--gray-400)] mt-0.5 leading-relaxed">
+              {form.isPublic
+                ? "Vendors can discover this event on the homepage."
+                : "Only vendors you invite will see this event."}
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.isPublic}
+            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
+              form.isPublic ? "bg-[var(--violet-600)]" : "bg-[var(--gray-300)]"
+            }`}
+            onClick={(e) => { e.stopPropagation(); setField("isPublic", !form.isPublic); }}
+          >
+            <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+              form.isPublic ? "translate-x-5" : "translate-x-0"
+            }`} />
+          </button>
         </div>
 
         <ErrorBox message={error} />
@@ -922,9 +1095,28 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
   const [myEvents, setMyEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
+  const [dailySchedule, setDailySchedule] = useState([]);
   const [importing, setImporting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+
+  const defaultTimesRef = useRef({ startTime: INITIAL_FORM.startTime, endTime: INITIAL_FORM.endTime });
+  useEffect(() => {
+    defaultTimesRef.current = { startTime: form.startTime, endTime: form.endTime };
+  });
+
+  useEffect(() => {
+    if (!form.isMultiDay || !form.startDate || !form.endDate || form.endDate <= form.startDate) {
+      setDailySchedule([]);
+      return;
+    }
+    const dates = dateRange(form.startDate, form.endDate);
+    setDailySchedule((prev) => {
+      const prevMap = Object.fromEntries(prev.map((d) => [d.date, d]));
+      const { startTime, endTime } = defaultTimesRef.current;
+      return dates.map((date) => prevMap[date] ?? { date, startTime, endTime, vendorLoadIn: "", vendorLoadOut: "" });
+    });
+  }, [form.isMultiDay, form.startDate, form.endDate]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -946,6 +1138,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       setStep("choose");
       setSelectedEvent(null);
       setForm(INITIAL_FORM);
+      setDailySchedule([]);
       setError(null);
       setNeedsAuth(false);
     }
@@ -1066,6 +1259,17 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       if (form.canopyAllowed)    logisticsPayload.canopy_allowed    = form.canopyAllowed;
       if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
       if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
+      const schedulePayload = form.isMultiDay && dailySchedule.length > 1
+        ? dailySchedule.map((d) => ({
+            date: d.date,
+            startDate: d.date,
+            startTime: d.startTime,
+            endDate: d.date,
+            endTime: d.endTime,
+            vendorLoadIn: d.vendorLoadIn || "",
+            vendorLoadOut: d.vendorLoadOut || "",
+          }))
+        : [];
       const eventRes = await createEvent({
         name: form.name.trim(),
         description: form.description.trim() || null,
@@ -1077,6 +1281,10 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
         age_group: form.ageGroup,
         requires_coi: form.requiresCoi,
         status: "draft",
+        is_public: form.isPublic,
+        daily_schedule: schedulePayload,
+        vendor_load_in: form.vendorLoadIn || null,
+        vendor_load_out: form.vendorLoadOut || null,
         ...logisticsPayload,
       });
       const eventId = eventRes?.event?.id ?? eventRes?.id;
@@ -1175,11 +1383,11 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
           ) : step === 2 ? (
             <Step2 form={form} setField={setField} onNext={next} onBack={back} error={error} />
           ) : step === 3 ? (
-            <Step3 form={form} setField={setField} onNext={next} onBack={back} error={error} />
+            <Step3 form={form} setField={setField} dailySchedule={dailySchedule} setDailySchedule={setDailySchedule} onNext={next} onBack={back} error={error} />
           ) : step === 4 ? (
             <Step4 form={form} setField={setField} onSave={next} onBack={back} error={error} submitting={false} nextLabel="Continue" />
           ) : step === 5 ? (
-            <Step5 form={form} setField={setField} onSave={handleSaveEvent} onBack={back} error={error} submitting={submitting} />
+            <Step5 form={form} setField={setField} dailySchedule={dailySchedule} setDailySchedule={setDailySchedule} onSave={handleSaveEvent} onBack={back} error={error} submitting={submitting} />
           ) : null}
         </div>
       </div>
