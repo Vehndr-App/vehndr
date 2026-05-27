@@ -33,11 +33,26 @@ export default function CreateEventPage() {
   );
 }
 
+const TIME_SLOTS = (() => {
+  const slots = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const hour = h % 12 || 12;
+      const period = h < 12 ? "AM" : "PM";
+      slots.push({
+        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
+        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
+      });
+    }
+  }
+  return slots;
+})();
+
 function CreateEventInner() {
   const { user } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef(null);
-  
+
   // Event state
   const [eventData, setEventData] = useState({
     name: "",
@@ -47,6 +62,8 @@ function CreateEventInner() {
     startTime: "",
     endDate: "",
     endTime: "",
+    vendorLoadIn: "",
+    vendorLoadOut: "",
     category: "",
     eventType: "",
     desiredVendorCategories: [],
@@ -153,6 +170,8 @@ function CreateEventInner() {
         attendees: eventData.attendees ? parseInt(eventData.attendees) : 0,
         status: status,
         image: eventData.coverImagePreview || null,
+        vendor_load_in: eventData.vendorLoadIn || null,
+        vendor_load_out: eventData.vendorLoadOut || null,
       };
 
       const event = await api("/api/events", {
@@ -478,6 +497,36 @@ function CreateEventInner() {
                   className="w-28 px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[var(--violet-500)] transition-colors"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Vendor Load-In / Load-Out */}
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-xs text-white/50 uppercase tracking-wider mb-2">Vendor Load-In</label>
+              <select
+                value={eventData.vendorLoadIn}
+                onChange={(e) => handleInputChange("vendorLoadIn", e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[var(--violet-500)] transition-colors appearance-none"
+              >
+                <option value="" className="bg-gray-800">Select time</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.label} className="bg-gray-800">{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-white/50 uppercase tracking-wider mb-2">Vendor Load-Out</label>
+              <select
+                value={eventData.vendorLoadOut}
+                onChange={(e) => handleInputChange("vendorLoadOut", e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[var(--violet-500)] transition-colors appearance-none"
+              >
+                <option value="" className="bg-gray-800">Select time</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.label} className="bg-gray-800">{s.label}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>

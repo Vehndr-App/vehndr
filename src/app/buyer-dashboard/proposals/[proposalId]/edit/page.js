@@ -5,35 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry, updateInquiry } from "../../../../../services/inquiries";
-import { getEvent, updateEvent } from "../../../../../services/events";
+import { getCoordinatorStripeAccount } from "../../../../../services/coordinators";
 
-const TIME_SLOTS = (() => {
-  const slots = [];
-  for (let h = 0; h < 24; h++) {
-    for (const m of [0, 30]) {
-      const hour = h % 12 || 12;
-      const period = h < 12 ? "AM" : "PM";
-      slots.push({
-        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
-        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
-      });
-    }
-  }
-  return slots;
-})();
-
-function labelToTimeValue(label) {
-  return TIME_SLOTS.find((s) => s.label === label)?.value ?? "";
-}
-
-function parseStoredLoadTime(stored) {
-  if (!stored) return { date: "", time: "" };
-  const dateMatch = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
-  if (dateMatch) {
-    return { date: dateMatch[1], time: dateMatch[2] };
-  }
-  return { date: "", time: labelToTimeValue(stored) };
-}
 
 const COORDINATOR_TYPES = [
   {
@@ -77,7 +50,6 @@ function EditProposalInner() {
   const router = useRouter();
 
   const [inquiry, setInquiry]       = useState(null);
-  const [event, setEvent]           = useState(null);
   const [loading, setLoading]       = useState(true);
   const [loadError, setLoadError]   = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -88,13 +60,17 @@ function EditProposalInner() {
   const [budget, setBudget]         = useState("");
   const [tip, setTip]               = useState("");
   const [vendingFee, setVendingFee] = useState("");
+  const [stripeConnected, setStripeConnected] = useState(false);
 
-  const [vendorLoadIn, setVendorLoadIn]   = useState({ date: "", time: "" });
-  const [vendorLoadOut, setVendorLoadOut] = useState({ date: "", time: "" });
+  useEffect(() => {
+    getCoordinatorStripeAccount()
+      .then((res) => setStripeConnected(res?.chargesEnabled === true))
+      .catch(() => setStripeConnected(false));
+  }, []);
 
   useEffect(() => {
     getInquiry(proposalId)
-      .then(async (inq) => {
+      .then((inq) => {
         if (inq?.activeOffer?.status === "accepted") {
           setLoadError("This proposal cannot be edited after the offer has been accepted.");
           return;
@@ -105,24 +81,11 @@ function EditProposalInner() {
         setBudget(inq.budgetCents ? String(inq.budgetCents / 100) : "");
         setTip(inq.tipCents ? String(inq.tipCents / 100) : "");
         setVendingFee(inq.vendingFeeCents ? String(inq.vendingFeeCents / 100) : "");
-
-        if (inq.event?.id) {
-          try {
-            const ev = await getEvent(inq.event.id);
-            setEvent(ev);
-            setVendorLoadIn(parseStoredLoadTime(ev.vendorLoadIn));
-            setVendorLoadOut(parseStoredLoadTime(ev.vendorLoadOut));
-          } catch {
-            // non-fatal — logistics section just won't show
-          }
-        }
       })
       .catch(() => setLoadError("Proposal not found."))
       .finally(() => setLoading(false));
   }, [proposalId]);
 
-  const isMultiDay = event?.startDate && event?.endDate &&
-    new Date(event.startDate).toDateString() !== new Date(event.endDate).toDateString();
 
   function handleTypeChange(type) {
     setCoordinatorType(type);
@@ -130,16 +93,7 @@ function EditProposalInner() {
     if (type !== "charges_fees") setVendingFee("");
   }
 
-  function buildLoadTimeString(field, isMulti) {
-    if (isMulti) {
-      if (!field.time) return null;
-      const label = TIME_SLOTS.find((s) => s.value === field.time)?.label ?? field.time;
-      return field.date ? `${field.date} ${label}` : label;
-    }
-    return TIME_SLOTS.find((s) => s.value === field.time)?.label ?? null;
-  }
-
-  async function handleSubmit(e) {
+async function handleSubmit(e) {
     e.preventDefault();
     if (!message.trim()) { setError("Message cannot be empty."); return; }
     setError(null);
@@ -153,20 +107,7 @@ function EditProposalInner() {
         vending_fee_cents: coordinatorType === "charges_fees" && vendingFee ? Math.round(Number(vendingFee) * 100) : 0,
       };
 
-      const promises = [updateInquiry(proposalId, payload)];
-
-      if (event?.id) {
-        const loadIn  = buildLoadTimeString(vendorLoadIn, isMultiDay);
-        const loadOut = buildLoadTimeString(vendorLoadOut, isMultiDay);
-        const eventUpdate = {};
-        if (loadIn  !== null) eventUpdate.vendor_load_in  = loadIn;
-        if (loadOut !== null) eventUpdate.vendor_load_out = loadOut;
-        if (Object.keys(eventUpdate).length) {
-          promises.push(updateEvent(event.id, eventUpdate));
-        }
-      }
-
-      await Promise.all(promises);
+      await updateInquiry(proposalId, payload);
       router.push(`/buyer-dashboard/proposals/${proposalId}`);
     } catch (err) {
       setError(err?.message ?? "Failed to save changes. Please try again.");
@@ -199,10 +140,6 @@ function EditProposalInner() {
   const vendorName = inquiry?.vendor?.name ?? "Vendor";
   const eventName  = inquiry?.event?.name;
 
-  // Date bounds for multi-day selects
-  const minDate = event?.startDate ? event.startDate.slice(0, 10) : undefined;
-  const maxDate = event?.endDate   ? event.endDate.slice(0, 10)   : undefined;
-
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 space-y-6">
 
@@ -228,28 +165,39 @@ function EditProposalInner() {
           <div className="space-y-2">
             {COORDINATOR_TYPES.map((type) => {
               const selected = coordinatorType === type.value;
+              const locked = type.value === "charges_fees" && !stripeConnected;
               return (
                 <button
                   key={type.value}
                   type="button"
-                  onClick={() => handleTypeChange(type.value)}
+                  onClick={() => !locked && handleTypeChange(type.value)}
                   className="w-full flex items-center gap-3 px-3.5 py-3 rounded-[var(--radius-lg)] border-2 text-left transition-all"
                   style={{
                     borderColor: selected ? "var(--violet-500)" : "var(--gray-200)",
                     background: selected ? "var(--violet-50)" : "white",
+                    opacity: locked ? 0.5 : 1,
+                    cursor: locked ? "not-allowed" : "pointer",
                   }}
                 >
                   <span style={{ color: selected ? "var(--violet-600)" : "var(--gray-400)" }}>{type.icon}</span>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm font-semibold leading-tight ${selected ? "text-[var(--violet-800)]" : "text-[var(--gray-800)]"}`}>{type.label}</p>
-                    <p className={`text-xs mt-0.5 leading-tight ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>{type.description}</p>
+                    <p className={`text-xs mt-0.5 leading-tight ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>
+                      {locked ? "Connect your Stripe account to enable this option" : type.description}
+                    </p>
                   </div>
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
-                    style={{ borderColor: selected ? "var(--violet-500)" : "var(--gray-300)", background: selected ? "var(--violet-500)" : "white" }}
-                  >
-                    {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
+                  {locked ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                      <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ) : (
+                    <div
+                      className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                      style={{ borderColor: selected ? "var(--violet-500)" : "var(--gray-300)", background: selected ? "var(--violet-500)" : "white" }}
+                    >
+                      {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -314,85 +262,6 @@ function EditProposalInner() {
             </div>
           )}
         </div>
-
-        {/* Vendor Logistics */}
-        {event && (
-          <div className="bg-white rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-card)" }}>
-            <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Vendor Logistics</p>
-
-            {isMultiDay ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="date"
-                      value={vendorLoadIn.date}
-                      min={minDate}
-                      max={maxDate}
-                      onChange={(e) => setVendorLoadIn((prev) => ({ ...prev, date: e.target.value }))}
-                      className="input"
-                    />
-                    <select
-                      value={vendorLoadIn.time}
-                      onChange={(e) => setVendorLoadIn((prev) => ({ ...prev, time: e.target.value }))}
-                      className="input"
-                    >
-                      <option value="">Select time</option>
-                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="date"
-                      value={vendorLoadOut.date}
-                      min={minDate}
-                      max={maxDate}
-                      onChange={(e) => setVendorLoadOut((prev) => ({ ...prev, date: e.target.value }))}
-                      className="input"
-                    />
-                    <select
-                      value={vendorLoadOut.time}
-                      onChange={(e) => setVendorLoadOut((prev) => ({ ...prev, time: e.target.value }))}
-                      className="input"
-                    >
-                      <option value="">Select time</option>
-                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
-                  <select
-                    value={vendorLoadIn.time}
-                    onChange={(e) => setVendorLoadIn((prev) => ({ ...prev, time: e.target.value }))}
-                    className="input"
-                  >
-                    <option value="">Select time</option>
-                    {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
-                  <select
-                    value={vendorLoadOut.time}
-                    onChange={(e) => setVendorLoadOut((prev) => ({ ...prev, time: e.target.value }))}
-                    className="input"
-                  >
-                    <option value="">Select time</option>
-                    {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Message */}
         <div className="bg-white rounded-2xl p-6 space-y-3" style={{ boxShadow: "var(--shadow-card)" }}>

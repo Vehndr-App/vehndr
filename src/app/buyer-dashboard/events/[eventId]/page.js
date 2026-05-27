@@ -20,6 +20,76 @@ function formatLoadTime(stored) {
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
 }
 
+function fmtTime(t) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  if (isNaN(h)) return t;
+  const period = h < 12 ? "AM" : "PM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function fmtDayLabel(dateStr) {
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  } catch { return dateStr; }
+}
+
+function DailyScheduleSection({ schedule }) {
+  if (!schedule?.length) return null;
+  const hasAnyData = schedule.some(
+    (d) => d.startTime || d.endTime || d.vendorLoadIn || d.vendorLoadOut
+  );
+  if (!hasAnyData) return null;
+
+  return (
+    <div className="mb-7">
+      <p className="text-[11px] font-bold text-[var(--violet-500)] uppercase tracking-widest mb-3 px-1">Daily Schedule</p>
+      <div className="space-y-3">
+        {schedule.map((day) => {
+          const hasHours = day.startTime || day.endTime;
+          const hasLoad  = day.vendorLoadIn || day.vendorLoadOut;
+          if (!hasHours && !hasLoad) return null;
+          return (
+            <div key={day.date} className="bg-white rounded-2xl px-5 py-1" style={{ boxShadow: "var(--shadow-card)" }}>
+              <p className="text-[11px] font-bold text-[var(--violet-500)] uppercase tracking-wide pt-3 pb-1">{fmtDayLabel(day.date)}</p>
+              {hasHours && (
+                <div className="flex items-center justify-between py-3 border-b border-[var(--gray-50)]">
+                  <div className="flex items-center gap-2.5 text-[var(--violet-400)]">
+                    {Icon.clock}
+                    <span className="text-[13px] text-[var(--gray-500)]">Event hours</span>
+                  </div>
+                  <span className="text-[13px] font-semibold text-[var(--gray-800)]">
+                    {[fmtTime(day.startTime), fmtTime(day.endTime)].filter(Boolean).join(" – ")}
+                  </span>
+                </div>
+              )}
+              {day.vendorLoadIn && (
+                <div className="flex items-center justify-between py-3 border-b border-[var(--gray-50)]">
+                  <div className="flex items-center gap-2.5 text-[var(--violet-400)]">
+                    {Icon.truck}
+                    <span className="text-[13px] text-[var(--gray-500)]">Vendor load-in</span>
+                  </div>
+                  <span className="text-[13px] font-semibold text-[var(--gray-800)]">{fmtTime(day.vendorLoadIn) ?? day.vendorLoadIn}</span>
+                </div>
+              )}
+              {day.vendorLoadOut && (
+                <div className="flex items-center justify-between py-3">
+                  <div className="flex items-center gap-2.5 text-[var(--violet-400)]">
+                    {Icon.truck}
+                    <span className="text-[13px] text-[var(--gray-500)]">Vendor load-out</span>
+                  </div>
+                  <span className="text-[13px] font-semibold text-[var(--gray-800)]">{fmtTime(day.vendorLoadOut) ?? day.vendorLoadOut}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Icon atoms ────────────────────────────────────────────────────────────────
 const Icon = {
   back:    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
@@ -194,6 +264,7 @@ export default function EventDetailPage() {
     event.parkingAvailable || event.securityPresence || event.requiresCoi != null;
 
   const hasSchedule = event.eventHours || event.vendorLoadIn || event.vendorLoadOut;
+  const dailySchedule = Array.isArray(event.dailySchedule) ? event.dailySchedule : [];
 
   return (
     <div className="pb-32">
@@ -318,6 +389,9 @@ export default function EventDetailPage() {
             {event.vendorLoadOut && <InfoRow icon={Icon.truck}  label="Vendor load-out"   value={formatLoadTime(event.vendorLoadOut)} />}
           </Section>
         )}
+
+        {/* Per-day schedule */}
+        <DailyScheduleSection schedule={dailySchedule} />
 
         {/* Venue & logistics */}
         {hasVenueInfo && (

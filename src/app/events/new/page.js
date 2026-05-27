@@ -74,7 +74,7 @@ function NewEventInner() {
     locationDetails: "",
     description: "",
     dressCode: "casual",
-    isPrivate: false,
+    isPublic: false,
     allowPlusOnes: true,
     maxGuests: "",
     rsvpDeadline: "",
@@ -134,7 +134,7 @@ function NewEventInner() {
       eventData.desiredVendorCategories.forEach((category) => {
         formData.append("event[desired_vendor_categories][]", category);
       });
-      formData.append("event[is_private]", eventData.isPrivate);
+      formData.append("event[is_public]", eventData.isPublic);
       if (eventData.coverImage) {
         formData.append("event[cover_image]", eventData.coverImage);
       }
@@ -483,13 +483,13 @@ function NewEventInner() {
                 
                 <label className="flex items-center justify-between p-4 rounded-[var(--radius-xl)] border border-[var(--gray-200)] cursor-pointer hover:bg-[var(--gray-50)]">
                   <div>
-                    <span className="font-medium text-[var(--gray-900)]">Private Event</span>
-                    <p className="text-xs text-[var(--gray-500)]">Only invited guests can see details</p>
+                    <span className="font-medium text-[var(--gray-900)]">Make this event public</span>
+                    <p className="text-xs text-[var(--gray-500)]">Vendors can discover this event on the homepage</p>
                   </div>
                   <input
                     type="checkbox"
-                    checked={eventData.isPrivate}
-                    onChange={(e) => setEventData(prev => ({ ...prev, isPrivate: e.target.checked }))}
+                    checked={eventData.isPublic}
+                    onChange={(e) => setEventData(prev => ({ ...prev, isPublic: e.target.checked }))}
                     className="w-5 h-5 rounded-md border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
                   />
                 </label>

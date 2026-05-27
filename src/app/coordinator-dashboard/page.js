@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../contexts/AuthContext";
 import AuthGate from "../../components/AuthGate";
 import { api } from "../../services/api";
+import { updateEvent } from "../../services/events";
 import Link from "next/link";
 import OnboardingChecklist from "../../components/OnboardingChecklist";
 
@@ -48,6 +49,17 @@ function CoordinatorDashboardInner() {
       setMyEvents([]);
     } finally {
       setLoadingEvents(false);
+    }
+  };
+
+  const handleTogglePublic = async (e, event) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await updateEvent(event.id, { is_public: !event.isPublic });
+      setMyEvents((prev) => prev.map((ev) => ev.id === event.id ? { ...ev, isPublic: !ev.isPublic } : ev));
+    } catch (err) {
+      console.error("Failed to update event visibility", err);
     }
   };
 
@@ -166,6 +178,34 @@ function CoordinatorDashboardInner() {
 
       <div className="mx-auto max-w-4xl px-4 sm:px-6 -mt-6 relative z-10">
         <OnboardingChecklist role="coordinator" />
+
+        {/* Quick Actions */}
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <Link
+            href="/coordinator-dashboard/payments"
+            className="bg-white rounded-[var(--radius-xl)] shadow-[var(--shadow-card)] p-4 flex items-center gap-3 hover:shadow-md transition-shadow"
+          >
+            <div className="w-10 h-10 rounded-full bg-[var(--amber-100)] flex items-center justify-center flex-shrink-0">
+              <span className="text-xl">💳</span>
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-[var(--gray-900)]">Banking</p>
+              <p className="text-xs text-[var(--gray-500)]">Connect Stripe</p>
+            </div>
+          </Link>
+          <Link
+            href="/coordinator-dashboard/create"
+            className="bg-white rounded-[var(--radius-xl)] shadow-[var(--shadow-card)] p-4 flex items-center gap-3 hover:shadow-md transition-shadow"
+          >
+            <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
+              <span className="text-xl">🎪</span>
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-[var(--gray-900)]">New Event</p>
+              <p className="text-xs text-[var(--gray-500)]">Create manually</p>
+            </div>
+          </Link>
+        </div>
 
         {/* Create Event Card */}
         <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] p-6 mb-6">
@@ -330,6 +370,16 @@ function CoordinatorDashboardInner() {
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusStyles(event.status)}`}>
                         {getStatusEmoji(event.status)} {event.status}
                       </span>
+                      <button
+                        onClick={(e) => handleTogglePublic(e, event)}
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                          event.isPublic
+                            ? "bg-[var(--mint-50)] text-[var(--mint-700)] hover:bg-[var(--mint-100)]"
+                            : "bg-[var(--gray-100)] text-[var(--gray-500)] hover:bg-[var(--gray-200)]"
+                        }`}
+                      >
+                        {event.isPublic ? "🌐 Public" : "🔒 Private"}
+                      </button>
                     </div>
 
                     {event.description && (

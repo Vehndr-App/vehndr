@@ -4,29 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createInquiry } from "../services/inquiries";
 
-// ─── Load-in / load-out helpers ───────────────────────────────────────────────
 
-const TIME_SLOTS = (() => {
-  const slots = [];
-  for (let h = 0; h < 24; h++) {
-    for (const m of [0, 30]) {
-      const hour = h % 12 || 12;
-      const period = h < 12 ? "AM" : "PM";
-      slots.push({
-        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
-        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
-      });
-    }
-  }
-  return slots;
-})();
-
-function buildLoadTimeString(date, time, isMultiDay) {
-  if (!time) return null;
-  const label = TIME_SLOTS.find((s) => s.value === time)?.label ?? time;
-  if (isMultiDay) return date ? `${date} ${label}` : label;
-  return label;
-}
 
 // ─── Coordinator types ────────────────────────────────────────────────────────
 
@@ -270,8 +248,6 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
     parkingAvailable: null,
     securityPresence: null,
   });
-  const [loadIn,  setLoadIn]  = useState({ date: "", time: "" });
-  const [loadOut, setLoadOut] = useState({ date: "", time: "" });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -302,8 +278,6 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
         attendees: "", accessToPower: null, accessToWater: null, wifiAvailability: null,
         eventHours: "", parkingAvailable: null, securityPresence: null,
       });
-      setLoadIn({ date: "", time: "" });
-      setLoadOut({ date: "", time: "" });
       setMessage("");
       setMessageEdited(false);
       setError(null);
@@ -370,11 +344,6 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
       if (fields.accessToPower) logistics.access_to_power = fields.accessToPower;
       if (fields.accessToWater) logistics.access_to_water = fields.accessToWater;
       if (fields.wifiAvailability) logistics.wifi_availability = fields.wifiAvailability;
-      const isMultiDay = fields.eventDate && fields.eventEndDate && fields.eventDate !== fields.eventEndDate;
-      const builtLoadIn  = buildLoadTimeString(loadIn.date,  loadIn.time,  isMultiDay);
-      const builtLoadOut = buildLoadTimeString(loadOut.date, loadOut.time, isMultiDay);
-      if (builtLoadIn)  logistics.vendor_load_in  = builtLoadIn;
-      if (builtLoadOut) logistics.vendor_load_out = builtLoadOut;
       if (fields.eventHours) logistics.event_hours = fields.eventHours;
       if (fields.parkingAvailable) logistics.parking_available = fields.parkingAvailable;
       if (fields.securityPresence) logistics.security_presence = fields.securityPresence;
@@ -780,67 +749,6 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                     <ChipGroup value={fields.wifiAvailability} onChange={(v) => set("wifiAvailability", v)} options={YES_NO} />
                   </div>
                 </div>
-
-                {/* Load In / Load Out */}
-                {(() => {
-                  const isMultiDay = fields.eventDate && fields.eventEndDate && fields.eventDate !== fields.eventEndDate;
-                  const minDate = fields.eventDate    || undefined;
-                  const maxDate = fields.eventEndDate || undefined;
-                  return (
-                    <>
-                      <div>
-                        <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-                          Vendor Load-In
-                        </label>
-                        {isMultiDay ? (
-                          <div className="grid grid-cols-2 gap-3">
-                            <input type="date" value={loadIn.date} min={minDate} max={maxDate}
-                              onChange={(e) => setLoadIn((p) => ({ ...p, date: e.target.value }))}
-                              className="input" />
-                            <select value={loadIn.time}
-                              onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))}
-                              className="input">
-                              <option value="">Select time</option>
-                              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                            </select>
-                          </div>
-                        ) : (
-                          <select value={loadIn.time}
-                            onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))}
-                            className="input">
-                            <option value="">Select time</option>
-                            {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                          </select>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-                          Vendor Load-Out
-                        </label>
-                        {isMultiDay ? (
-                          <div className="grid grid-cols-2 gap-3">
-                            <input type="date" value={loadOut.date} min={minDate} max={maxDate}
-                              onChange={(e) => setLoadOut((p) => ({ ...p, date: e.target.value }))}
-                              className="input" />
-                            <select value={loadOut.time}
-                              onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))}
-                              className="input">
-                              <option value="">Select time</option>
-                              {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                            </select>
-                          </div>
-                        ) : (
-                          <select value={loadOut.time}
-                            onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))}
-                            className="input">
-                            <option value="">Select time</option>
-                            {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                          </select>
-                        )}
-                      </div>
-                    </>
-                  );
-                })()}
 
                 {/* Event Date / Hours */}
                 <div>

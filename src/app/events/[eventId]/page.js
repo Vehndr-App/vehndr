@@ -152,6 +152,9 @@ export default async function EventDetailPage({ params }) {
       {/* Venue Logistics */}
       <VenueLogistics event={event} />
 
+      {/* Per-day schedule */}
+      <DailyScheduleSection schedule={event.dailySchedule} />
+
       {/* Vendors Section */}
       <div>
         <div className="mb-8">
@@ -274,6 +277,69 @@ function formatLoadTime(stored) {
   if (!m) return stored;
   const d = new Date(m[1] + "T00:00:00");
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
+}
+
+function fmtTime(t) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  if (isNaN(h)) return t;
+  const period = h < 12 ? "AM" : "PM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function fmtDayLabel(dateStr) {
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  } catch { return dateStr; }
+}
+
+function DailyScheduleSection({ schedule }) {
+  if (!Array.isArray(schedule) || !schedule.length) return null;
+  const hasAnyData = schedule.some(
+    (d) => d.startTime || d.endTime || d.vendorLoadIn || d.vendorLoadOut
+  );
+  if (!hasAnyData) return null;
+
+  return (
+    <div className="rounded-[var(--radius-3xl)] bg-white shadow-[var(--shadow-lg)] p-6 sm:p-8 mb-10">
+      <h2 className="font-display text-xl sm:text-2xl tracking-tight text-[var(--gray-900)] mb-6">Daily Schedule</h2>
+      <div className="space-y-4">
+        {schedule.map((day) => {
+          const hasHours = day.startTime || day.endTime;
+          const hasLoad  = day.vendorLoadIn || day.vendorLoadOut;
+          if (!hasHours && !hasLoad) return null;
+          return (
+            <div key={day.date} className="rounded-xl border border-[var(--gray-100)] overflow-hidden">
+              <div className="px-4 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+                <p className="text-xs font-bold text-[var(--violet-600)] uppercase tracking-wide">{fmtDayLabel(day.date)}</p>
+              </div>
+              {hasHours && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--gray-50)] last:border-0">
+                  <span className="text-sm text-[var(--gray-500)]">Event hours</span>
+                  <span className="text-sm font-semibold text-[var(--gray-800)]">
+                    {[fmtTime(day.startTime), fmtTime(day.endTime)].filter(Boolean).join(" – ")}
+                  </span>
+                </div>
+              )}
+              {day.vendorLoadIn && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--gray-50)] last:border-0">
+                  <span className="text-sm text-[var(--gray-500)]">Vendor load-in</span>
+                  <span className="text-sm font-semibold text-[var(--gray-800)]">{fmtTime(day.vendorLoadIn) ?? day.vendorLoadIn}</span>
+                </div>
+              )}
+              {day.vendorLoadOut && (
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-sm text-[var(--gray-500)]">Vendor load-out</span>
+                  <span className="text-sm font-semibold text-[var(--gray-800)]">{fmtTime(day.vendorLoadOut) ?? day.vendorLoadOut}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 const SCHEDULE_KEYS = [

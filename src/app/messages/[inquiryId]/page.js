@@ -404,7 +404,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
     }
   }
 
-  const inputClass = "w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all";
+  const inputClass = "w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-base sm:text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all";
   const labelClass = "block text-[10px] font-semibold uppercase tracking-widest text-[var(--gray-400)] mb-2";
 
   return (
@@ -786,7 +786,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
           </div>
           <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">Proposal sent</p>
           <p className="text-xs text-[var(--gray-400)] leading-relaxed max-w-xs mx-auto">
-            The vendor will reach out once they've reviewed your proposal. You'll be able to message and receive offers once they reply.
+            The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply.
           </p>
         </div>
       )}
@@ -862,7 +862,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                         onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
                         autoFocus
                         disabled={savingTip}
-                        className="w-20 text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                     </div>
                   ) : (
@@ -969,7 +969,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
               value={requestText}
               onChange={(e) => setRequestText(e.target.value)}
               placeholder='e.g. "Can you lower the price to $X?" or "I also need setup included…"'
-              className="w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all resize-none leading-relaxed"
+              className="w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-base sm:text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all resize-none leading-relaxed"
             />
           </div>
           <button
@@ -1200,7 +1200,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
             </div>
             <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">Proposal sent</p>
             <p className="text-xs text-[var(--gray-400)] leading-relaxed">
-              The vendor will reach out once they've reviewed your proposal. You'll be able to message and receive offers once they reply.
+              The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply.
             </p>
           </div>
         )}
@@ -1276,7 +1276,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                           onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
                           autoFocus
                           disabled={savingTip}
-                          className="w-20 text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         />
                       </div>
                     ) : (
@@ -1383,7 +1383,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                 value={requestText}
                 onChange={(e) => setRequestText(e.target.value)}
                 placeholder='e.g. "Can you lower the price to $X?" or "I also need setup included…"'
-                className="w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all resize-none leading-relaxed"
+                className="w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-base sm:text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all resize-none leading-relaxed"
               />
             </div>
             <button
@@ -1800,7 +1800,7 @@ export default function InquiryThreadPage() {
 
           {/* Composer */}
           {!isVendor && inquiry && ["submitted", "viewed"].includes(status) ? (
-            <div className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)] footer-safe">
+            <div className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)]">
               <div className="mx-auto max-w-2xl px-4 py-3">
                 <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--amber-50)] border border-[var(--amber-100)]">
                   <span className="w-2 h-2 rounded-full bg-[var(--amber-500)] animate-pulse flex-shrink-0" />
@@ -1813,7 +1813,7 @@ export default function InquiryThreadPage() {
               </div>
             </div>
           ) : (
-            <div className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)] footer-safe" style={{ boxShadow: "0 -1px 0 rgba(0,0,0,0.04)" }}>
+            <div className={`flex-shrink-0 bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)] ${isVendor ? "footer-safe" : ""}`} style={{ boxShadow: "0 -1px 0 rgba(0,0,0,0.04)" }}>
               <form onSubmit={handleSend} className="mx-auto max-w-2xl px-3 py-2.5 flex items-end gap-2">
                 <textarea
                   ref={textareaRef}
@@ -1822,7 +1822,7 @@ export default function InquiryThreadPage() {
                   onChange={handleBodyChange}
                   onKeyDown={handleKeyDown}
                   placeholder="Message…"
-                  className="flex-1 resize-none rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 text-[14px] text-[var(--gray-800)] placeholder:text-[var(--gray-400)] outline-none focus:border-[var(--violet-300)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all leading-relaxed overflow-hidden"
+                  className="flex-1 resize-none rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 text-[16px] sm:text-[14px] text-[var(--gray-800)] placeholder:text-[var(--gray-400)] outline-none focus:border-[var(--violet-300)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all leading-relaxed overflow-hidden"
                   style={{ minHeight: "44px" }}
                 />
                 <button
