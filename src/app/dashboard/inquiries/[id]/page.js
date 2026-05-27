@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
+import CancelBookingModal from "../../../../components/CancelBookingModal";
 import { getInquiry, declineInquiry } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
 
@@ -146,21 +147,25 @@ function StatusPipeline({ status }) {
 function HeroCard({
   customer, event, status,
   coordinatorType, budgetCents, vendingFeeCents, tipCents, submittedAt,
-  fresh, isExpired, isVendorDeclined, isConfirmed,
+  fresh, isExpired, isVendorDeclined, isCancelled, isConfirmed,
   offerAccepted, offerDeclined, canRevise, canWithdraw,
   cashPending, needsVendorPay, vendorPaid, freeConfirmed,
   needsProposal, primaryHref, primaryLabel,
   confirmDecline, setConfirmDecline,
   declining, handleDecline, accepting, handleQuickAccept,
   withdrawing, handleWithdrawOffer,
+  canCancel, onCancel,
   id,
 }) {
-  const statusLabel = isVendorDeclined ? "Declined"
+  const statusLabel = isCancelled ? "Cancelled"
+    : isVendorDeclined ? "Declined"
     : isConfirmed ? "Booked"
     : status === "actions_needed" || status === "offer_updated" ? "Offer Sent"
     : STATUS_PIPELINE.find(s => s.key === status)?.label ?? status;
 
-  const statusStyle = isExpired || isVendorDeclined
+  const statusStyle = isCancelled
+    ? { bg: "#FEF2F2", color: "#dc2626" }
+    : isExpired || isVendorDeclined
     ? { bg: "var(--gray-100)", color: "var(--gray-500)" }
     : isConfirmed
     ? { bg: "var(--mint-50)", color: "var(--mint-700)" }
@@ -171,7 +176,7 @@ function HeroCard({
   return (
     <Card>
       {/* Pipeline */}
-      {!isExpired && !isVendorDeclined && (
+      {!isExpired && !isVendorDeclined && !isCancelled && (
         <>
           <div className="px-6 pt-5 pb-4 overflow-x-auto">
             <div style={{ minWidth: 360 }}>
@@ -219,7 +224,7 @@ function HeroCard({
         <div className="px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5">
           {coordinatorType === "hiring_vendor" && budgetCents > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You'd receive</span>
+              <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You&apos;d receive</span>
               <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(calcVendorBase(budgetCents))}</span>
             </div>
           )}
@@ -338,6 +343,16 @@ function HeroCard({
             </svg>
             {freeConfirmed ? "Confirmed" : "Booking Confirmed"}
           </span>
+        )}
+
+        {canCancel && (
+          <button type="button" onClick={onCancel}
+            className="h-9 px-4 rounded-xl text-[13px] font-semibold text-red-500 border border-red-200 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1.5 ml-auto">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            Cancel Booking
+          </button>
         )}
       </div>
     </Card>
@@ -631,6 +646,7 @@ function VendorInquiryDetailInner() {
   const [confirmDecline, setConfirmDecline] = useState(false);
   const [accepting,      setAccepting]      = useState(false);
   const [withdrawing,    setWithdrawing]    = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -697,13 +713,15 @@ function VendorInquiryDetailInner() {
   const isExpired        = status === "expired";
   const isVendorDeclined = status === "vendor_declined";
   const isConfirmed      = status === "scheduled" || status === "completed";
+  const isCancelled      = marketplaceBooking?.status === "cancelled" || status === "cancelled";
   const fresh            = isRecent(submittedAt);
 
-  const vendorPaid     = hasOffer && activeOffer?.proposalType === "product" && status === "scheduled";
-  const needsVendorPay = hasOffer && activeOffer?.proposalType === "product" && status !== "scheduled";
-  const cashPending    = offerAccepted && activeOffer?.proposalType === "cash" && !isConfirmed;
-  const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both";
-  const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined;
+  const vendorPaid     = hasOffer && activeOffer?.proposalType === "product" && status === "scheduled" && !isCancelled;
+  const needsVendorPay = hasOffer && activeOffer?.proposalType === "product" && status !== "scheduled" && !isCancelled;
+  const cashPending    = offerAccepted && activeOffer?.proposalType === "cash" && !isConfirmed && !isCancelled;
+  const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both" && !isCancelled;
+  const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined && !isCancelled;
+  const canCancel      = !!marketplaceBooking && !isCancelled && (isConfirmed || offerAccepted);
 
   const primaryHref = (offerDeclined || canRevise || (needsProposal && !offerDeclined && !isExpired && !isVendorDeclined))
     ? `/dashboard/inquiries/${id}/offer/new` : null;
@@ -733,12 +751,43 @@ function VendorInquiryDetailInner() {
       {/* Content */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-5 pb-24 space-y-4">
 
+        {/* Cancelled banner */}
+        {isCancelled && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-start gap-3">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+            </svg>
+            <div className="text-sm text-red-700">
+              <p className="font-semibold">This booking was cancelled{marketplaceBooking?.cancelledByRole ? ` by the ${marketplaceBooking.cancelledByRole}` : ""}.</p>
+              {(marketplaceBooking?.refundAmountCents ?? 0) > 0 && (
+                <p className="mt-0.5">A refund of {fmt$(marketplaceBooking.refundAmountCents)} {marketplaceBooking?.refundStatus === "full_refund" ? "(full)" : "(partial)"} is being processed.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Cancel booking modal */}
+        {showCancelModal && (
+          <CancelBookingModal
+            inquiry={inquiry}
+            booking={marketplaceBooking}
+            role="vendor"
+            onClose={() => setShowCancelModal(false)}
+            onCancelled={async () => {
+              setShowCancelModal(false);
+              const [inq, list] = await Promise.all([getInquiry(id), listOffers(id)]);
+              setInquiry(inq); setOffers(Array.isArray(list) ? list : []);
+            }}
+          />
+        )}
+
         {/* 1. Hero — pipeline + customer + actions */}
         <HeroCard
           customer={customer} event={event} status={status}
           coordinatorType={coordinatorType} budgetCents={budgetCents}
           vendingFeeCents={vendingFeeCents} tipCents={proposalTipCents ?? 0} submittedAt={submittedAt}
           fresh={fresh} isExpired={isExpired} isVendorDeclined={isVendorDeclined}
+          isCancelled={isCancelled}
           isConfirmed={isConfirmed} offerAccepted={offerAccepted}
           offerDeclined={offerDeclined} canRevise={canRevise}
           cashPending={cashPending} needsVendorPay={needsVendorPay}
@@ -748,6 +797,7 @@ function VendorInquiryDetailInner() {
           declining={declining} handleDecline={handleDecline}
           accepting={accepting} handleQuickAccept={handleQuickAccept}
           canWithdraw={canWithdraw} withdrawing={withdrawing} handleWithdrawOffer={handleWithdrawOffer}
+          canCancel={canCancel} onCancel={() => setShowCancelModal(true)}
           id={id}
         />
 

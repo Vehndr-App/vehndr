@@ -55,3 +55,17 @@ export async function confirmVendorPayment({ paymentIntentId, bookingId }) {
     body: { paymentIntentId, bookingId },
   });
 }
+
+// Cancel a booked proposal and refund the payer. Either party may call this.
+// Pass amountCents to issue a partial refund (omit for the policy default/full).
+export async function cancelMarketplaceBooking({ inquiryId, bookingId, amountCents, reason } = {}) {
+  return api("/api/checkout/marketplace_cancel", {
+    method: "POST",
+    body: {
+      inquiry_id: inquiryId,
+      booking_id: bookingId,
+      ...(amountCents != null ? { amount_cents: amountCents } : {}),
+      ...(reason ? { reason } : {}),
+    },
+  });
+}

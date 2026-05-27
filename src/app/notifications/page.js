@@ -49,13 +49,19 @@ function groupByDate(notifications) {
 }
 
 function notificationLink(n) {
-  const { inquiry_id } = n.data ?? {};
+  const { inquiry_id, recipient_role } = n.data ?? {};
   if (!inquiry_id) return null;
   if (n.type === "offer_sent" || n.type === "offer_revised") {
     return `/messages/${inquiry_id}/offer`;
   }
   if (n.type === "offer_accepted" || n.type === "payment_received") {
     return `/dashboard/inquiries/${inquiry_id}`;
+  }
+  if (n.type === "new_message" || n.type === "booking_cancelled") {
+    // Route to the recipient's own thread view.
+    return recipient_role === "vendor"
+      ? `/dashboard/inquiries/${inquiry_id}`
+      : `/messages/${inquiry_id}`;
   }
   return `/messages/${inquiry_id}`;
 }
@@ -102,6 +108,24 @@ function NotificationIcon({ type }) {
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--mint-700)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <line x1="12" y1="1" x2="12" y2="23"/>
           <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+        </svg>
+      </div>
+    );
+  }
+  if (type === "new_message") {
+    return (
+      <div className={`${base} bg-[var(--violet-100)]`}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+        </svg>
+      </div>
+    );
+  }
+  if (type === "booking_cancelled") {
+    return (
+      <div className={`${base} bg-red-50`}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
         </svg>
       </div>
     );

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../../services/inquiries";
+import CancelBookingModal from "../../../components/CancelBookingModal";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ const STATUS_META = {
   scheduled:      { label: "Booked",    color: "mint",   dot: "bg-[var(--mint-500)]"    },
   completed:      { label: "Completed", color: "mint",   dot: "bg-[var(--mint-500)]"    },
   expired:        { label: "Expired",   color: "gray",   dot: "bg-[var(--gray-300)]"    },
+  cancelled:      { label: "Cancelled", color: "gray",   dot: "bg-[var(--gray-300)]"    },
 };
 
 const BADGE_STYLES = {
@@ -48,7 +50,8 @@ const TABS = [
 const ACTIVE_STATUSES = new Set(["submitted", "viewed", "discussed"]);
 const OFFER_STATUSES  = new Set(["actions_needed", "offer_updated"]);
 const BOOKED_STATUSES = new Set(["scheduled"]);
-const DONE_STATUSES   = new Set(["completed", "expired"]);
+const DONE_STATUSES   = new Set(["completed", "expired", "cancelled"]);
+const TERMINAL_STATUSES = new Set(["completed", "expired", "vendor_declined", "cancelled"]);
 
 function matchTab(inq, tab) {
   const s = inq.status;
@@ -108,14 +111,16 @@ function SkeletonCard() {
 
 // ─── Proposal Card ────────────────────────────────────────────────────────────
 
-function ProposalCard({ inquiry, onDelete }) {
+function ProposalCard({ inquiry, onDelete, onCancel }) {
   const meta        = STATUS_META[inquiry.status] ?? { label: inquiry.status, color: "gray", dot: "bg-[var(--gray-300)]" };
   const offer       = inquiry.activeOffer;
   const hasOffer    = offer?.status === "pending";
   const isBooked    = offer?.status === "accepted" || inquiry.status === "scheduled";
   const initial     = inquiry.vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
   const needsAction = inquiry.status === "actions_needed";
-  const isPaid      = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
+  // Deletable until viewed; cancellable once viewed (any non-terminal state).
+  const canDelete   = inquiry.status === "submitted";
+  const canCancel   = !canDelete && !TERMINAL_STATUSES.has(inquiry.status);
 
   const tip   = inquiry.tipCents ?? 0;
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
@@ -184,8 +189,9 @@ function ProposalCard({ inquiry, onDelete }) {
         </div>
       </Link>
 
-      {/* Delete — desktop hover only, absolutely positioned so it doesn't affect layout */}
-      {!isPaid && (
+      {/* Delete (pre-view) / Cancel (post-view) — desktop hover only, absolutely
+          positioned so it doesn't affect layout */}
+      {canDelete ? (
         <button
           onClick={(e) => { e.preventDefault(); onDelete(inquiry); }}
           className="absolute top-5 right-5 z-10 opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg bg-white border border-[var(--gray-200)] flex items-center justify-center text-[var(--gray-400)] hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm"
@@ -197,7 +203,17 @@ function ProposalCard({ inquiry, onDelete }) {
             <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
           </svg>
         </button>
-      )}
+      ) : canCancel ? (
+        <button
+          onClick={(e) => { e.preventDefault(); onCancel(inquiry); }}
+          className="absolute top-5 right-5 z-10 opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg bg-white border border-[var(--gray-200)] flex items-center justify-center text-[var(--gray-400)] hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-all shadow-sm"
+          title="Cancel proposal"
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+          </svg>
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -244,6 +260,7 @@ export default function ProposalsPage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]   = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [cancelTarget, setCancelTarget] = useState(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -361,7 +378,7 @@ export default function ProposalsPage() {
           <EmptyState tab={activeTab} />
         ) : (
           filtered.map((inq) => (
-            <ProposalCard key={inq.id} inquiry={inq} onDelete={setDeleteTarget} />
+            <ProposalCard key={inq.id} inquiry={inq} onDelete={setDeleteTarget} onCancel={setCancelTarget} />
           ))
         )}
       </div>
@@ -403,6 +420,22 @@ export default function ProposalsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Cancel modal ── */}
+      {cancelTarget && (
+        <CancelBookingModal
+          inquiry={cancelTarget}
+          booking={cancelTarget.marketplaceBooking}
+          role="coordinator"
+          onClose={() => setCancelTarget(null)}
+          onCancelled={() => {
+            setCancelTarget(null);
+            listInquiries()
+              .then((data) => setInquiries(Array.isArray(data) ? data : []))
+              .catch(() => {});
+          }}
+        />
       )}
     </div>
   );
