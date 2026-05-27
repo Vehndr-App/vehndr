@@ -98,18 +98,18 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
       <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-8">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white/90 text-xs font-medium mb-4">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)] animate-pulse"></span>
-          {mode === "vendors" ? "50+ trusted vendors" : "Live at 50+ events"}
+          {mode === "vendors" ? "75+ trusted vendors" : "Live at 50+ events"}
         </div>
         
         <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-3">
           {mode === "vendors" 
-            ? "Shop Your Favorite Vendors" 
+            ? "Shop or Book Your Favorite Vendors" 
             : "Discover amazing events"}
         </h1>
         
         <p className="text-white/80 text-sm sm:text-base max-w-lg mx-auto">
           {mode === "vendors"
-            ? "Browse storefronts, add to cart, and book services for your next event."
+            ? "Shop products, book services, or hire vendors for your next event."
             : "Find events near you, RSVP, and connect with event organizers and vendors."}
         </p>
       </div>
