@@ -325,7 +325,7 @@ function HeroCard({
           <Link href={`/dashboard/inquiries/${id}/pay`}
             className="h-9 px-4 rounded-xl text-[13px] font-bold text-white flex items-center gap-1.5"
             style={{ background: "linear-gradient(to right, var(--violet-600), var(--magenta-600))" }}>
-            Pay to Participate
+            Pay Vending Fee
           </Link>
         )}
         {cashPending && (
@@ -370,6 +370,10 @@ function EventBrief({ event }) {
     ? startDt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
     : null;
 
+  // Show top-level load times only for single-day events (multi-day shows per-day in DailyScheduleCard)
+  const hasPerDaySchedule = event.dailySchedule?.some(d => d.vendorLoadIn || d.vendorLoadOut);
+  const showLoadTimes = !hasPerDaySchedule && (event.vendorLoadIn || event.vendorLoadOut);
+
   return (
     <Link
       href={`/events/${event.id}`}
@@ -382,6 +386,22 @@ function EventBrief({ event }) {
         <p className="text-[15px] font-bold text-[var(--gray-900)] leading-snug">{event.name}</p>
         {dateStr && <p className="text-xs text-[var(--gray-500)] mt-1">{dateStr}</p>}
         {address && <p className="text-xs text-[var(--gray-400)] mt-0.5 truncate">{address}</p>}
+        {showLoadTimes && (
+          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1">
+            {event.vendorLoadIn && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wide">Load-in</span>
+                <span className="text-xs font-medium text-[var(--gray-700)]">{event.vendorLoadIn}</span>
+              </div>
+            )}
+            {event.vendorLoadOut && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wide">Load-out</span>
+                <span className="text-xs font-medium text-[var(--gray-700)]">{event.vendorLoadOut}</span>
+              </div>
+            )}
+          </div>
+        )}
         <p className="text-xs font-semibold text-[var(--violet-600)] mt-3 flex items-center gap-1">
           View event
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -390,6 +410,82 @@ function EventBrief({ event }) {
         </p>
       </div>
     </Link>
+  );
+}
+
+// ─── Daily schedule card ──────────────────────────────────────────────────────
+
+function fmtTime(val) {
+  if (!val) return null;
+  const [h, m] = val.split(":").map(Number);
+  if (isNaN(h)) return val;
+  const period = h < 12 ? "AM" : "PM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m ?? 0).padStart(2, "0")} ${period}`;
+}
+
+function DailyScheduleCard({ event }) {
+  if (!event?.dailySchedule?.length) return null;
+  const hasMultipleDays = event.dailySchedule.length > 1;
+  const hasAnyData = event.dailySchedule.some(
+    (d) => d.startTime || d.endTime || d.vendorLoadIn || d.vendorLoadOut
+  );
+  if (!hasAnyData) return null;
+
+  return (
+    <Card>
+      <div className="px-5 pt-5 pb-1 border-b border-[var(--gray-50)]">
+        <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">
+          {hasMultipleDays ? "Event Schedule by Day" : "Event Schedule"}
+        </p>
+      </div>
+      <div className="px-5 py-3 divide-y divide-[var(--gray-50)]">
+        {event.dailySchedule.map((day) => {
+          const start   = fmtTime(day.startTime);
+          const end     = fmtTime(day.endTime);
+          const loadIn  = fmtTime(day.vendorLoadIn);
+          const loadOut = fmtTime(day.vendorLoadOut);
+          if (!start && !end && !loadIn && !loadOut) return null;
+          return (
+            <div key={day.date} className="py-3">
+              {hasMultipleDays && (
+                <p className="text-[11px] font-bold text-[var(--violet-700)] uppercase tracking-wide mb-2">
+                  {new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
+                    weekday: "short", month: "short", day: "numeric",
+                  })}
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                {start && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wide w-16 shrink-0">Start</span>
+                    <span className="text-[13px] text-[var(--gray-700)] font-medium">{start}</span>
+                  </div>
+                )}
+                {end && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wide w-16 shrink-0">End</span>
+                    <span className="text-[13px] text-[var(--gray-700)] font-medium">{end}</span>
+                  </div>
+                )}
+                {loadIn && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wide w-16 shrink-0">Load-in</span>
+                    <span className="text-[13px] text-[var(--gray-700)] font-medium">{loadIn}</span>
+                  </div>
+                )}
+                {loadOut && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wide w-16 shrink-0">Load-out</span>
+                    <span className="text-[13px] text-[var(--gray-700)] font-medium">{loadOut}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }
 
@@ -725,7 +821,7 @@ function VendorInquiryDetailInner() {
 
   const primaryHref = (offerDeclined || canRevise || (needsProposal && !offerDeclined && !isExpired && !isVendorDeclined))
     ? `/dashboard/inquiries/${id}/offer/new` : null;
-  const primaryLabel = offerDeclined ? "Send New Offer" : canRevise ? "Revise Offer" : "Send Offer";
+  const primaryLabel = offerDeclined ? "Send New Offer" : canRevise ? "Revise Offer" : "Counter Offer";
 
   return (
     <div className="min-h-screen" style={{ background: "var(--gray-50)" }}>
@@ -816,6 +912,9 @@ function VendorInquiryDetailInner() {
             <EventBrief event={event} />
           </div>
         )}
+
+        {/* 3b. Per-day schedule */}
+        <DailyScheduleCard event={event} />
 
         {/* 4. Status banners */}
         {offerDeclined && (
@@ -911,7 +1010,7 @@ function VendorInquiryDetailInner() {
             <Link href={`/dashboard/inquiries/${id}/pay`}
               className="flex-1 h-11 rounded-xl flex items-center justify-center text-[13px] font-bold text-white"
               style={{ background: "linear-gradient(to right, var(--violet-600), var(--magenta-600))" }}>
-              Pay to Participate
+              Pay Vending Fee
             </Link>
           )}
           {(vendorPaid || freeConfirmed) && (

@@ -641,7 +641,7 @@ export default function ProposalDetailPage() {
   const isBooked    = (status === "scheduled" || activeOffer?.status === "accepted") && !isCancelled;
   const isExpired = status === "expired";
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
-  const canEdit   = !isPaid && activeOffer?.status !== "accepted" && status !== "scheduled" && status !== "completed" && status !== "expired";
+  const canEdit   = !activeOffer && !isPaid && status !== "scheduled" && status !== "completed" && status !== "expired";
   const booking          = inquiry.marketplaceBooking;
   const isCash           = activeOffer?.proposalType === "cash";
   const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);

@@ -4,23 +4,10 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { getVendorProfile } from "../../../../services/vendors";
-import { getEvent, updateEvent } from "../../../../services/events";
+import { getEvent } from "../../../../services/events";
 import { createInquiry } from "../../../../services/inquiries";
+import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
 
-const TIME_SLOTS = (() => {
-  const slots = [];
-  for (let h = 0; h < 24; h++) {
-    for (const m of [0, 30]) {
-      const hour = h % 12 || 12;
-      const period = h < 12 ? "AM" : "PM";
-      slots.push({
-        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
-        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
-      });
-    }
-  }
-  return slots;
-})();
 
 // ─── Coordinator types ────────────────────────────────────────────────────────
 
@@ -172,7 +159,6 @@ function buildMessage(vendor, event, coordinatorType, fields) {
     return [
       `Hi ${vendor.name}!`,
       `I'm organizing "${event.name}" on ${datePart} at ${locationPart} for ${guestPart}.`,
-      fields.serviceRequested ? `I'm looking for ${fields.serviceRequested}.` : null,
       budgetPart ? `My budget for this is ${budgetPart}.` : null,
       `I'd love to discuss how you can be part of our event — are you available?`,
     ].filter(Boolean).join(" ");
@@ -183,7 +169,7 @@ function buildMessage(vendor, event, coordinatorType, fields) {
     return [
       `Hi ${vendor.name}!`,
       `I'm hosting "${event.name}" on ${datePart} at ${locationPart}, expecting ${guestPart}.`,
-      `I'm looking for vendors to participate${fields.serviceRequested ? `, specifically ${fields.serviceRequested}` : ""}.`,
+      `I'm looking for vendors to participate.`,
       feePart ? `The vending fee for this event is ${feePart}.` : null,
       `Payments are processed through VEHNDR. Would you be interested in joining?`,
     ].filter(Boolean).join(" ");
@@ -192,7 +178,7 @@ function buildMessage(vendor, event, coordinatorType, fields) {
   return [
     `Hi ${vendor.name}!`,
     `I'm hosting "${event.name}" on ${datePart} at ${locationPart}, expecting ${guestPart}.`,
-    `I'm looking for vendors to participate${fields.serviceRequested ? `, specifically ${fields.serviceRequested}` : ""}.`,
+    `I'm looking for vendors to participate.`,
     `There are no vending fees for this event — it's free to join.`,
     `Would you be interested?`,
   ].filter(Boolean).join(" ");
@@ -211,20 +197,27 @@ function NewProposalPageInner() {
   const [loading, setLoading] = useState(true);
 
   const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
-  const [fields, setFields] = useState({ serviceRequested: "", budget: "", vendingFee: "", tip: "" });
-  const [logistics, setLogistics] = useState({ boothSize: "" });
-  const [loadIn,  setLoadIn]  = useState({ date: "", time: "" });
-  const [loadOut, setLoadOut] = useState({ date: "", time: "" });
+  const [fields, setFields] = useState({ budget: "", vendingFee: "", tip: "" });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState(null);
+  const [stripeConnected, setStripeConnected] = useState(false);
+
+  useEffect(() => {
+    getCoordinatorStripeAccount()
+      .then((res) => setStripeConnected(res?.chargesEnabled === true))
+      .catch(() => setStripeConnected(false));
+  }, []);
 
   useEffect(() => {
     if (!vendorId || !eventId) { setLoading(false); return; }
     Promise.all([getVendorProfile(vendorId), getEvent(eventId)])
-      .then(([v, e]) => { setVendor(v); setEvent(e); })
+      .then(([v, e]) => {
+        setVendor(v);
+        setEvent(e);
+      })
       .catch(() => setError("Could not load proposal details."))
       .finally(() => setLoading(false));
   }, [vendorId, eventId]);
@@ -263,19 +256,6 @@ function NewProposalPageInner() {
     setError(null);
     setSubmitting(true);
     try {
-      // Save vendor-specific logistics to the event
-      const isMultiDay = event?.startDate && event?.endDate &&
-        new Date(event.startDate).toDateString() !== new Date(event.endDate).toDateString();
-      const builtLoadIn  = loadIn.time  ? (isMultiDay && loadIn.date  ? `${loadIn.date} ${TIME_SLOTS.find(s => s.value === loadIn.time)?.label ?? loadIn.time}`  : TIME_SLOTS.find(s => s.value === loadIn.time)?.label)  : null;
-      const builtLoadOut = loadOut.time ? (isMultiDay && loadOut.date ? `${loadOut.date} ${TIME_SLOTS.find(s => s.value === loadOut.time)?.label ?? loadOut.time}` : TIME_SLOTS.find(s => s.value === loadOut.time)?.label) : null;
-      const logUpdate = {};
-      if (logistics.boothSize) logUpdate.booth_size = logistics.boothSize;
-      if (builtLoadIn)  logUpdate.vendor_load_in  = builtLoadIn;
-      if (builtLoadOut) logUpdate.vendor_load_out = builtLoadOut;
-      if (Object.keys(logUpdate).length > 0) {
-        await updateEvent(eventId, logUpdate);
-      }
-
       const payload = {
         vendor_id: vendorId,
         event_id: eventId,
@@ -394,15 +374,18 @@ function NewProposalPageInner() {
           <div className="space-y-2">
             {COORDINATOR_TYPES.map((type) => {
               const selected = coordinatorType === type.value;
+              const locked = type.value === "charges_fees" && !stripeConnected;
               return (
                 <button
                   key={type.value}
                   type="button"
-                  onClick={() => handleTypeChange(type.value)}
+                  onClick={() => !locked && handleTypeChange(type.value)}
                   className="w-full flex items-center gap-3 px-3.5 py-3 rounded-[var(--radius-lg)] border-2 text-left transition-all"
                   style={{
                     borderColor: selected ? "var(--violet-500)" : "var(--gray-200)",
                     background: selected ? "var(--violet-50)" : "white",
+                    opacity: locked ? 0.5 : 1,
+                    cursor: locked ? "not-allowed" : "pointer",
                   }}
                 >
                   <span style={{ color: selected ? "var(--violet-600)" : "var(--gray-400)" }}>{type.icon}</span>
@@ -410,19 +393,25 @@ function NewProposalPageInner() {
                     <p className={`text-sm font-semibold leading-tight ${selected ? "text-[var(--violet-800)]" : "text-[var(--gray-800)]"}`}>
                       {type.label}
                     </p>
-                    <p className={`text-xs mt-0.5 leading-tight ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>
-                      {type.description}
+                    <p className={`text-xs mt-0.5 leading-tight ${selected ? "text-[var(--violet-500)]" : locked ? "text-[var(--gray-400)]" : "text-[var(--gray-400)]"}`}>
+                      {locked ? "Connect your Stripe account to enable this option" : type.description}
                     </p>
                   </div>
-                  <div
-                    className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
-                    style={{
-                      borderColor: selected ? "var(--violet-500)" : "var(--gray-300)",
-                      background: selected ? "var(--violet-500)" : "white",
-                    }}
-                  >
-                    {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </div>
+                  {locked ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                      <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ) : (
+                    <div
+                      className="w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center"
+                      style={{
+                        borderColor: selected ? "var(--violet-500)" : "var(--gray-300)",
+                        background: selected ? "var(--violet-500)" : "white",
+                      }}
+                    >
+                      {selected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -433,24 +422,6 @@ function NewProposalPageInner() {
         <div className="bg-white rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-card)" }}>
           <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Proposal Details</p>
 
-          {/* What you're looking for */}
-          <div>
-            <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">
-              What are you looking for?
-            </label>
-            <input
-              type="text"
-              value={fields.serviceRequested}
-              onChange={(e) => setField("serviceRequested", e.target.value)}
-              placeholder={
-                coordinatorType === "hiring_vendor"
-                  ? "e.g. a DJ for 4 hours, catering for 80 people"
-                  : "e.g. food vendors, craft sellers, clothing boutiques"
-              }
-              className="input"
-            />
-          </div>
-
           {/* Budget (hiring_vendor) */}
           {coordinatorType === "hiring_vendor" && (
             <div className="space-y-3">
@@ -459,10 +430,13 @@ function NewProposalPageInner() {
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-base text-[var(--gray-400)] font-medium pointer-events-none">$</span>
                   <input
-                    type="number"
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
                     value={fields.budget}
-                    onChange={(e) => setField("budget", e.target.value)}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9]/g, "");
+                      setField("budget", val);
+                    }}
                     placeholder="500"
                     className="input pl-8"
                   />
@@ -523,115 +497,42 @@ function NewProposalPageInner() {
               </p>
             </div>
           )}
-        </div>
 
-        {/* Vendor Logistics */}
-        <div className="bg-white rounded-2xl p-6 space-y-5" style={{ boxShadow: "var(--shadow-card)" }}>
-          <div>
-            <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Vendor Logistics</p>
-            <p className="text-xs text-[var(--gray-400)] mt-1">Optional details specific to this vendor — may differ from other vendors at the same event.</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Booth / space size</label>
-            <input
-              type="text"
-              value={logistics.boothSize}
-              onChange={(e) => setLogistics((prev) => ({ ...prev, boothSize: e.target.value }))}
-              placeholder="e.g. 10×10 ft"
-              className="input"
-            />
-          </div>
-
-          {(() => {
-            const isMultiDay = event?.startDate && event?.endDate &&
-              new Date(event.startDate).toDateString() !== new Date(event.endDate).toDateString();
-            const minDate = event?.startDate ? new Date(event.startDate).toISOString().slice(0, 10) : undefined;
-            const maxDate = event?.endDate   ? new Date(event.endDate).toISOString().slice(0, 10)   : undefined;
-            return isMultiDay ? (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input type="date" value={loadIn.date} min={minDate} max={maxDate}
-                      onChange={(e) => setLoadIn((p) => ({ ...p, date: e.target.value }))} className="input" />
-                    <select value={loadIn.time}
-                      onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))} className="input">
-                      <option value="">Select time</option>
-                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
+          {/* Message */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Your Message</p>
+              {messageEdited && (
+                <button
+                  type="button"
+                  onClick={regenerateMessage}
+                  className="text-xs font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)] flex items-center gap-1"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10" />
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                  </svg>
+                  Regenerate
+                </button>
+              )}
+            </div>
+            <div className="relative">
+              <textarea
+                required
+                rows={6}
+                value={message}
+                onChange={handleMessageChange}
+                placeholder="Fill in the details above and your message will auto-generate here…"
+                className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3.5 text-sm text-[var(--gray-900)] leading-relaxed placeholder:text-[var(--gray-400)] outline-none focus:border-[var(--violet-500)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(139,92,246,0.12)] transition-all resize-none"
+              />
+              {!messageEdited && message && (
+                <div className="absolute bottom-3 right-3">
+                  <span className="text-[10px] font-medium text-[var(--violet-500)] bg-[var(--violet-50)] px-2 py-0.5 rounded-full">
+                    Auto-generated
+                  </span>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input type="date" value={loadOut.date} min={minDate} max={maxDate}
-                      onChange={(e) => setLoadOut((p) => ({ ...p, date: e.target.value }))} className="input" />
-                    <select value={loadOut.time}
-                      onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))} className="input">
-                      <option value="">Select time</option>
-                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-in</label>
-                  <select value={loadIn.time}
-                    onChange={(e) => setLoadIn((p) => ({ ...p, time: e.target.value }))} className="input">
-                    <option value="">Select time</option>
-                    {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">Vendor load-out</label>
-                  <select value={loadOut.time}
-                    onChange={(e) => setLoadOut((p) => ({ ...p, time: e.target.value }))} className="input">
-                    <option value="">Select time</option>
-                    {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            );
-          })()}
-        </div>
-
-        {/* Message */}
-        <div className="bg-white rounded-2xl p-6 space-y-3" style={{ boxShadow: "var(--shadow-card)" }}>
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">Your Message</p>
-            {messageEdited && (
-              <button
-                type="button"
-                onClick={regenerateMessage}
-                className="text-xs font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)] flex items-center gap-1"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="23 4 23 10 17 10" />
-                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-                </svg>
-                Regenerate
-              </button>
-            )}
-          </div>
-          <div className="relative">
-            <textarea
-              required
-              rows={6}
-              value={message}
-              onChange={handleMessageChange}
-              placeholder="Fill in the details above and your message will auto-generate here…"
-              className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3.5 text-sm text-[var(--gray-900)] leading-relaxed placeholder:text-[var(--gray-400)] outline-none focus:border-[var(--violet-500)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(139,92,246,0.12)] transition-all resize-none"
-            />
-            {!messageEdited && message && (
-              <div className="absolute bottom-3 right-3">
-                <span className="text-[10px] font-medium text-[var(--violet-500)] bg-[var(--violet-50)] px-2 py-0.5 rounded-full">
-                  Auto-generated
-                </span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
