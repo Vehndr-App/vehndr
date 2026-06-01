@@ -214,6 +214,13 @@ function PricingCard({ offer, tipCents, booking }) {
           </div>
         )}
       </div>
+
+      {offer.description && (
+        <div className="px-4 sm:px-6 pb-4 pt-3 border-t border-[var(--gray-100)]">
+          <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1.5">Note from vendor</p>
+          <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{offer.description}</p>
+        </div>
+      )}
     </div>
   );
 }
