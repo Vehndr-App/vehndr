@@ -51,6 +51,12 @@ function fmt$(cents) {
   }).format(cents / 100);
 }
 
+function displayTipCents(inquiry) {
+  const booking = inquiry?.marketplaceBooking;
+  if (!booking) return inquiry?.tipCents ?? 0;
+  return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
+}
+
 function fmtDate(raw, opts = { month: "short", day: "numeric", year: "numeric" }) {
   if (!raw) return null;
   return new Date(raw).toLocaleDateString("en-US", opts);
@@ -628,8 +634,9 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
 function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevise, isConfirmed, inquiryId }) {
   if (!offer) return null;
 
-  const statusColor = offerAccepted ? "mint" : offerDeclined ? "red" : "amber";
-  const statusLabel = offerAccepted ? "Accepted" : offerDeclined ? "Declined" : "Pending";
+  const changesRequested = offer.status === "changes_requested";
+  const statusColor = offerAccepted ? "mint" : offerDeclined ? "red" : changesRequested ? "violet" : "amber";
+  const statusLabel = offerAccepted ? "Accepted" : offerDeclined ? "Declined" : changesRequested ? "Changes requested" : "Pending";
   const isCash = offer.proposalType === "cash";
 
   return (
@@ -646,6 +653,7 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
         <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
           statusColor === "mint"  ? "bg-[var(--mint-50)]  text-[var(--mint-700)]"
         : statusColor === "red"   ? "bg-red-50 text-red-600"
+        : statusColor === "violet" ? "bg-[var(--violet-50)] text-[var(--violet-700)]"
         :                           "bg-[var(--amber-50)] text-[var(--amber-600)]"
         }`}>{statusLabel}</span>
       </div>
@@ -916,10 +924,11 @@ function VendorInquiryDetailInner() {
     submittedAt, marketplaceBooking,
   } = inquiry;
 
-  const bookingTipCents  = marketplaceBooking?.tipCents ?? proposalTipCents ?? 0;
+  const bookingTipCents  = displayTipCents(inquiry);
   const offerAccepted    = activeOffer?.status === "accepted";
   const offerDeclined    = !activeOffer && lastOffer?.status === "declined";
-  const displayOffer     = activeOffer || (offerDeclined ? lastOffer : null);
+  const offerChangesRequested = !activeOffer && lastOffer?.status === "changes_requested";
+  const displayOffer     = activeOffer || ((offerDeclined || offerChangesRequested) ? lastOffer : null);
   const hasOffer         = !!activeOffer;
   const needsProposal    = !hasOffer || offerDeclined;
   const canRevise        = hasOffer && !offerAccepted && !offerDeclined;
@@ -938,7 +947,7 @@ function VendorInquiryDetailInner() {
 
   const primaryHref = (offerDeclined || canRevise || (needsProposal && !offerDeclined && !isExpired && !isVendorDeclined))
     ? `/dashboard/inquiries/${id}/offer/new` : null;
-  const primaryLabel = offerDeclined ? "Send New Offer" : canRevise ? "Revise Offer" : "Counter Offer";
+  const primaryLabel = offerDeclined ? "Send New Offer" : offerChangesRequested ? "Review Tip & Send Offer" : canRevise ? "Revise Offer" : "Counter Offer";
 
   return (
     <div className="min-h-screen" style={{ background: "var(--gray-50)" }}>
@@ -1063,6 +1072,18 @@ function VendorInquiryDetailInner() {
             <div>
               <p className="text-[13px] font-semibold text-red-700">Offer declined</p>
               <p className="text-xs text-red-500 mt-0.5">The coordinator declined your proposal. Send a revised offer to keep things moving.</p>
+            </div>
+          </div>
+        )}
+
+        {offerChangesRequested && (
+          <div className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-[var(--violet-50)] border border-[var(--violet-100)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <div>
+              <p className="text-[13px] font-semibold text-[var(--violet-800)]">Tip updated</p>
+              <p className="text-xs text-[var(--violet-600)] mt-0.5">The coordinator changed the committed tip. Send an updated offer to continue.</p>
             </div>
           </div>
         )}

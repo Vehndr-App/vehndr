@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { listOffers, acceptOffer, declineOffer } from "../../../../services/offers";
-import { getInquiry, sendMessage } from "../../../../services/inquiries";
+import { getInquiry, sendMessage, updateInquiryTip } from "../../../../services/inquiries";
 
 function formatPrice(cents) {
   if (!cents) return "$0";
@@ -21,6 +21,12 @@ function fmtExact(cents) {
     style: "currency", currency: "USD",
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(cents / 100);
+}
+
+function displayTipCents(inquiry) {
+  const booking = inquiry?.marketplaceBooking;
+  if (!booking) return inquiry?.tipCents ?? 0;
+  return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
 }
 
 function CostBreakdown({ offer, tipCents = 0 }) {
@@ -97,6 +103,69 @@ function CostBreakdown({ offer, tipCents = 0 }) {
   );
 }
 
+function TipEditor({ tipCents = 0, onTipUpdate }) {
+  const [editing, setEditing] = useState(false);
+  const [input, setInput] = useState(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+  }, [editing, tipCents]);
+
+  async function handleSave() {
+    const newCents = Math.round(parseFloat(input || 0) * 100);
+    setEditing(false);
+    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+
+    setSaving(true);
+    try {
+      await onTipUpdate?.(newCents);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="px-5 py-4 border-t border-[var(--gray-100)]">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-[var(--gray-700)]">Tip</p>
+          <p className="text-xs text-[var(--gray-400)] mt-0.5">Changing this sends the offer back to vendor review.</p>
+        </div>
+        {editing ? (
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-[var(--gray-400)]">$</span>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onBlur={handleSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleSave();
+                if (e.key === "Escape") setEditing(false);
+              }}
+              autoFocus
+              disabled={saving}
+              className="w-24 text-right px-3 py-2 rounded-[var(--radius-md)] border border-[var(--violet-300)] bg-white text-base sm:text-sm outline-none focus:ring-2 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+            />
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={saving}
+            className="px-3 py-2 rounded-[var(--radius-md)] border border-[var(--violet-200)] text-sm font-semibold text-[var(--violet-600)] hover:bg-[var(--violet-50)] transition-colors disabled:opacity-50"
+          >
+            {saving ? "Saving..." : tipCents > 0 ? `${formatPrice(tipCents)} · Edit` : "Add tip"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function formatDate(dateStr) {
   if (!dateStr) return null;
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -133,7 +202,7 @@ function getExpiryInfo(expiresAt) {
 
 // ─── Active Offer Card ────────────────────────────────────────────────────────
 
-function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, accepting, declining, actionsInFooter }) {
+function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, onTipUpdate, accepting, declining, actionsInFooter }) {
   const isExpired = offer.expiresAt && new Date(offer.expiresAt) < new Date();
   const isPending = offer.status === "pending" && !isExpired;
   const expiryInfo = getExpiryInfo(offer.expiresAt);
@@ -256,6 +325,10 @@ function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestC
           </div>
         )}
       </div>
+
+      {isPending && offer.proposalType === "cash" && (
+        <TipEditor tipCents={tipCents} onTipUpdate={onTipUpdate} />
+      )}
 
       {/* Cost breakdown for pending cash offers */}
       {isPending && offer.proposalType === "cash" && (
@@ -448,7 +521,9 @@ function OfferSkeleton() {
 
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
-function NoOfferState({ inquiryId }) {
+function NoOfferState({ inquiryId, lastOffer }) {
+  const waitingForTipReview = lastOffer?.status === "changes_requested";
+
   return (
     <div className="bg-white rounded-[var(--radius-xl)] border border-[var(--gray-100)] flex flex-col items-center justify-center py-16 text-center px-6">
       <div className="w-14 h-14 rounded-2xl mb-4 flex items-center justify-center bg-[var(--gray-100)]">
@@ -459,9 +534,13 @@ function NoOfferState({ inquiryId }) {
           <line x1="16" y1="17" x2="8" y2="17"/>
         </svg>
       </div>
-      <p className="text-sm font-semibold text-[var(--gray-700)]">No offer yet</p>
+      <p className="text-sm font-semibold text-[var(--gray-700)]">
+        {waitingForTipReview ? "Tip sent for review" : "No offer yet"}
+      </p>
       <p className="text-xs text-[var(--gray-400)] mt-1 mb-5 max-w-xs">
-        The vendor hasn't sent a proposal yet. Check back after you've chatted.
+        {waitingForTipReview
+          ? "The vendor needs to review the updated tip and send a new offer before you can accept."
+          : "The vendor hasn't sent a proposal yet. Check back after you've chatted."}
       </p>
       <Link
         href={`/messages/${inquiryId}`}
@@ -490,17 +569,20 @@ export default function OfferPage() {
   const [requestText,         setRequestText]         = useState("");
   const [sendingRequest,      setSendingRequest]      = useState(false);
   const [error,               setError]               = useState(null);
+  const [notice,              setNotice]              = useState(null);
+
+  const refreshOfferState = useCallback(async () => {
+    const [offerList, inq] = await Promise.all([listOffers(inquiryId), getInquiry(inquiryId)]);
+    setOffers(offerList);
+    setInquiry(inq);
+  }, [inquiryId]);
 
   useEffect(() => {
     if (!user) { router.push("/login"); return; }
-    Promise.all([listOffers(inquiryId), getInquiry(inquiryId)])
-      .then(([offerList, inq]) => {
-        setOffers(offerList);
-        setInquiry(inq);
-      })
+    refreshOfferState()
       .catch(() => setError("Failed to load offer."))
       .finally(() => setLoading(false));
-  }, [user, router, inquiryId]);
+  }, [user, router, refreshOfferState]);
 
   async function handleAccept() {
     const active = offers.find((o) => o.isActive);
@@ -549,10 +631,27 @@ export default function OfferPage() {
     }
   }
 
+  async function handleTipUpdate(newTipCents) {
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await updateInquiryTip(inquiryId, newTipCents);
+      await refreshOfferState();
+      if (result?.requiresVendorReview) {
+        setNotice("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
+      }
+    } catch (err) {
+      setError(err.message ?? "Failed to update tip.");
+      throw err;
+    }
+  }
+
   if (!user) return null;
 
   const activeOffer = offers.find((o) => o.isActive);
+  const lastOffer = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
   const vendorName = inquiry?.vendor?.name ?? "Vendor";
+  const displayTip = displayTipCents(inquiry);
 
   const isActiveExpired = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
   const isActivePending = activeOffer?.status === "pending" && !isActiveExpired && !declined;
@@ -578,7 +677,7 @@ export default function OfferPage() {
           {/* Active offer price in header when pending */}
           {activeOffer?.status === "pending" && !isActiveExpired && (
             <span className="flex-shrink-0 text-[13px] font-bold text-[var(--violet-600)] bg-[var(--violet-50)] px-3 py-1 rounded-full">
-              {formatPrice(activeOffer.totalPriceCents + (inquiry?.marketplaceBooking?.tipCents ?? inquiry?.tipCents ?? 0))}
+              {formatPrice(activeOffer.totalPriceCents + displayTip)}
             </span>
           )}
         </div>
@@ -590,9 +689,17 @@ export default function OfferPage() {
           {loading ? (
             <OfferSkeleton />
           ) : !activeOffer ? (
-            <NoOfferState inquiryId={inquiryId} />
+            <NoOfferState inquiryId={inquiryId} lastOffer={lastOffer} />
           ) : (
             <>
+              {notice && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] bg-[var(--violet-50)] border border-[var(--violet-100)]">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <p className="text-sm text-[var(--violet-700)] font-medium">{notice}</p>
+                </div>
+              )}
               {declined && (
                 <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] bg-[var(--gray-50)] border border-[var(--gray-200)]">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-500)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
@@ -616,6 +723,7 @@ export default function OfferPage() {
                 onAccept={handleAccept}
                 onDecline={handleDecline}
                 onRequestChanges={() => setShowRequestChanges(true)}
+                onTipUpdate={handleTipUpdate}
                 accepting={accepting}
                 declining={declining}
                 actionsInFooter={isActivePending}
@@ -650,7 +758,7 @@ export default function OfferPage() {
                 <div>
                   <p className="text-[14px] font-bold text-[var(--gray-900)]">Request Changes</p>
                   <p className="text-[12px] text-[var(--gray-500)] mt-0.5 leading-snug">
-                    Describe what you'd like revised — the vendor will update their offer.
+                    Describe what you would like revised. The vendor will update their offer.
                   </p>
                 </div>
                 <button
@@ -685,7 +793,7 @@ export default function OfferPage() {
               {activeOffer && (
                 <div className="flex items-center justify-between mb-3 px-1">
                   <p className="text-[12px] text-[var(--gray-500)]">Offer from <span className="font-semibold text-[var(--gray-700)]">{vendorName}</span></p>
-                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents + (inquiry?.marketplaceBooking?.tipCents ?? inquiry?.tipCents ?? 0))}</p>
+                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents + displayTip)}</p>
                 </div>
               )}
               {/* Accept — full-width, prominent */}

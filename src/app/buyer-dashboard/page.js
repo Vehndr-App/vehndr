@@ -75,6 +75,12 @@ function formatPrice(cents) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
 }
 
+function displayTipCents(inquiry) {
+  const booking = inquiry?.marketplaceBooking;
+  if (!booking) return inquiry?.tipCents ?? 0;
+  return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
+}
+
 function greeting() {
   const h = new Date().getHours();
   if (h < 12) return "Good morning";
@@ -117,7 +123,7 @@ function ProposalCard({ inquiry, onDelete }) {
   const needsAction = inquiry.status === "actions_needed";
   const isPaid      = offer?.paymentStatus === "deposit_paid" || offer?.paymentStatus === "fully_paid";
 
-  const tip   = inquiry.marketplaceBooking?.tipCents ?? inquiry.tipCents ?? 0;
+  const tip   = displayTipCents(inquiry);
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
     ? formatPrice(offer.totalPriceCents + tip)
@@ -291,13 +297,13 @@ export default function BuyerDashboardHome() {
               {user?.name ? user.name.split(" ")[0] : "My"}&rsquo;s Proposals
             </h1>
           </div>
-          <a
+          <Link
             href="/vendors"
             className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-[var(--gray-900)] text-white text-[13px] font-semibold"
             style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}
           >
             New Proposal
-          </a>
+          </Link>
         </div>
 
         {/* Filter chips */}

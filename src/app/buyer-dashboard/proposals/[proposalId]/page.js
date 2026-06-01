@@ -78,6 +78,12 @@ const fmtC = (c) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(c / 100);
 
+function displayTipCents(inquiry) {
+  const booking = inquiry?.marketplaceBooking;
+  if (!booking) return inquiry?.tipCents ?? 0;
+  return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
+}
+
 function formatLoadTime(stored) {
   if (!stored) return stored;
   const m = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
@@ -651,6 +657,7 @@ export default function ProposalDetailPage() {
   const canEdit   = !activeOffer && !isPaid && status !== "scheduled" && status !== "completed" && status !== "expired";
   const booking          = inquiry.marketplaceBooking;
   const isCash           = activeOffer?.proposalType === "cash";
+  const displayTip       = displayTipCents(inquiry);
   const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);
   const canTip           = isPaid && isCash && !!booking && !hasPostPaymentTip && !isCancelled;
   // Deletable only until the vendor views it; cancellable once viewed (any non-terminal state).
@@ -753,7 +760,7 @@ export default function ProposalDetailPage() {
                 }}
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                Review Offer — {formatPrice(activeOffer.totalPriceCents + (inquiry.marketplaceBooking?.tipCents ?? tipCents ?? 0))}
+                Review Offer — {formatPrice(activeOffer.totalPriceCents + displayTip)}
               </Link>
             )}
 

@@ -63,6 +63,11 @@ function notificationLink(n) {
       ? `/dashboard/inquiries/${inquiry_id}`
       : `/messages/${inquiry_id}`;
   }
+  if (n.type === "tip_updated") {
+    return recipient_role === "vendor"
+      ? `/dashboard/inquiries/${inquiry_id}`
+      : `/messages/${inquiry_id}`;
+  }
   return `/messages/${inquiry_id}`;
 }
 

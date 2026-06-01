@@ -621,7 +621,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                       />
                     </div>
                     <p className="text-xs text-[var(--gray-400)] mt-1.5">
-                      Collected at checkout.
+                      You can also tip after service is complete, or add more to current tip 🤪 once the booking is completed.
                     </p>
                   </div>
                 </section>
