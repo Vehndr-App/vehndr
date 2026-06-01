@@ -23,6 +23,12 @@ function fmtExact(cents) {
   }).format(cents / 100);
 }
 
+function displayTipCents(inquiry) {
+  const booking = inquiry?.marketplaceBooking;
+  if (!booking) return inquiry?.tipCents ?? 0;
+  return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
+}
+
 function CostBreakdown({ offer, tipCents = 0 }) {
   const [open, setOpen] = useState(false);
   const base       = offer.totalPriceCents;
@@ -645,6 +651,7 @@ export default function OfferPage() {
   const activeOffer = offers.find((o) => o.isActive);
   const lastOffer = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
   const vendorName = inquiry?.vendor?.name ?? "Vendor";
+  const displayTip = displayTipCents(inquiry);
 
   const isActiveExpired = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
   const isActivePending = activeOffer?.status === "pending" && !isActiveExpired && !declined;
@@ -670,7 +677,7 @@ export default function OfferPage() {
           {/* Active offer price in header when pending */}
           {activeOffer?.status === "pending" && !isActiveExpired && (
             <span className="flex-shrink-0 text-[13px] font-bold text-[var(--violet-600)] bg-[var(--violet-50)] px-3 py-1 rounded-full">
-              {formatPrice(activeOffer.totalPriceCents + (inquiry?.marketplaceBooking?.tipCents ?? inquiry?.tipCents ?? 0))}
+              {formatPrice(activeOffer.totalPriceCents + displayTip)}
             </span>
           )}
         </div>
@@ -786,7 +793,7 @@ export default function OfferPage() {
               {activeOffer && (
                 <div className="flex items-center justify-between mb-3 px-1">
                   <p className="text-[12px] text-[var(--gray-500)]">Offer from <span className="font-semibold text-[var(--gray-700)]">{vendorName}</span></p>
-                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents + (inquiry?.marketplaceBooking?.tipCents ?? inquiry?.tipCents ?? 0))}</p>
+                  <p className="text-[15px] font-bold text-[var(--gray-900)]">{formatPrice(activeOffer.totalPriceCents + displayTip)}</p>
                 </div>
               )}
               {/* Accept — full-width, prominent */}

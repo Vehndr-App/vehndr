@@ -51,6 +51,12 @@ function fmt$(cents) {
   }).format(cents / 100);
 }
 
+function displayTipCents(inquiry) {
+  const booking = inquiry?.marketplaceBooking;
+  if (!booking) return inquiry?.tipCents ?? 0;
+  return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
+}
+
 function fmtDate(raw, opts = { month: "short", day: "numeric", year: "numeric" }) {
   if (!raw) return null;
   return new Date(raw).toLocaleDateString("en-US", opts);
@@ -918,7 +924,7 @@ function VendorInquiryDetailInner() {
     submittedAt, marketplaceBooking,
   } = inquiry;
 
-  const bookingTipCents  = marketplaceBooking?.tipCents ?? proposalTipCents ?? 0;
+  const bookingTipCents  = displayTipCents(inquiry);
   const offerAccepted    = activeOffer?.status === "accepted";
   const offerDeclined    = !activeOffer && lastOffer?.status === "declined";
   const offerChangesRequested = !activeOffer && lastOffer?.status === "changes_requested";
