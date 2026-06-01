@@ -31,6 +31,7 @@ const STATUS_LABELS = {
   scheduled:      "Booked",
   completed:      "Completed",
   expired:        "Expired",
+  cancelled:      "Cancelled",
 };
 
 const STATUS_LABELS_VENDOR = {
@@ -43,6 +44,7 @@ const STATUS_LABELS_VENDOR = {
   scheduled:      "Booked",
   completed:      "Completed",
   expired:        "Expired",
+  cancelled:      "Cancelled",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,6 +74,16 @@ function formatPrice(cents) {
 function dollarsToC(val) {
   const n = parseFloat(val);
   return isNaN(n) ? null : Math.round(n * 100);
+}
+
+function isProposalCancelled(inquiry) {
+  return inquiry?.status === "cancelled" || inquiry?.marketplaceBooking?.status === "cancelled";
+}
+
+function getEffectiveOfferStatus(offer, inquiry) {
+  if (!offer) return null;
+  if (isProposalCancelled(inquiry)) return "cancelled";
+  return offer.status;
 }
 
 // ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
@@ -177,6 +189,7 @@ function StatusBadge({ status, isVendor }) {
     scheduled:      "bg-[var(--mint-50)]    text-[var(--mint-700)]",
     completed:      "bg-[var(--mint-50)]    text-[var(--mint-700)]",
     expired:        "bg-[var(--gray-100)]   text-[var(--gray-500)]",
+    cancelled:      "bg-[var(--error-50)]   text-[var(--error)]",
   };
 
   const dotColors = {
@@ -189,6 +202,7 @@ function StatusBadge({ status, isVendor }) {
     scheduled:      "bg-[var(--mint-500)]",
     completed:      "bg-[var(--mint-500)]",
     expired:        "bg-[var(--gray-300)]",
+    cancelled:      "bg-[var(--error)]",
   };
 
   return (
@@ -303,13 +317,14 @@ function StatusTimeline({ inquiry }) {
 
 // ─── Offer Card (in message stream) ──────────────────────────────────────────
 
-function OfferCard({ offer }) {
+function OfferCard({ offer, inquiry }) {
   const statusConfig = {
     pending:  { label: "Awaiting review", style: "bg-[var(--amber-50)] text-[var(--amber-700)]" },
     accepted: { label: "Accepted",        style: "bg-[var(--mint-50)] text-[var(--mint-700)]"   },
     declined: { label: "Declined",        style: "bg-[var(--gray-100)] text-[var(--gray-500)]"  },
+    cancelled: { label: "Cancelled",      style: "bg-[var(--error-50)] text-[var(--error)]"     },
   };
-  const cfg = statusConfig[offer.status] ?? statusConfig.pending;
+  const cfg = statusConfig[getEffectiveOfferStatus(offer, inquiry)] ?? statusConfig.pending;
 
   return (
     <div className="my-3 bg-white rounded-2xl overflow-hidden border border-[var(--gray-100)]" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -666,10 +681,13 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
 
   const activeOffer   = offers.find((o) => o.isActive);
   const lastOffer     = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
-  const offerDeclined = !activeOffer && lastOffer?.status === "declined";
-  const isExpired     = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
-  const isPending     = activeOffer?.status === "pending" && !isExpired;
-  const isAccepted    = activeOffer?.status === "accepted";
+  const proposalCancelled = isProposalCancelled(inquiry);
+  const offerStatus   = getEffectiveOfferStatus(activeOffer, inquiry);
+  const offerDeclined = !proposalCancelled && !activeOffer && lastOffer?.status === "declined";
+  const isExpired     = !proposalCancelled && activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
+  const isPending     = offerStatus === "pending" && !isExpired;
+  const isAccepted    = offerStatus === "accepted";
+  const isCancelled   = offerStatus === "cancelled";
 
   const expiryInfo = activeOffer?.expiresAt
     ? (() => {
@@ -746,6 +764,17 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   return (
     <div className="p-4 pb-28 space-y-4">
 
+      {proposalCancelled && !activeOffer && (
+        <div className="rounded-2xl border border-[var(--error-100)] bg-[var(--error-50)] p-5">
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 text-[var(--error)] uppercase tracking-wide">
+            Cancelled
+          </span>
+          <p className="text-xs text-[var(--gray-600)] leading-relaxed mt-3">
+            This proposal was cancelled. You can still message here, but this offer is no longer active.
+          </p>
+        </div>
+      )}
+
       {/* Declined offer state */}
       {offerDeclined && (
         <div className="rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-5">
@@ -764,7 +793,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
       )}
 
       {/* No offer yet */}
-      {!activeOffer && !offerDeclined && (
+      {!proposalCancelled && !activeOffer && !offerDeclined && (
         <div className="rounded-2xl border-2 border-dashed border-[var(--gray-200)] p-8 text-center">
           <div className="w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center bg-[var(--violet-50)]">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -802,6 +831,11 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                   Revised
                 </span>
               )}
+              {isCancelled && (
+                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--error-50)] text-[var(--error)]">
+                  Cancelled
+                </span>
+              )}
             </div>
 
             <p className={`text-3xl font-bold tracking-tight ${isAccepted ? "text-[var(--mint-700)]" : isExpired ? "text-[var(--gray-400)]" : "text-[var(--gray-900)]"}`}>
@@ -827,7 +861,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                   <span className="text-xs font-semibold text-[var(--gray-700)]">{formatPrice(activeOffer.remainingBalanceCents)}</span>
                 </div>
               )}
-              {expiryInfo && !expiryInfo.expired && (
+              {!isCancelled && expiryInfo && !expiryInfo.expired && (
                 <div className="flex justify-between">
                   <span className="text-xs text-[var(--gray-500)]">Offer expires</span>
                   <span className={`text-xs font-semibold ${expiryInfo.urgent ? "text-[var(--coral-600)]" : "text-[var(--gray-700)]"}`}>
@@ -835,7 +869,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                   </span>
                 </div>
               )}
-              {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
+              {!isCancelled && activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
                 <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
                   <span className="text-xs text-[var(--gray-500)]">Tip</span>
                   {editingTip ? (
@@ -1058,10 +1092,13 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
 
   const activeOffer   = offers.find((o) => o.isActive);
   const lastOffer     = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
-  const offerDeclined = !activeOffer && lastOffer?.status === "declined";
-  const isExpired     = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
-  const isPending     = activeOffer?.status === "pending" && !isExpired;
-  const isAccepted    = activeOffer?.status === "accepted";
+  const proposalCancelled = isProposalCancelled(inquiry);
+  const offerStatus   = getEffectiveOfferStatus(activeOffer, inquiry);
+  const offerDeclined = !proposalCancelled && !activeOffer && lastOffer?.status === "declined";
+  const isExpired     = !proposalCancelled && activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
+  const isPending     = offerStatus === "pending" && !isExpired;
+  const isAccepted    = offerStatus === "accepted";
+  const isCancelled   = offerStatus === "cancelled";
 
   const expiryInfo = activeOffer?.expiresAt
     ? (() => {
@@ -1145,7 +1182,9 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
         </h3>
         {(activeOffer || offerDeclined) && (
           <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full tracking-wide ${
-            isAccepted
+            isCancelled
+              ? "bg-[var(--error-50)] text-[var(--error)]"
+              : isAccepted
               ? "bg-[var(--mint-50)] text-[var(--mint-700)]"
               : offerDeclined
               ? "bg-[var(--gray-100)] text-[var(--gray-500)]"
@@ -1153,12 +1192,23 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
               ? "bg-[var(--coral-50)] text-[var(--coral-600)]"
               : "bg-[var(--gray-100)] text-[var(--gray-500)]"
           }`}>
-            {isAccepted ? "Accepted ✓" : offerDeclined ? "Declined" : isExpired ? "Expired" : isPending ? "Review Needed" : activeOffer?.status}
+            {isCancelled ? "Cancelled" : isAccepted ? "Accepted ✓" : offerDeclined ? "Declined" : isExpired ? "Expired" : isPending ? "Review Needed" : activeOffer?.status}
           </span>
         )}
       </div>
 
       <div className="flex-1 p-5 space-y-4 overflow-y-auto">
+
+        {proposalCancelled && !activeOffer && (
+          <div className="rounded-2xl border border-[var(--error-100)] bg-[var(--error-50)] p-5">
+            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/70 text-[var(--error)] uppercase tracking-wide">
+              Cancelled
+            </span>
+            <p className="text-xs text-[var(--gray-600)] leading-relaxed mt-3">
+              This proposal was cancelled. You can still message here, but this offer is no longer active.
+            </p>
+          </div>
+        )}
 
         {/* Declined offer state */}
         {offerDeclined && (
@@ -1178,7 +1228,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
         )}
 
         {/* No offer yet */}
-        {!activeOffer && !offerDeclined && (
+        {!proposalCancelled && !activeOffer && !offerDeclined && (
           <div className="rounded-2xl border-2 border-dashed border-[var(--gray-200)] p-6 text-center">
             <div className="w-10 h-10 mx-auto mb-3 rounded-xl flex items-center justify-center bg-[var(--violet-50)]">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -1216,6 +1266,11 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     Revised
                   </span>
                 )}
+                {isCancelled && (
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-[var(--error-50)] text-[var(--error)]">
+                    Cancelled
+                  </span>
+                )}
               </div>
 
               <p className={`text-3xl font-bold tracking-tight ${isAccepted ? "text-[var(--mint-700)]" : isExpired ? "text-[var(--gray-400)]" : "text-[var(--gray-900)]"}`}>
@@ -1241,7 +1296,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     <span className="text-xs font-semibold text-[var(--gray-700)]">{formatPrice(activeOffer.remainingBalanceCents)}</span>
                   </div>
                 )}
-                {expiryInfo && !expiryInfo.expired && (
+                {!isCancelled && expiryInfo && !expiryInfo.expired && (
                   <div className="flex justify-between">
                     <span className="text-xs text-[var(--gray-500)]">Offer expires</span>
                     <span className={`text-xs font-semibold ${expiryInfo.urgent ? "text-[var(--coral-600)]" : "text-[var(--gray-700)]"}`}>
@@ -1249,7 +1304,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     </span>
                   </div>
                 )}
-                {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
+                {!isCancelled && activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
                   <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
                     <span className="text-xs text-[var(--gray-500)]">Tip</span>
                     {editingTip ? (
@@ -1606,12 +1661,14 @@ export default function InquiryThreadPage() {
   const status            = inquiry?.status ?? "submitted";
   const activeOffer       = offers.find((o) => o.isActive);
   const lastOffer         = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
-  const offerDeclined     = !activeOffer && lastOffer?.status === "declined";
+  const proposalCancelled = isProposalCancelled(inquiry);
+  const activeOfferStatus = getEffectiveOfferStatus(activeOffer, inquiry);
+  const offerDeclined     = !proposalCancelled && !activeOffer && lastOffer?.status === "declined";
   const effectiveStatus   = !isVendor && offerDeclined ? "offer_declined" : status;
   const otherPartyName    = isVendor ? (inquiry?.customer?.name ?? "Customer") : (inquiry?.vendor?.name ?? "Vendor");
   const otherPartyInitial = otherPartyName.charAt(0).toUpperCase();
 
-  const hasPendingOffer = activeOffer?.status === "pending";
+  const hasPendingOffer = activeOfferStatus === "pending";
 
   return (
     <div className="flex flex-col h-[calc(100dvh-3.5rem)]" style={{ background: "var(--background)" }}>
@@ -1647,7 +1704,7 @@ export default function InquiryThreadPage() {
           {/* Vendor: accepted badge + view inquiry button */}
           {isVendor && (
             <div className="flex items-center gap-2 flex-shrink-0">
-              {activeOffer?.status === "accepted" && (
+              {activeOfferStatus === "accepted" && (
                 <span className="hidden sm:inline-flex text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[var(--mint-50)] text-[var(--mint-700)] tracking-wide">
                   Accepted ✓
                 </span>
@@ -1755,7 +1812,7 @@ export default function InquiryThreadPage() {
 
                       {isOfferContextMessage && activeOffer && (
                         <div className="ml-9">
-                          <OfferCard offer={activeOffer} />
+                          <OfferCard offer={activeOffer} inquiry={inquiry} />
                         </div>
                       )}
                     </div>
