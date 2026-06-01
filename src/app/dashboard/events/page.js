@@ -70,7 +70,7 @@ function VendorEventsInner() {
       <div className="bg-white border-b border-[var(--gray-100)] sticky top-0 z-10">
         <div className="max-w-lg mx-auto px-4 pt-5 pb-4">
           <h1 className="text-xl font-display font-bold text-[var(--gray-900)]">My Events</h1>
-          <p className="text-sm text-[var(--gray-400)] mt-0.5">Events you're booked to vend at</p>
+          <p className="text-sm text-[var(--gray-400)] mt-0.5">Events you are booked to vend at</p>
 
           {/* Tabs */}
           <div className="flex gap-1 mt-4 bg-[var(--gray-100)] rounded-xl p-1">

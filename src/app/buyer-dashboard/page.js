@@ -291,13 +291,13 @@ export default function BuyerDashboardHome() {
               {user?.name ? user.name.split(" ")[0] : "My"}&rsquo;s Proposals
             </h1>
           </div>
-          <a
+          <Link
             href="/vendors"
             className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-[var(--gray-900)] text-white text-[13px] font-semibold"
             style={{ boxShadow: "0 1px 4px rgba(0,0,0,0.15)" }}
           >
             New Proposal
-          </a>
+          </Link>
         </div>
 
         {/* Filter chips */}

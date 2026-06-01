@@ -308,6 +308,7 @@ function OfferCard({ offer }) {
     pending:  { label: "Awaiting review", style: "bg-[var(--amber-50)] text-[var(--amber-700)]" },
     accepted: { label: "Accepted",        style: "bg-[var(--mint-50)] text-[var(--mint-700)]"   },
     declined: { label: "Declined",        style: "bg-[var(--gray-100)] text-[var(--gray-500)]"  },
+    changes_requested: { label: "Changes requested", style: "bg-[var(--violet-50)] text-[var(--violet-700)]" },
   };
   const cfg = statusConfig[offer.status] ?? statusConfig.pending;
 
@@ -667,6 +668,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   const activeOffer   = offers.find((o) => o.isActive);
   const lastOffer     = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
   const offerDeclined = !activeOffer && lastOffer?.status === "declined";
+  const offerChangesRequested = !activeOffer && lastOffer?.status === "changes_requested";
   const isExpired     = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
   const isPending     = activeOffer?.status === "pending" && !isExpired;
   const isAccepted    = activeOffer?.status === "accepted";
@@ -717,8 +719,14 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
     if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
     setSavingTip(true);
+    setActionError(null);
     try {
-      await onTipUpdate?.(newCents);
+      const result = await onTipUpdate?.(newCents);
+      if (result?.requiresVendorReview) {
+        setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
+      }
+    } catch (err) {
+      setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
@@ -771,9 +779,13 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
             </svg>
           </div>
-          <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">Proposal sent</p>
+          <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">
+            {offerChangesRequested ? "Tip sent for review" : "Proposal sent"}
+          </p>
           <p className="text-xs text-[var(--gray-400)] leading-relaxed max-w-xs mx-auto">
-            The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply.
+            {offerChangesRequested
+              ? "The vendor needs to review the updated tip and send a new offer before you can accept."
+              : "The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply."}
           </p>
         </div>
       )}
@@ -1059,6 +1071,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   const activeOffer   = offers.find((o) => o.isActive);
   const lastOffer     = offers.length > 0 ? offers.reduce((a, b) => (a.versionNumber > b.versionNumber ? a : b)) : null;
   const offerDeclined = !activeOffer && lastOffer?.status === "declined";
+  const offerChangesRequested = !activeOffer && lastOffer?.status === "changes_requested";
   const isExpired     = activeOffer?.expiresAt && new Date(activeOffer.expiresAt) < new Date();
   const isPending     = activeOffer?.status === "pending" && !isExpired;
   const isAccepted    = activeOffer?.status === "accepted";
@@ -1109,8 +1122,14 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
     if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
     setSavingTip(true);
+    setActionError(null);
     try {
-      await onTipUpdate?.(newCents);
+      const result = await onTipUpdate?.(newCents);
+      if (result?.requiresVendorReview) {
+        setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
+      }
+    } catch (err) {
+      setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
@@ -1185,9 +1204,13 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">Proposal sent</p>
+            <p className="text-sm font-semibold text-[var(--gray-700)] mb-1">
+              {offerChangesRequested ? "Tip sent for review" : "Proposal sent"}
+            </p>
             <p className="text-xs text-[var(--gray-400)] leading-relaxed">
-              The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply.
+              {offerChangesRequested
+                ? "The vendor needs to review the updated tip and send a new offer before you can accept."
+                : "The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply."}
             </p>
           </div>
         )}
@@ -1594,10 +1617,17 @@ export default function InquiryThreadPage() {
 
   async function handleTipUpdate(newTipCents) {
     try {
-      await updateInquiryTip(inquiryId, newTipCents);
-      setInquiry((prev) => prev ? { ...prev, tipCents: newTipCents } : prev);
+      const result = await updateInquiryTip(inquiryId, newTipCents);
+      if (result?.inquiry) {
+        setInquiry(result.inquiry);
+      } else {
+        setInquiry((prev) => prev ? { ...prev, tipCents: newTipCents } : prev);
+      }
+      await Promise.all([fetchOffers(), fetchMessages(false)]);
+      return result;
     } catch (err) {
       console.error("Failed to update tip", err);
+      throw err;
     }
   }
 

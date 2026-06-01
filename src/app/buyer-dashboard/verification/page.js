@@ -28,7 +28,7 @@ export default function VerificationPage() {
         <div>
           <p className="font-semibold text-[var(--violet-800)]">Coming Soon</p>
           <p className="text-sm text-[var(--violet-700)] mt-0.5 leading-relaxed">
-            Verification Centre is under development. You'll be notified when it's live and can complete your profile verification.
+            Verification Centre is under development. You will be notified when it is live and can complete your profile verification.
           </p>
         </div>
       </div>

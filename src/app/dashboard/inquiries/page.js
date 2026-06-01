@@ -46,7 +46,7 @@ function matchTab(inq, tab) {
   const s = inq.status;
   if (tab === "all")     return true;
   if (tab === "new")     return NEW_STATUSES.has(s);
-  if (tab === "pending") return PENDING_STATUSES.has(s) || inq.activeOffer?.status === "pending";
+  if (tab === "pending") return PENDING_STATUSES.has(s) || inq.activeOffer?.status === "pending" || inq.lastOffer?.status === "changes_requested";
   if (tab === "booked")  return BOOKED_STATUSES.has(s);
   if (tab === "done")    return DONE_STATUSES.has(s);
   return true;
@@ -107,16 +107,19 @@ function InquiryRow({ inquiry, index }) {
   const offerPending  = activeOffer?.status === "pending";
   const offerAccepted = activeOffer?.status === "accepted";
   const offerDeclined = !activeOffer && lastOffer?.status === "declined";
+  const offerChangesRequested = !activeOffer && lastOffer?.status === "changes_requested";
   const isNew         = status === "submitted";
   const initial       = customer?.name?.charAt(0)?.toUpperCase() ?? "?";
 
   const badgeLabel = offerPending  ? "Offer sent"
                    : offerAccepted ? "Accepted"
                    : offerDeclined ? "Offer declined"
+                   : offerChangesRequested ? "Tip updated"
                    : meta.label;
   const badgeColor = offerPending  ? "violet"
                    : offerAccepted ? "mint"
                    : offerDeclined ? "coral"
+                   : offerChangesRequested ? "violet"
                    : meta.color;
 
   // Show event date if available, else fall back to inquiry created date
@@ -258,7 +261,7 @@ function Sidebar({ inquiries }) {
     total:   inquiries.length,
     newReqs: inquiries.filter((i) => NEW_STATUSES.has(i.status)).length,
     booked:  inquiries.filter((i) => BOOKED_STATUSES.has(i.status)).length,
-    pending: inquiries.filter((i) => i.activeOffer?.status === "pending").length,
+    pending: inquiries.filter((i) => i.activeOffer?.status === "pending" || i.lastOffer?.status === "changes_requested").length,
   }), [inquiries]);
 
   const unread = notifications.filter((n) => !n.readAt).length;

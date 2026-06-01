@@ -146,7 +146,9 @@ function NewProposalInner() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [activeOffer, setActiveOffer] = useState(null);
+  const [prefillOffer, setPrefillOffer] = useState(null);
   const isEditing = !!activeOffer;
+  const isPrefilledFromChangeRequest = !isEditing && !!prefillOffer;
 
   // Form state
   const [proposalType, setProposalType] = useState("cash");
@@ -167,9 +169,14 @@ function NewProposalInner() {
     if (!id) return;
     getInquiry(id)
       .then((inquiry) => {
-        const offer = inquiry?.activeOffer;
-        if (offer && offer.status === "pending") {
-          setActiveOffer(offer);
+        const active = inquiry?.activeOffer?.status === "pending" ? inquiry.activeOffer : null;
+        const requested = !active && inquiry?.lastOffer?.status === "changes_requested" ? inquiry.lastOffer : null;
+        const offer = active || requested;
+
+        setActiveOffer(active);
+        setPrefillOffer(requested);
+
+        if (offer) {
           setProposalType(offer.proposalType ?? "cash");
           setDescription(offer.description ?? "");
           setTotalPrice(offer.totalPriceCents ? (offer.totalPriceCents / 100).toString() : "");
@@ -245,11 +252,16 @@ function NewProposalInner() {
             Inquiry
           </Link>
           <h1 className="text-xl font-bold text-[var(--gray-900)]">
-            {isEditing ? "Respond to Proposal" : "Create Proposal"}
+            {isEditing || isPrefilledFromChangeRequest ? "Respond to Proposal" : "Create Proposal"}
           </h1>
           {isEditing && (
             <p className="text-sm text-[var(--gray-500)] mt-1">
               This will create a new version (v{activeOffer.versionNumber + 1}) and notify the customer.
+            </p>
+          )}
+          {isPrefilledFromChangeRequest && (
+            <p className="text-sm text-[var(--gray-500)] mt-1">
+              The coordinator updated the tip. Review the terms and send a new version.
             </p>
           )}
         </div>
