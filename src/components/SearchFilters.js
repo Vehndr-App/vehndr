@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CATEGORY_DISPLAY } from "../constants/categories";
+import { getVendorCategoryLabel, normalizeVendorCategories } from "../constants/categories";
 
-export default function SearchFilters({ categories = [], variant = "full" }) {
+export default function SearchFilters({ categories = [], variant = "full", basePath = "/", eventType = "" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -18,7 +18,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
 
   // Initialize selected categories from URL params (supports multiple categories)
   const initialCategories = searchParams.get("category")
-    ? searchParams.get("category").split(',').filter(Boolean)
+    ? normalizeVendorCategories(searchParams.get("category").split(',').filter(Boolean))
     : [];
 
   const [filters, setFilters] = useState({
@@ -79,6 +79,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
   const applyFilters = () => {
     const params = new URLSearchParams();
     if (searchQuery) params.set("search", searchQuery);
+    if (eventType) params.set("event_type", eventType);
     if (filters.categories && filters.categories.length > 0) {
       params.set("category", filters.categories.join(','));
     }
@@ -92,7 +93,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
       params.set("lng", userLocation.lng.toString());
     }
 
-    router.push(`/?${params.toString()}`);
+    router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
     setIsFiltersOpen(false);
     setIsDateOpen(false);
   };
@@ -109,7 +110,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
     });
     setSelectedDate(null);
     setUserLocation(null);
-    router.push("/");
+    router.push(basePath);
   };
 
   // Count active filters (categories array counts as 1 if not empty)
@@ -517,7 +518,7 @@ export default function SearchFilters({ categories = [], variant = "full" }) {
                   {categories.map(cat => (
                     <FilterChip
                       key={cat}
-                      label={CATEGORY_DISPLAY[cat]?.label || cat}
+                      label={getVendorCategoryLabel(cat)}
                       active={filters.categories.includes(cat)}
                       onClick={() => {
                         const isSelected = filters.categories.includes(cat);

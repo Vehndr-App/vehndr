@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getEvent } from "../../../services/events";
 import { listVendors } from "../../../services/vendors";
 import { getStorefrontPath } from "../../../utils/storefrontLinks";
+import { normalizeVendorCategories } from "../../../constants/categories";
 
 export default async function EventDetailPage({ params }) {
   const { eventId } = await params;
@@ -33,25 +34,15 @@ export default async function EventDetailPage({ params }) {
   // Get vendor details for this event
   const eventVendors = allVendors.filter(v => event.vendorIds.includes(v.id));
 
-  // Helper function to map vendor to single category
   const getCategoryForVendor = (vendor) => {
-    const categories = vendor.categories ?? ["Uncategorized"];
-
-    // Check if vendor has food/beverage category (priority category)
-    const hasFoodCategory = categories.some(cat =>
-      cat.toLowerCase().includes('food') || cat.toLowerCase().includes('beverage')
-    );
-
-    if (hasFoodCategory) {
-      return "Food and Drink";
-    }
-
-    return "Artisan & Craft";
+    const categories = normalizeVendorCategories(vendor.categories ?? []);
+    return categories[0] || null;
   };
 
   // Group vendors by their assigned category (each vendor in ONE section only)
   const vendorsByCategory = eventVendors.reduce((acc, vendor) => {
     const category = getCategoryForVendor(vendor);
+    if (!category) return acc;
     if (!acc[category]) {
       acc[category] = [];
     }
@@ -158,6 +149,12 @@ export default async function EventDetailPage({ params }) {
         </div>
       </div>
 
+      {/* Venue Logistics */}
+      <VenueLogistics event={event} />
+
+      {/* Per-day schedule */}
+      <DailyScheduleSection schedule={event.dailySchedule} />
+
       {/* Vendors Section */}
       <div>
         <div className="mb-8">
@@ -261,5 +258,173 @@ function VendorCard({ vendor, index }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+const LOGISTIC_CONFIG = [
+  { key: "indoorOutdoor",    label: "Setting",   icon: "🌤️", fmt: v => v === "indoor" ? "Indoor" : "Outdoor" },
+  { key: "canopyAllowed",    label: "Canopy",    icon: "⛺", fmt: v => v === "yes" ? "Allowed" : "Not allowed" },
+  { key: "accessToPower",    label: "Power",     icon: "⚡", fmt: v => v === "yes" ? "Available" : "No access" },
+  { key: "accessToWater",    label: "Water",     icon: "💧", fmt: v => v === "yes" ? "Available" : "No access" },
+  { key: "wifiAvailability", label: "WiFi",      icon: "📶", fmt: v => v === "yes" ? "Available" : "Unavailable" },
+  { key: "parkingAvailable", label: "Parking",   icon: "🅿️", fmt: v => v === "yes" ? "On-site" : v === "paid" ? "Paid on-site" : "None" },
+  { key: "securityPresence", label: "Security",  icon: "🔒", fmt: v => v === "yes" ? "On-site" : v === "na" ? "N/A" : "None" },
+];
+
+function formatLoadTime(stored) {
+  if (!stored) return stored;
+  const m = stored.match(/^(\d{4}-\d{2}-\d{2}) (.+)$/);
+  if (!m) return stored;
+  const d = new Date(m[1] + "T00:00:00");
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
+}
+
+function fmtTime(t) {
+  if (!t) return null;
+  const [h, m] = t.split(":").map(Number);
+  if (isNaN(h)) return t;
+  const period = h < 12 ? "AM" : "PM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
+
+function fmtDayLabel(dateStr) {
+  try {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  } catch { return dateStr; }
+}
+
+function DailyScheduleSection({ schedule }) {
+  if (!Array.isArray(schedule) || !schedule.length) return null;
+  const hasAnyData = schedule.some(
+    (d) => d.startTime || d.endTime || d.vendorLoadIn || d.vendorLoadOut
+  );
+  if (!hasAnyData) return null;
+
+  return (
+    <div className="rounded-[var(--radius-3xl)] bg-white shadow-[var(--shadow-lg)] p-6 sm:p-8 mb-10">
+      <h2 className="font-display text-xl sm:text-2xl tracking-tight text-[var(--gray-900)] mb-6">Daily Schedule</h2>
+      <div className="space-y-4">
+        {schedule.map((day) => {
+          const hasHours = day.startTime || day.endTime;
+          const hasLoad  = day.vendorLoadIn || day.vendorLoadOut;
+          if (!hasHours && !hasLoad) return null;
+          return (
+            <div key={day.date} className="rounded-xl border border-[var(--gray-100)] overflow-hidden">
+              <div className="px-4 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+                <p className="text-xs font-bold text-[var(--violet-600)] uppercase tracking-wide">{fmtDayLabel(day.date)}</p>
+              </div>
+              {hasHours && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--gray-50)] last:border-0">
+                  <span className="text-sm text-[var(--gray-500)]">Event hours</span>
+                  <span className="text-sm font-semibold text-[var(--gray-800)]">
+                    {[fmtTime(day.startTime), fmtTime(day.endTime)].filter(Boolean).join(" – ")}
+                  </span>
+                </div>
+              )}
+              {day.vendorLoadIn && (
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-[var(--gray-50)] last:border-0">
+                  <span className="text-sm text-[var(--gray-500)]">Vendor load-in</span>
+                  <span className="text-sm font-semibold text-[var(--gray-800)]">{fmtTime(day.vendorLoadIn) ?? day.vendorLoadIn}</span>
+                </div>
+              )}
+              {day.vendorLoadOut && (
+                <div className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-sm text-[var(--gray-500)]">Vendor load-out</span>
+                  <span className="text-sm font-semibold text-[var(--gray-800)]">{fmtTime(day.vendorLoadOut) ?? day.vendorLoadOut}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const SCHEDULE_KEYS = [
+  { key: "eventHours",    label: "Event hours" },
+  { key: "vendorLoadIn",  label: "Vendor load-in",  fmt: formatLoadTime },
+  { key: "vendorLoadOut", label: "Vendor load-out", fmt: formatLoadTime },
+  { key: "boothSize",     label: "Booth size", fmt: v => v.replace("x", " ft × ") + " ft" },
+  { key: "venueAttendees",label: "Venue capacity", fmt: v => Number(v).toLocaleString() + " people" },
+];
+
+function VenueLogistics({ event }) {
+  const filled = LOGISTIC_CONFIG.filter(c => event[c.key]);
+  const schedule = SCHEDULE_KEYS.map(c => event[c.key] ? { label: c.label, value: c.fmt ? c.fmt(event[c.key]) : event[c.key] } : null).filter(Boolean);
+  const hasReqs = event.requiresCoi || event.rsvpRequired || event.badgeRequired;
+
+  if (!filled.length && !schedule.length && !hasReqs) return null;
+
+  return (
+    <div className="rounded-[var(--radius-3xl)] bg-white shadow-[var(--shadow-lg)] p-6 sm:p-8 mb-10">
+      <h2 className="font-display text-xl sm:text-2xl tracking-tight text-[var(--gray-900)] mb-6">Venue &amp; Logistics</h2>
+
+      {filled.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 mb-6">
+          {filled.map(({ key, label, icon, fmt }) => {
+            const rawValue = event[key];
+            const pos = rawValue === "yes" || rawValue === "indoor" || rawValue === "outdoor";
+            const neg = rawValue === "no";
+            return (
+              <div
+                key={key}
+                className="flex items-center gap-2.5 px-3 py-3 rounded-xl"
+                style={{
+                  background: pos ? "var(--mint-50)" : neg ? "var(--gray-50)" : "var(--amber-50)",
+                  border: `1px solid ${pos ? "var(--mint-100)" : neg ? "var(--gray-200)" : "var(--amber-100)"}`,
+                }}
+              >
+                <span className="text-base leading-none flex-shrink-0">{icon}</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-medium text-[var(--gray-400)] leading-none">{label}</p>
+                  <p
+                    className="text-xs font-semibold leading-tight mt-0.5"
+                    style={{ color: pos ? "var(--mint-700)" : neg ? "var(--gray-500)" : "var(--amber-700)" }}
+                  >
+                    {fmt(rawValue)}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {schedule.length > 0 && (
+        <div className="rounded-xl border border-[var(--gray-100)] overflow-hidden mb-6">
+          {schedule.map(({ label, value }, i) => (
+            <div
+              key={label}
+              className={`flex items-center justify-between px-4 py-2.5 ${i < schedule.length - 1 ? "border-b border-[var(--gray-50)]" : ""}`}
+            >
+              <span className="text-sm text-[var(--gray-500)]">{label}</span>
+              <span className="text-sm font-semibold text-[var(--gray-800)] text-right max-w-[55%]">{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {hasReqs && (
+        <div className="flex flex-wrap gap-2">
+          {event.requiresCoi && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--amber-700)] bg-[var(--amber-50)] border border-[var(--amber-100)] px-3 py-1.5 rounded-lg">
+              COI Required
+            </span>
+          )}
+          {event.rsvpRequired && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--violet-700)] bg-[var(--violet-50)] border border-[var(--violet-100)] px-3 py-1.5 rounded-lg">
+              RSVP Required
+            </span>
+          )}
+          {event.badgeRequired && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--violet-700)] bg-[var(--violet-50)] border border-[var(--violet-100)] px-3 py-1.5 rounded-lg">
+              Badge Required
+            </span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

@@ -11,6 +11,7 @@ function createImage(src) {
     image.addEventListener("load", () => resolve(image));
     image.addEventListener("error", (error) => reject(error));
     image.setAttribute("crossOrigin", "anonymous");
+    
     image.src = src;
   });
 }

@@ -2,12 +2,15 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { login, resendVerification } from "../../services/auth";
+import { login, resendVerification, getCurrentUser } from "../../services/auth";
+import { api } from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ConfettiBurst from "../../components/ConfettiBurst";
 
-const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const recaptchaEnabled =
+  process.env.NEXT_PUBLIC_DISABLE_RECAPTCHA !== "true" &&
+  !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
 
 
@@ -25,16 +28,27 @@ export default function LoginPage() {
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
-    // Redirect if already logged in
-    if (user && allowRedirect) {
-      if (user.role === 'vendor') {
-        router.push('/dashboard');
-      } else if (user.role === 'coordinator') {
-        router.push('/coordinator-dashboard');
+    if (!user || !allowRedirect) return;
+
+    (async () => {
+      if (user.role === "vendor" && user.vendorId) {
+        try {
+          const onboarding = await api(`/api/vendors/${user.vendorId}/onboarding`);
+          if (!onboarding.isComplete) {
+            router.push("/dashboard/setup");
+            return;
+          }
+        } catch {
+          router.push("/dashboard/setup");
+          return;
+        }
+        router.push("/dashboard");
+      } else if (user.role === "coordinator") {
+        router.push("/coordinator-dashboard");
       } else {
-        router.push('/');
+        router.push("/");
       }
-    }
+    })();
   }, [user, router, allowRedirect]);
 
   const handleLogin = async (e) => {
@@ -63,11 +77,26 @@ export default function LoginPage() {
 
       await login({ email, password, recaptchaToken });
 
-      // Refresh the user in AuthContext
       await refreshUser();
+      const loggedIn = await getCurrentUser();
+      if (loggedIn?.role === "vendor" && loggedIn.vendorId) {
+        try {
+          const onboarding = await api(`/api/vendors/${loggedIn.vendorId}/onboarding`);
+          setShowConfetti(true);
+          setLoading(false);
+          router.push(onboarding.isComplete ? "/dashboard" : "/dashboard/setup");
+          return;
+        } catch {
+          setShowConfetti(true);
+          setLoading(false);
+          router.push("/dashboard/setup");
+          return;
+        }
+      }
 
       setShowConfetti(true);
       setTimeout(() => setAllowRedirect(true), 900);
+      setLoading(false);
     } catch (err) {
       console.error("Login error:", err);
       // Reset reCAPTCHA on error

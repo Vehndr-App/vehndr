@@ -6,8 +6,13 @@ import { register } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ConfettiBurst from "../../components/ConfettiBurst";
+import { VENDOR_CATEGORY_TREE } from "../../constants/categories";
 
-const recaptchaEnabled = !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+const PRIMARY_CATEGORIES = VENDOR_CATEGORY_TREE.filter((c) => !c.parent);
+
+const recaptchaEnabled =
+  process.env.NEXT_PUBLIC_DISABLE_RECAPTCHA !== "true" &&
+  !!process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
 const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default : null;
 
 export default function RegisterPage() {
@@ -27,7 +32,7 @@ export default function RegisterPage() {
     // Redirect if already logged in
     if (user) {
       if (user.role === 'vendor') {
-        router.push('/dashboard');
+        router.push('/dashboard/setup');
       } else if (user.role === 'coordinator') {
         router.push('/coordinator-dashboard');
       }
@@ -45,6 +50,8 @@ export default function RegisterPage() {
     const passwordConfirmation = formData.get("passwordConfirmation");
     const name = formData.get("name");
     const businessName = formData.get("businessName");
+    const phone = formData.get("phone");
+    const category = formData.get("category");
     const role = formData.get("role");
 
     // #region agent log
@@ -70,6 +77,18 @@ export default function RegisterPage() {
       return;
     }
 
+    if (role === "vendor" && !phone?.toString().trim()) {
+      setError("Please enter your phone number");
+      setLoading(false);
+      return;
+    }
+
+    if (role === "vendor" && !category) {
+      setError("Please select your primary business category");
+      setLoading(false);
+      return;
+    }
+
     // Get reCAPTCHA token (only required when enabled)
     const recaptchaToken = recaptchaEnabled ? recaptchaRef.current?.getValue() : null;
     if (recaptchaEnabled && !recaptchaToken) {
@@ -89,7 +108,9 @@ export default function RegisterPage() {
         password,
         passwordConfirmation,
         name,
+        phone: phone?.toString().trim(),
         businessName,
+        category: role === "vendor" ? category : undefined,
         role,
         recaptchaToken,
         termsAccepted: acceptedTerms,
@@ -219,11 +240,43 @@ export default function RegisterPage() {
               <input
                 type="text"
                 name="businessName"
-                required
+                required={selectedRole === "vendor"}
                 className="input"
                 placeholder="Your business or organization name"
               />
             </div>
+
+            {selectedRole === "vendor" && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    required
+                    className="input"
+                    placeholder="(555) 123-4567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">
+                    Primary category
+                  </label>
+                  <select name="category" required className="input" defaultValue="">
+                    <option value="" disabled>
+                      Select a category
+                    </option>
+                    {PRIMARY_CATEGORIES.map((cat) => (
+                      <option key={cat.slug} value={cat.slug}>
+                        {cat.icon} {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">

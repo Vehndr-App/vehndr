@@ -4,6 +4,7 @@ export async function listVendors(params = {}) {
   const queryParams = new URLSearchParams();
   if (params.search) queryParams.set("search", params.search);
   if (params.category) queryParams.set("category", params.category);
+  if (params.eventType) queryParams.set("event_type", params.eventType);
   if (params.minPrice) queryParams.set("min_price", params.minPrice);
   if (params.maxPrice) queryParams.set("max_price", params.maxPrice);
 

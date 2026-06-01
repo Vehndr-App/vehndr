@@ -137,7 +137,7 @@ export default function EventBestie() {
     const lowerMessage = message.toLowerCase();
 
     if (lowerMessage.includes("vendor") || lowerMessage.includes("find")) {
-      return "I'd love to help you find vendors! 🎯 Here are some tips:\n\n1. Use the search bar on the home page\n2. Filter by category (Food, Fashion, Wellness, etc.)\n3. Check out vendor ratings and reviews\n4. Save your favorites with the heart button!\n\nWant me to start a vibe quiz to match you with perfect vendors?";
+      return "I'd love to help you find vendors! 🎯 Here are some tips:\n\n1. Use the search bar on the home page\n2. Filter by category (Food & Drink, Fashion / Apparel, Wellness, Performers, etc.)\n3. Check out vendor ratings and reviews\n4. Save your favorites with the heart button!\n\nWant me to start a vibe quiz to match you with perfect vendors?";
     }
 
     if (lowerMessage.includes("event") && (lowerMessage.includes("idea") || lowerMessage.includes("plan"))) {
@@ -185,12 +185,12 @@ export default function EventBestie() {
 
     if (answers.vibe === "party") {
       recs += "**Your vibe:** High energy party animal! 🎉\n";
-      recs += "• Check out Music and Entertainment vendors\n";
-      recs += "• Look for DJ/Music category\n";
+      recs += "• Check out DJs / Music and Performers vendors\n";
+      recs += "• Look for the DJs / Music category\n";
       recs += "• Festival events are your jam!\n\n";
     } else if (answers.vibe === "chill") {
       recs += "**Your vibe:** Zen master! 🧘\n";
-      recs += "• Browse Health & Wellness vendors\n";
+      recs += "• Browse Wellness vendors\n";
       recs += "• Look for spa and relaxation services\n";
       recs += "• Wellness events will speak to your soul!\n\n";
     } else if (answers.vibe === "educational") {
@@ -248,10 +248,6 @@ export default function EventBestie() {
         </button>
       )}
 
-      {/* Pulse animation when closed - web only */}
-      {showBubble && !isOpen && (
-        <span className="fixed bottom-20 right-4 z-[59] w-14 h-14 rounded-full bg-[var(--violet-500)] animate-ping opacity-30 pointer-events-none" />
-      )}
 
       {/* Chat Panel - full-screen on native (positioned to visual viewport so keyboard doesn't push page), card on web */}
       <div

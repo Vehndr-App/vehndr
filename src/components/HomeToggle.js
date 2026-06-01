@@ -4,10 +4,14 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchFilters from "./SearchFilters";
+import { EVENT_TYPES } from "../constants/categories";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function HomeToggle({ categories = [], initialMode = "vendors" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { loading: authLoading } = useAuth();
+  const canSeeEvents = true;
   const [mode, setMode] = useState(initialMode);
 
   // Sync mode from URL
@@ -18,6 +22,20 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
     }
   }, [searchParams]);
 
+  // Redirect away from events mode if user can't see events (wait for auth to finish loading)
+  useEffect(() => {
+    if (authLoading) return;
+    if (mode === "events" && !canSeeEvents) {
+      setMode("vendors");
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("mode", "vendors");
+      params.delete("search");
+      params.delete("type");
+      params.delete("event_type");
+      router.push(`/?${params.toString()}`);
+    }
+  }, [mode, canSeeEvents, authLoading, searchParams, router]);
+
   const handleModeChange = (newMode) => {
     setMode(newMode);
     const params = new URLSearchParams(searchParams.toString());
@@ -25,6 +43,8 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
     // Clear filters when switching modes
     params.delete("search");
     params.delete("category");
+    params.delete("type");
+    params.delete("event_type");
     params.delete("minPrice");
     params.delete("maxPrice");
     router.push(`/?${params.toString()}`);
@@ -51,24 +71,26 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
               Vendors
             </span>
           </button>
-          <button
-            onClick={() => handleModeChange("events")}
-            className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
-              mode === "events"
-                ? "bg-white text-[var(--gray-900)] shadow-lg"
-                : "text-white/80 hover:text-white hover:bg-white/10"
-            }`}
-          >
-            <span className="flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                <line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/>
-                <line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-              Events
-            </span>
-          </button>
+          {canSeeEvents && (
+            <button
+              onClick={() => handleModeChange("events")}
+              className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                mode === "events"
+                  ? "bg-white text-[var(--gray-900)] shadow-lg"
+                  : "text-white/80 hover:text-white hover:bg-white/10"
+              }`}
+            >
+              <span className="flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="16" y1="2" x2="16" y2="6"/>
+                  <line x1="8" y1="2" x2="8" y2="6"/>
+                  <line x1="3" y1="10" x2="21" y2="10"/>
+                </svg>
+                Events
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -76,18 +98,18 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
       <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-8">
         <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white/90 text-xs font-medium mb-4">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)] animate-pulse"></span>
-          {mode === "vendors" ? "50+ trusted vendors" : "Live at 50+ events"}
+          {mode === "vendors" ? "75+ trusted vendors" : "Live at 50+ events"}
         </div>
         
         <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-3">
           {mode === "vendors" 
-            ? "Shop Your Favorite Vendors" 
+            ? "Shop or Book Your Favorite Vendors" 
             : "Discover amazing events"}
         </h1>
         
         <p className="text-white/80 text-sm sm:text-base max-w-lg mx-auto">
           {mode === "vendors"
-            ? "Browse storefronts, add to cart, and book services for your next event."
+            ? "Shop products, book services, or hire vendors for your next event."
             : "Find events near you, RSVP, and connect with event organizers and vendors."}
         </p>
       </div>
@@ -114,20 +136,12 @@ function EventSearchFilters() {
     const params = new URLSearchParams();
     params.set("mode", "events");
     if (search) params.set("search", search);
-    if (eventType) params.set("type", eventType);
+    if (eventType) params.set("event_type", eventType);
     if (date) params.set("date", date);
     router.push(`/?${params.toString()}`);
   };
 
-  const eventTypes = [
-    { id: "", label: "All Events" },
-    { id: "party", label: "Parties" },
-    { id: "wedding", label: "Weddings" },
-    { id: "corporate", label: "Corporate" },
-    { id: "festival", label: "Festivals" },
-    { id: "concert", label: "Concerts" },
-    { id: "wellness", label: "Wellness" },
-  ];
+  const eventTypes = [{ slug: "", label: "All Events" }, ...EVENT_TYPES];
 
   return (
     <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] border border-[var(--gray-100)] p-2">
@@ -173,7 +187,7 @@ function EventSearchFilters() {
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-[var(--gray-500)]">Type</div>
+              <div className="text-xs font-medium text-[var(--gray-500)]">Event Type</div>
               <select
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value)}
@@ -181,7 +195,7 @@ function EventSearchFilters() {
                 style={{ fontSize: '16px' }}
               >
                 {eventTypes.map(type => (
-                  <option key={type.id} value={type.id}>{type.label}</option>
+                  <option key={type.slug} value={type.slug}>{type.label}</option>
                 ))}
               </select>
             </div>

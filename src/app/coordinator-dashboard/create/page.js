@@ -7,25 +7,13 @@ import AuthGate from "../../../components/AuthGate";
 import Link from "next/link";
 import { api } from "../../../services/api";
 import ImageEditorModal from "../../../components/ImageEditorModal";
+import { EVENT_TYPES, VENDOR_CATEGORY_TREE, normalizeVendorCategory } from "../../../constants/categories";
 
 const EVENT_THEMES = [
   { id: "classic", name: "Classic", font: "font-body", style: "elegant" },
   { id: "eclectic", name: "Eclectic", font: "font-display", style: "playful" },
   { id: "fancy", name: "Fancy", font: "italic", style: "luxurious" },
   { id: "literary", name: "Literary", font: "serif", style: "refined" },
-];
-
-const EVENT_CATEGORIES = [
-  { id: "festival", label: "Festival", emoji: "🎪" },
-  { id: "party", label: "Party", emoji: "🎉" },
-  { id: "market", label: "Market", emoji: "🛍️" },
-  { id: "food", label: "Food & Drink", emoji: "🍕" },
-  { id: "music", label: "Music", emoji: "🎵" },
-  { id: "wellness", label: "Wellness", emoji: "💆" },
-  { id: "educational", label: "Educational", emoji: "📚" },
-  { id: "networking", label: "Networking", emoji: "🤝" },
-  { id: "art", label: "Art & Culture", emoji: "🎨" },
-  { id: "sports", label: "Sports", emoji: "⚽" },
 ];
 
 const COVER_STYLES = [
@@ -45,11 +33,26 @@ export default function CreateEventPage() {
   );
 }
 
+const TIME_SLOTS = (() => {
+  const slots = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      const hour = h % 12 || 12;
+      const period = h < 12 ? "AM" : "PM";
+      slots.push({
+        label: `${hour}:${m.toString().padStart(2, "0")} ${period}`,
+        value: `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`,
+      });
+    }
+  }
+  return slots;
+})();
+
 function CreateEventInner() {
   const { user } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef(null);
-  
+
   // Event state
   const [eventData, setEventData] = useState({
     name: "",
@@ -59,7 +62,11 @@ function CreateEventInner() {
     startTime: "",
     endDate: "",
     endTime: "",
+    vendorLoadIn: "",
+    vendorLoadOut: "",
     category: "",
+    eventType: "",
+    desiredVendorCategories: [],
     attendees: "",
     theme: "classic",
     coverStyle: "gradient-primary",
@@ -158,9 +165,13 @@ function CreateEventInner() {
         start_date: startDateTime,
         end_date: endDateTime,
         category: eventData.category,
+        event_type: eventData.eventType,
+        desired_vendor_categories: eventData.desiredVendorCategories,
         attendees: eventData.attendees ? parseInt(eventData.attendees) : 0,
         status: status,
         image: eventData.coverImagePreview || null,
+        vendor_load_in: eventData.vendorLoadIn || null,
+        vendor_load_out: eventData.vendorLoadOut || null,
       };
 
       const event = await api("/api/events", {
@@ -181,6 +192,15 @@ function CreateEventInner() {
   };
 
   const selectedCover = COVER_STYLES.find(c => c.id === eventData.coverStyle);
+  const toggleDesiredVendorCategory = (category) => {
+    const normalizedCategory = normalizeVendorCategory(category);
+    handleInputChange(
+      "desiredVendorCategories",
+      eventData.desiredVendorCategories.includes(normalizedCategory)
+        ? eventData.desiredVendorCategories.filter((item) => item !== normalizedCategory)
+        : [...eventData.desiredVendorCategories, normalizedCategory]
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[var(--gray-900)]">
@@ -479,6 +499,36 @@ function CreateEventInner() {
               </div>
             </div>
           </div>
+
+          {/* Vendor Load-In / Load-Out */}
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-xs text-white/50 uppercase tracking-wider mb-2">Vendor Load-In</label>
+              <select
+                value={eventData.vendorLoadIn}
+                onChange={(e) => handleInputChange("vendorLoadIn", e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[var(--violet-500)] transition-colors appearance-none"
+              >
+                <option value="" className="bg-gray-800">Select time</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.label} className="bg-gray-800">{s.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-white/50 uppercase tracking-wider mb-2">Vendor Load-Out</label>
+              <select
+                value={eventData.vendorLoadOut}
+                onChange={(e) => handleInputChange("vendorLoadOut", e.target.value)}
+                className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-[var(--violet-500)] transition-colors appearance-none"
+              >
+                <option value="" className="bg-gray-800">Select time</option>
+                {TIME_SLOTS.map((s) => (
+                  <option key={s.value} value={s.label} className="bg-gray-800">{s.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         {/* Host Info */}
@@ -621,21 +671,49 @@ function CreateEventInner() {
           />
         </div>
 
-        {/* Category Selection */}
-        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
-          <h3 className="text-white font-semibold mb-4">Event Category</h3>
-          <div className="flex gap-2 flex-wrap">
-            {EVENT_CATEGORIES.map((cat) => (
+        {/* Event Type Selection */}
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-[var(--violet-400)]/30 shadow-lg shadow-[var(--violet-500)]/10">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--violet-300)] mb-1">Required</p>
+              <h3 className="text-white text-xl font-semibold">Event Type</h3>
+              <p className="text-sm text-white/50 mt-1">Choose the kind of event you are planning.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {EVENT_TYPES.map((cat) => (
               <button
-                key={cat.id}
-                onClick={() => handleInputChange("category", cat.label)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  eventData.category === cat.label
+                key={cat.slug}
+                onClick={() => {
+                  handleInputChange("category", cat.label);
+                  handleInputChange("eventType", cat.slug);
+                }}
+                className={`px-4 py-3 rounded-xl text-sm font-medium text-left transition-all ${
+                  eventData.eventType === cat.slug
                     ? "bg-[var(--violet-500)] text-white"
                     : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80"
                 }`}
               >
-                <span>{cat.emoji}</span>
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-[var(--gray-800)]/80 backdrop-blur-sm rounded-[var(--radius-2xl)] p-6 mb-4 border border-white/5">
+          <h3 className="text-white font-semibold mb-2">Looking For</h3>
+          <p className="text-sm text-white/50 mb-4">Choose desired vendor categories for matching and recommendations.</p>
+          <div className="flex gap-2 flex-wrap">
+            {VENDOR_CATEGORY_TREE.map((cat) => (
+              <button
+                key={cat.slug}
+                onClick={() => toggleDesiredVendorCategory(cat.label)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                  eventData.desiredVendorCategories.includes(cat.label)
+                    ? "bg-[var(--magenta-500)] text-white"
+                    : "bg-white/5 text-white/60 hover:bg-white/10 hover:text-white/80"
+                }`}
+              >
                 {cat.label}
               </button>
             ))}

@@ -3,21 +3,31 @@ import { listVendors } from "../../services/vendors";
 import SearchFilters from "../../components/SearchFilters";
 import FavoriteButton from "../../components/FavoriteButton";
 import { getVendorPlaceholderImage } from "../../utils/placeholderImages";
-import { VENDOR_CATEGORIES, CATEGORY_DISPLAY } from "../../constants/categories";
+import {
+  EVENT_TYPES,
+  EVENT_TYPE_DISPLAY,
+  HOMEPAGE_VENDOR_GROUPS,
+  getVendorCategoryLabel,
+  normalizeEventType,
+  normalizeVendorCategories
+} from "../../constants/categories";
 import { getStorefrontPath } from "../../utils/storefrontLinks";
+import EventStickyBanner from "../../components/EventStickyBanner";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
   const searchQuery = typeof params?.search === "string" ? params.search : "";
   const category = typeof params?.category === "string" ? params.category : null;
+  const eventType = typeof params?.event_type === "string" ? normalizeEventType(params.event_type) : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
   const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
+  const eventId = typeof params?.event_id === "string" ? params.event_id : null;
   // #region agent log
   fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:14',message:'Parsed vendor search params',data:{searchQuery,category,minPrice,maxPrice},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H2'})}).catch(()=>{});
   // #endregion
 
   // Fetch filtered vendors for display
-  const vendors = await listVendors({ search: searchQuery, category, minPrice, maxPrice });
+  const vendors = await listVendors({ search: searchQuery, category, eventType, minPrice, maxPrice });
   const vendorIdSet = new Set(vendors.map((vendor) => vendor?.id ?? null));
   const uniqueVendorCount = vendorIdSet.size;
   const vendorsMissingId = vendors.filter((vendor) => !vendor?.id).length;
@@ -33,12 +43,12 @@ export default async function VendorsSelectPage({ searchParams }) {
   // Fetch all vendors to get all categories for the filter
   const allVendors = await listVendors();
   const allCategories = Array.from(
-    new Set(allVendors.flatMap((v) => v.categories ?? []))
+    new Set(allVendors.flatMap((v) => normalizeVendorCategories(v.categories ?? [])))
   ).sort();
 
   // Group vendors by category
   const vendorsByCategory = vendors.reduce((acc, vendor) => {
-    const categories = vendor.categories ?? ["Uncategorized"];
+    const categories = normalizeVendorCategories(vendor.categories ?? []);
     categories.forEach((cat) => {
       if (!acc[cat]) {
         acc[cat] = [];
@@ -47,16 +57,14 @@ export default async function VendorsSelectPage({ searchParams }) {
     });
     return acc;
   }, {});
-  const displayedVendors = category
-    ? (vendorsByCategory[category] || [])
-    : Object.values(vendorsByCategory).flat();
+  const displayedVendors = Object.values(vendorsByCategory).flat();
   const displayedVendorCount = new Set(
     displayedVendors.map((vendor) => vendor?.id).filter(Boolean)
   ).size;
   const categoryCounts = Object.fromEntries(
     Object.entries(vendorsByCategory).map(([cat, list]) => [cat, list.length])
   );
-  const selectedCategoryCount = category ? (vendorsByCategory[category] || []).length : null;
+  const selectedCategoryCount = category ? displayedVendors.length : null;
   // #region agent log
   fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'vendors/page.js:40',message:'Built vendor category buckets',data:{category,categoryCounts,selectedCategoryCount},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'H3'})}).catch(()=>{});
   // #endregion
@@ -66,7 +74,7 @@ export default async function VendorsSelectPage({ searchParams }) {
 
   // If a category is selected, only show that category
   const sortedCategories = category
-    ? [category]
+    ? Object.keys(vendorsByCategory).sort()
     : Object.keys(vendorsByCategory).sort();
 
   return (
@@ -79,12 +87,41 @@ export default async function VendorsSelectPage({ searchParams }) {
               Find Vendors
             </h1>
             <p className="text-[var(--gray-500)] text-sm mt-1">
-              {displayedVendorCount} vendor{displayedVendorCount !== 1 ? 's' : ''} available
+              Choose your event type first, then the vendors you need.
             </p>
+          </div>
+
+          <div className="mb-4 rounded-[var(--radius-2xl)] bg-white border border-[var(--gray-100)] p-4">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-[var(--gray-900)]">1. What type of event are you planning?</h2>
+                <p className="text-xs text-[var(--gray-500)]">This helps surface vendors open to that kind of booking.</p>
+              </div>
+              {eventType && (
+                <Link href={category ? `/vendors?category=${encodeURIComponent(category)}` : "/vendors"} className="text-xs font-medium text-[var(--violet-600)]">
+                  Clear
+                </Link>
+              )}
+            </div>
+            <div className="scroll-horizontal scrollbar-hide gap-2 -mx-4 px-4">
+              {EVENT_TYPES.map((type) => (
+                <Link
+                  key={type.slug}
+                  href={`/vendors?event_type=${encodeURIComponent(type.slug)}${category ? `&category=${encodeURIComponent(category)}` : ""}`}
+                  className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                    eventType === type.slug
+                      ? "bg-[var(--violet-600)] text-white"
+                      : "bg-[var(--gray-100)] text-[var(--gray-700)] hover:bg-[var(--gray-200)]"
+                  }`}
+                >
+                  {type.label}
+                </Link>
+              ))}
+            </div>
           </div>
           
           {/* Search and Filters */}
-          <SearchFilters categories={allCategories} />
+          <SearchFilters categories={allCategories} basePath="/vendors" eventType={eventType} />
         </div>
       </div>
 
@@ -92,23 +129,16 @@ export default async function VendorsSelectPage({ searchParams }) {
       <section className="bg-white border-b border-[var(--gray-100)]">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 py-5">
           <div className="scroll-horizontal scrollbar-hide gap-4 -mx-4 px-4">
-            <QuickActionCard
-              href="/?mode=events"
-              icon="🗓️"
-              label="Events"
-              color="var(--violet-100)"
-            />
-            {VENDOR_CATEGORIES.filter(cat => allCategories.includes(cat)).map((cat) => {
-              const display = CATEGORY_DISPLAY[cat];
+            {HOMEPAGE_VENDOR_GROUPS.map((group) => {
               return (
                 <QuickActionCard
-                  key={cat}
-                  href={`/vendors?category=${encodeURIComponent(cat)}`}
-                  icon={display.icon}
-                  label={display.label}
-                  color={display.color}
-                  badge={cat === "Food & Beverage" ? "Popular" : undefined}
-                  isActive={category === cat}
+                  key={group.slug}
+                  href={`/vendors?category=${encodeURIComponent(group.slug)}${eventType ? `&event_type=${encodeURIComponent(eventType)}` : ""}`}
+                  icon={group.icon}
+                  label={group.label}
+                  color={group.color}
+                  badge={group.slug === "food-drink" ? "Popular" : undefined}
+                  isActive={category === group.slug}
                 />
               );
             })}
@@ -123,7 +153,10 @@ export default async function VendorsSelectPage({ searchParams }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-[var(--gray-500)]">Filters:</span>
               {category && (
-                <FilterBadge label={CATEGORY_DISPLAY[category]?.label || category} href="/vendors" />
+                <FilterBadge label={getVendorCategoryLabel(category)} href="/vendors" />
+              )}
+              {eventType && (
+                <FilterBadge label={EVENT_TYPE_DISPLAY[eventType] || eventType} href={category ? `/vendors?category=${encodeURIComponent(category)}` : "/vendors"} />
               )}
               {(minPrice || maxPrice) && (
                 <FilterBadge 
@@ -153,6 +186,7 @@ export default async function VendorsSelectPage({ searchParams }) {
                 category={cat}
                 vendors={vendorsByCategory[cat]}
                 isFiltered={category !== null}
+                eventId={eventId}
               />
             ))
           ) : (
@@ -160,6 +194,9 @@ export default async function VendorsSelectPage({ searchParams }) {
           )}
         </div>
       </div>
+
+      {/* Event sticky banner */}
+      {eventId && <EventStickyBanner eventId={eventId} />}
     </div>
   );
 }
@@ -201,7 +238,7 @@ function QuickActionCard({ href, icon, label, color, badge, isActive }) {
   );
 }
 
-function CategorySection({ category, vendors, isFiltered }) {
+function CategorySection({ category, vendors, isFiltered, eventId }) {
   return (
     <section className="animate-slide-up">
       <div className="flex items-center justify-between mb-4">
@@ -210,7 +247,7 @@ function CategorySection({ category, vendors, isFiltered }) {
         </h2>
         {!isFiltered && (
           <Link
-            href={`/vendors?category=${encodeURIComponent(category)}`}
+            href={`/vendors?category=${encodeURIComponent(category)}${eventId ? `&event_id=${eventId}` : ""}`}
             className="flex items-center gap-1 text-sm font-medium text-[var(--violet-600)] hover:text-[var(--violet-700)]"
           >
             View all
@@ -222,20 +259,23 @@ function CategorySection({ category, vendors, isFiltered }) {
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {vendors.map((vendor, index) => (
-          <VendorCard key={vendor.id} vendor={vendor} index={index} />
+          <VendorCard key={vendor.id} vendor={vendor} index={index} eventId={eventId} />
         ))}
       </div>
     </section>
   );
 }
 
-function VendorCard({ vendor, index }) {
+function VendorCard({ vendor, index, eventId }) {
   const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
   const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id);
-  
+  const storefrontHref = eventId
+    ? `${getStorefrontPath(vendor)}?event_id=${eventId}`
+    : getStorefrontPath(vendor);
+
   return (
     <Link
-      href={getStorefrontPath(vendor)}
+      href={storefrontHref}
       className="group"
       style={{ animationDelay: `${index * 50}ms` }}
     >

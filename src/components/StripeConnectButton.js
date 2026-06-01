@@ -3,9 +3,17 @@
 import { useState } from 'react';
 import { api } from '@/services/api';
 
-export default function StripeConnectButton({ vendorId, accountStatus, onStatusUpdate }) {
+export default function StripeConnectButton({ vendorId, coordinatorId, accountStatus, onStatusUpdate }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const accountLinkPath = coordinatorId
+    ? `/api/coordinators/${coordinatorId}/stripe/account_link`
+    : `/api/vendors/${vendorId}/stripe/account_link`;
+
+  const refreshPath = coordinatorId
+    ? `/api/coordinators/${coordinatorId}/stripe/refresh`
+    : `/api/vendors/${vendorId}/stripe/refresh`;
 
   const handleConnect = async () => {
     setLoading(true);
@@ -15,7 +23,7 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
       const refreshUrl = window.location.href;
       const returnUrl = window.location.href;
 
-      const response = await api(`/api/vendors/${vendorId}/stripe/account_link`, {
+      const response = await api(accountLinkPath, {
         method: 'POST',
         body: { refreshUrl, returnUrl }
       });
@@ -33,7 +41,7 @@ export default function StripeConnectButton({ vendorId, accountStatus, onStatusU
     setError(null);
 
     try {
-      await api(`/api/vendors/${vendorId}/stripe/refresh`, {
+      await api(refreshPath, {
         method: 'POST'
       });
 

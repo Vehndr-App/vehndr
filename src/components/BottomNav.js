@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCart } from "../contexts/CartContext";
 import { useAuth } from "../contexts/AuthContext";
+import { listVendorInquiries } from "../services/inquiries";
 
 // Get favorites count from localStorage
 function getFavoritesCount() {
@@ -22,7 +23,10 @@ export default function BottomNav() {
   const { totalItems } = useCart();
   const { user } = useAuth();
   const [favoritesCount, setFavoritesCount] = useState(0);
-  const isAdminRoute = pathname?.startsWith("/admin");
+  const [newInquiriesCount, setNewInquiriesCount] = useState(0);
+  const isAdminRoute        = pathname?.startsWith("/admin");
+  const isBuyerDashboard    = pathname?.startsWith("/buyer-dashboard");
+  const isMessages          = pathname?.startsWith("/messages");
 
   // Track favorites count
   useEffect(() => {
@@ -51,9 +55,9 @@ export default function BottomNav() {
     if (user?.role === 'vendor') {
       return [
         { href: '/dashboard', label: 'Dashboard', icon: DashboardIcon },
-        { href: '/dashboard/orders', label: 'Orders', icon: OrdersIcon },
+        { href: '/dashboard/inquiries', label: 'Inquiries', icon: MessagesIcon, badge: newInquiriesCount > 0 ? newInquiriesCount : null },
+        { href: '/dashboard/events', label: 'Events', icon: EventsIcon },
         { href: '/dashboard/storefront', label: 'Storefront', icon: StorefrontIcon },
-        { href: '/messages', label: 'Messages', icon: MessagesIcon },
         { href: '/dashboard/profile', label: 'Account', icon: ProfileIcon },
       ];
     }
@@ -62,7 +66,7 @@ export default function BottomNav() {
       return [
         { href: '/', label: 'Explore', icon: ExploreIcon },
         { href: '/events', label: 'Events', icon: EventsIcon },
-        { href: '/coordinator-dashboard', label: 'Dashboard', icon: DashboardIcon },
+        { href: '/buyer-dashboard', label: 'Proposals', icon: BuyerDashboardIcon },
         { href: '/vendors', label: 'Vendors', icon: VendorsIcon },
         { href: '/profile', label: 'Profile', icon: ProfileIcon },
       ];
@@ -71,27 +75,45 @@ export default function BottomNav() {
     // Default: customer/attendee
     return [
       { href: '/', label: 'Explore', icon: ExploreIcon },
-      { href: '/appointments', label: user ? 'Bookings & Orders' : 'Bookings', icon: AppointmentsIcon },
+      { href: '/buyer-dashboard', label: 'Dashboard', icon: BuyerDashboardIcon },
       { href: '/cart', label: 'Cart', icon: CartIcon, badge: totalItems > 0 ? totalItems : null },
       { href: '/favorites', label: 'Saved', icon: FavoritesIcon, badge: favoritesCount > 0 ? favoritesCount : null },
       { href: user ? '/profile' : '/login', label: user ? 'Profile' : 'Login', icon: ProfileIcon },
     ];
   };
 
-  // Admin pages have their own navigation and should not show the global bottom nav.
-  if (isAdminRoute) {
+  // Fetch new inquiry count for vendors
+  useEffect(() => {
+    if (user?.role !== "vendor") return;
+    const fetch = () =>
+      listVendorInquiries()
+        .then((inqs) => setNewInquiriesCount(inqs.filter((i) => i.status === "submitted").length))
+        .catch(() => {});
+    fetch();
+    const interval = setInterval(fetch, 30000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const isStorePage = pathname?.startsWith("/store/");
+
+  // Admin, buyer-dashboard, messages, and store pages have their own navigation.
+  if (isAdminRoute || isBuyerDashboard || isMessages || isStorePage) {
     return null;
   }
 
   const navItems = getNavItems();
+
+  // Find the single best-matching nav item (longest prefix wins)
+  const activeHref = navItems
+    .filter(item => pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href + '/')))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href ?? (pathname === '/' ? '/' : null);
 
   return (
     <>
       <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[var(--gray-200)] safe-area-bottom">
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
           {navItems.map((item, index) => {
-            const isActive = pathname === item.href ||
-              (item.href !== '/' && pathname.startsWith(item.href));
+            const isActive = item.href === activeHref;
             const Icon = item.icon;
             
             return (
@@ -272,6 +294,23 @@ function FavoritesIcon({ filled }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "var(--coral-500)" : "none"} stroke={filled ? "var(--coral-500)" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+    </svg>
+  );
+}
+
+function BuyerDashboardIcon({ filled }) {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={filled ? "0" : "2"} strokeLinecap="round" strokeLinejoin="round">
+      {filled ? (
+        <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" fill="none" stroke="currentColor" strokeWidth="2"/>
+      ) : (
+        <>
+          <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <line x1="9" y1="12" x2="15" y2="12"/>
+          <line x1="9" y1="16" x2="13" y2="16"/>
+        </>
+      )}
     </svg>
   );
 }
