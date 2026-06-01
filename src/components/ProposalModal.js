@@ -297,6 +297,13 @@ function ChooseStep({ myEvents, loadingEvents, selectedEvent, onSelect, onCreate
     } catch { return null; }
   };
 
+  const fmtDateRange = (start, end) => {
+    const s = fmt(start);
+    if (!s || !end) return s;
+    if (new Date(start).toDateString() === new Date(end).toDateString()) return s;
+    return `${s} – ${fmt(end)}`;
+  };
+
   const relativeTime = (raw) => {
     if (!raw) return null;
     const diff = new Date(raw) - new Date();
@@ -416,7 +423,7 @@ function ChooseStep({ myEvents, loadingEvents, selectedEvent, onSelect, onCreate
                             {(event.startDate || event.start_date) && (
                               <span className={`flex items-center gap-1 text-xs ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-500)]"}`}>
                                 <span className={selected ? "text-[var(--violet-400)]" : "text-[var(--gray-400)]"}>{Icons.calendar}</span>
-                                {fmt(event.startDate || event.start_date)}
+                                {fmtDateRange(event.startDate || event.start_date, event.endDate || event.end_date)}
                               </span>
                             )}
                             {(event.location || event.streetAddress) && (
@@ -1014,33 +1021,18 @@ function Step5({ form, setField, dailySchedule, setDailySchedule, onSave, onBack
         )}
 
         {/* Public / Private visibility */}
-        <div
-          className="flex items-center justify-between gap-4 p-4 rounded-xl border border-[var(--gray-200)] cursor-pointer select-none"
-          onClick={() => setField("isPublic", !form.isPublic)}
-        >
-          <div>
-            <p className="text-sm font-semibold text-[var(--gray-900)]">
-              {form.isPublic ? "Public event" : "Private event"}
-            </p>
-            <p className="text-xs text-[var(--gray-400)] mt-0.5 leading-relaxed">
-              {form.isPublic
-                ? "Vendors can discover this event on the homepage."
-                : "Only vendors you invite will see this event."}
-            </p>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={form.isPublic}
-            className={`relative flex-shrink-0 w-11 h-6 rounded-full transition-colors duration-200 focus:outline-none ${
-              form.isPublic ? "bg-[var(--violet-600)]" : "bg-[var(--gray-300)]"
-            }`}
-            onClick={(e) => { e.stopPropagation(); setField("isPublic", !form.isPublic); }}
-          >
-            <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
-              form.isPublic ? "translate-x-5" : "translate-x-0"
-            }`} />
-          </button>
+        <div>
+          <FieldLabel hint="Public events are discoverable on the homepage. Private events are only visible to vendors you contact directly.">
+            Event visibility
+          </FieldLabel>
+          <ChipGroup
+            value={form.isPublic ? "public" : "private"}
+            onChange={(v) => setField("isPublic", v === "public")}
+            options={[
+              { value: "private", label: "Private" },
+              { value: "public",  label: "Public"  },
+            ]}
+          />
         </div>
 
         <ErrorBox message={error} />
