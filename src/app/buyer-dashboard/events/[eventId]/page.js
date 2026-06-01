@@ -317,6 +317,9 @@ export default function EventDetailPage() {
             <span className="text-[11px] font-bold px-2.5 py-1 rounded-full text-white" style={{ background: "rgba(255,255,255,0.2)" }}>
               {isUpcoming ? "Upcoming" : event.status ?? "Past"}
             </span>
+            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full text-white" style={{ background: event.isPublic ? "rgba(16,185,129,0.35)" : "rgba(255,255,255,0.15)" }}>
+              {event.isPublic ? "Public" : "Private"}
+            </span>
             {event.eventType && (
               <span className="text-[11px] text-white/60 font-medium">{event.eventType}</span>
             )}
@@ -364,6 +367,7 @@ export default function EventDetailPage() {
           {event.venueAttendees > 0 && <InfoRow icon={Icon.home} label="Venue capacity" value={event.venueAttendees.toLocaleString()} />}
           {event.ageGroup && <InfoRow icon={Icon.people} label="Age group" value={event.ageGroup} />}
           {event.category && <InfoRow icon={Icon.doc} label="Category" value={event.category} />}
+          <BoolRow icon={Icon.doc} label="Public event" value={event.isPublic} positiveLabel="Public" negativeLabel="Private" />
           {event.rsvpRequired != null && <BoolRow icon={Icon.doc} label="RSVP required" value={event.rsvpRequired} />}
           {event.badgeRequired != null && <BoolRow icon={Icon.doc} label="Badge required" value={event.badgeRequired} />}
           {event.eventUrl && (

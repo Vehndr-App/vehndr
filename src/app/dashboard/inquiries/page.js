@@ -82,15 +82,19 @@ function formatPrice(cents) {
 
 function SkeletonRow() {
   return (
-    <div className="grid items-center gap-4 px-6 py-4" style={{ gridTemplateColumns: "40px 1fr auto auto auto" }}>
-      <div className="w-10 h-10 rounded-xl bg-[var(--gray-100)] animate-pulse" />
-      <div className="space-y-2">
-        <div className="h-3.5 bg-[var(--gray-100)] rounded w-2/5 animate-pulse" />
-        <div className="h-3 bg-[var(--gray-100)] rounded w-1/3 animate-pulse" />
+    <div className="flex items-start gap-4 px-6 py-4 border-b border-[var(--gray-50)]">
+      <div className="w-10 h-10 rounded-xl bg-[var(--gray-100)] animate-pulse flex-shrink-0" />
+      <div className="flex-1 space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="h-3.5 bg-[var(--gray-100)] rounded w-1/3 animate-pulse" />
+          <div className="h-5 bg-[var(--gray-100)] rounded-full w-24 animate-pulse" />
+        </div>
+        <div className="h-3 bg-[var(--gray-100)] rounded w-1/2 animate-pulse" />
+        <div className="flex gap-4">
+          <div className="h-3 bg-[var(--gray-100)] rounded w-24 animate-pulse" />
+          <div className="h-3 bg-[var(--gray-100)] rounded w-28 animate-pulse" />
+        </div>
       </div>
-      <div className="h-5 bg-[var(--gray-100)] rounded-full w-24 animate-pulse" />
-      <div className="h-3 bg-[var(--gray-100)] rounded w-16 animate-pulse" />
-      <div className="h-8 bg-[var(--gray-100)] rounded-lg w-16 animate-pulse" />
     </div>
   );
 }
@@ -98,80 +102,106 @@ function SkeletonRow() {
 // ─── Inquiry row ──────────────────────────────────────────────────────────────
 
 function InquiryRow({ inquiry, index }) {
-  const { customer, event, status, lastActivityAt, activeOffer, lastOffer, budgetCents } = inquiry;
-  const meta         = STATUS_META[status] ?? { label: status, color: "gray", dot: "bg-[var(--gray-300)]" };
-  const offerPending = activeOffer?.status === "pending";
+  const { customer, event, status, lastActivityAt, activeOffer, lastOffer, createdAt } = inquiry;
+  const meta          = STATUS_META[status] ?? { label: status, color: "gray", dot: "bg-[var(--gray-300)]" };
+  const offerPending  = activeOffer?.status === "pending";
   const offerAccepted = activeOffer?.status === "accepted";
   const offerDeclined = !activeOffer && lastOffer?.status === "declined";
-  const isNew        = status === "submitted";
-  const initial      = customer?.name?.charAt(0)?.toUpperCase() ?? "?";
+  const isNew         = status === "submitted";
+  const initial       = customer?.name?.charAt(0)?.toUpperCase() ?? "?";
 
-  const badgeLabel = offerPending  ? `Offer sent`
-                   : offerAccepted ? `Accepted`
+  const badgeLabel = offerPending  ? "Offer sent"
+                   : offerAccepted ? "Accepted"
                    : offerDeclined ? "Offer declined"
                    : meta.label;
   const badgeColor = offerPending  ? "violet"
                    : offerAccepted ? "mint"
                    : offerDeclined ? "coral"
                    : meta.color;
-  const inquiryHref = `/dashboard/inquiries/${inquiry.id}`;
+
+  // Show event date if available, else fall back to inquiry created date
+  const displayDate = event?.startDate
+    ? formatDate(event.startDate)
+    : formatDate(createdAt);
+
+  const shortId = inquiry.id ? `#${String(inquiry.id).slice(-5).toUpperCase()}` : null;
 
   return (
     <Link
-      href={inquiryHref}
-      className="group relative grid items-center gap-x-4 gap-y-1 px-6 py-4 border-b border-[var(--gray-50)] hover:bg-[var(--violet-50)] focus-visible:bg-[var(--violet-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--violet-500)] transition-colors duration-150 last:border-0"
-      style={{ gridTemplateColumns: "40px 1fr auto auto auto", animationDelay: `${index * 30}ms` }}
+      href={`/dashboard/inquiries/${inquiry.id}`}
+      className="group relative flex items-start gap-4 px-6 py-4 border-b border-[var(--gray-50)] hover:bg-[var(--violet-50)] focus-visible:bg-[var(--violet-50)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--violet-500)] transition-colors duration-150 last:border-0"
       aria-label={`View inquiry from ${customer?.name ?? "Coordinator"}`}
     >
       {isNew && (
-        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 rounded-r-full bg-[var(--amber-500)]" />
+        <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 rounded-r-full bg-[var(--amber-500)]" />
       )}
 
       {/* Avatar */}
       <div
-        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 mt-0.5"
         style={{ background: "linear-gradient(135deg, var(--violet-500), var(--magenta-500))", boxShadow: "0 2px 8px rgba(139,92,246,0.2)" }}
       >
         {initial}
       </div>
 
-      {/* Coordinator + event */}
-      <div className="min-w-0">
-        <p className={`text-sm truncate ${isNew ? "font-bold text-[var(--gray-900)]" : "font-semibold text-[var(--gray-800)]"}`}>
-          {customer?.name ?? "Coordinator"}
-        </p>
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+
+        {/* Top line: name + proposal ref + badge + view button */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0">
+            <p className={`text-sm truncate ${isNew ? "font-bold text-[var(--gray-900)]" : "font-semibold text-[var(--gray-800)]"}`}>
+              {customer?.name ?? "Coordinator"}
+            </p>
+            {shortId && (
+              <span className="text-[11px] font-mono text-[var(--gray-400)] bg-[var(--gray-100)] px-1.5 py-0.5 rounded flex-shrink-0">
+                {shortId}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${BADGE_STYLES[badgeColor]}`}>
+              <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
+              {badgeLabel}
+            </span>
+            <span
+              className="flex items-center gap-1 h-7 px-2.5 rounded-lg border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-600)] group-hover:bg-[var(--violet-600)] group-hover:text-white group-hover:border-[var(--violet-600)] transition-all duration-150 whitespace-nowrap"
+            >
+              View
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </span>
+          </div>
+        </div>
+
+        {/* Event title */}
         {event ? (
-          <p className="text-xs text-[var(--gray-400)] truncate mt-0.5">{event.name}</p>
+          <p className="text-sm text-[var(--gray-700)] font-medium truncate mt-0.5">{event.name}</p>
         ) : (
-          <p className="text-xs text-[var(--gray-300)] mt-0.5 italic">No event linked</p>
+          <p className="text-xs text-[var(--gray-300)] italic mt-0.5">No event linked</p>
         )}
-      </div>
 
-      {/* Status badge */}
-      <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full whitespace-nowrap ${BADGE_STYLES[badgeColor]}`}>
-        <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${meta.dot}`} />
-        {badgeLabel}
-      </span>
-
-      {/* Date */}
-      <span className="text-xs text-[var(--gray-400)] whitespace-nowrap tabular-nums hidden sm:block">
-        {formatDate(lastActivityAt)}
-      </span>
-
-      {/* Action */}
-      <div className="flex items-center gap-1.5">
-        <span
-          className="flex items-center gap-1.5 h-8 px-3 rounded-lg bg-white border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-700)] group-hover:bg-[var(--violet-600)] group-hover:text-white group-hover:border-[var(--violet-600)] group-focus-visible:bg-[var(--violet-600)] group-focus-visible:text-white group-focus-visible:border-[var(--violet-600)] transition-all duration-150 whitespace-nowrap"
-          style={{ boxShadow: "var(--shadow-sm)" }}
-        >
-          View
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </span>
-        {isNew && (
-          <span className="w-2 h-2 rounded-full bg-[var(--amber-400)] flex-shrink-0" />
-        )}
+        {/* Date + Location row */}
+        <div className="flex items-center gap-4 mt-1.5 flex-wrap">
+          <span className="flex items-center gap-1.5 text-xs text-[var(--gray-400)]">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            {displayDate}
+          </span>
+          {event?.location && (
+            <span className="flex items-center gap-1.5 text-xs text-[var(--gray-400)] truncate">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+              <span className="truncate">{event.location}</span>
+            </span>
+          )}
+          {isNew && (
+            <span className="w-2 h-2 rounded-full bg-[var(--amber-400)] flex-shrink-0" />
+          )}
+        </div>
       </div>
     </Link>
   );
@@ -418,15 +448,12 @@ function VendorInquiriesInner() {
 
           {/* Column headers */}
           {!loading && filtered.length > 0 && (
-            <div
-              className="hidden sm:grid items-center gap-x-4 px-6 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-100)]"
-              style={{ gridTemplateColumns: "40px 1fr auto auto auto" }}
-            >
-              <div />
-              <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Coordinator / Event</p>
-              <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Status</p>
-              <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Last Activity</p>
-              <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Actions</p>
+            <div className="hidden sm:flex items-center gap-4 px-6 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
+              <div className="w-10 flex-shrink-0" />
+              <div className="flex-1 flex items-center gap-8">
+                <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Coordinator · Event · Date · Location</p>
+              </div>
+              <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider flex-shrink-0">Status · Actions</p>
             </div>
           )}
 

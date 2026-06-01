@@ -512,6 +512,117 @@ function MessageCard({ customer, initialMessage }) {
   );
 }
 
+// ─── Price breakdown (cash offers) ───────────────────────────────────────────
+
+function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  const vehndrFee = Math.round(totalPriceCents * VENDOR_FEE_RATE);
+  const stripeFee = Math.round(totalPriceCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
+  const tax       = Math.round(totalPriceCents * TAX_RATE);
+  const base      = Math.max(totalPriceCents - vehndrFee - stripeFee - tax, 0);
+  const payout    = base + tipCents;
+
+  // Bar total includes the tip so the "Your payout" slice reflects what you actually receive
+  const barTotal = totalPriceCents + tipCents;
+  const segments = [
+    { label: "Your payout", value: payout,    pct: payout    / barTotal, color: "bg-violet-500",  dot: "bg-violet-500",  text: "text-violet-700",  bg: "bg-violet-50"  },
+    { label: "VEHNDR fee",  value: vehndrFee,  pct: vehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "Stripe",      value: stripeFee,  pct: stripeFee / barTotal, color: "bg-gray-400",    dot: "bg-gray-400",    text: "text-gray-600",    bg: "bg-gray-50"    },
+    { label: "Tax",         value: tax,        pct: tax       / barTotal, color: "bg-amber-400",   dot: "bg-amber-400",   text: "text-amber-700",   bg: "bg-amber-50"   },
+  ];
+
+  return (
+    <div className="border-t border-[var(--gray-100)]">
+      {/* Toggle row */}
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between px-5 py-3 hover:bg-[var(--gray-50)] transition-colors text-left"
+      >
+        <div className="flex items-center gap-2">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+          </svg>
+          <span className="text-[12px] font-semibold text-[var(--gray-500)]">Fee breakdown</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] font-bold" style={{ color: "var(--mint-700)" }}>{fmt$(payout)} to you</span>
+          <svg
+            width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--gray-400)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          >
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 pt-1 space-y-4">
+          {/* Visual bar */}
+          <div className="flex rounded-full overflow-hidden h-2 gap-px">
+            {segments.map(({ label, pct, color }) => (
+              <div
+                key={label}
+                className={`${color} transition-all`}
+                style={{ width: `${Math.max(pct * 100, 4)}%` }}
+              />
+            ))}
+          </div>
+
+          {/* Grid of segments */}
+          <div className="grid grid-cols-2 gap-2">
+            {segments.map(({ label, value, dot, text, bg }) => (
+              <div key={label} className={`flex items-center justify-between px-3 py-2 rounded-xl ${bg}`}>
+                <div className="flex items-center gap-1.5">
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${dot}`} />
+                  <span className="text-[11px] text-[var(--gray-500)] font-medium">{label}</span>
+                </div>
+                <span className={`text-[11px] font-bold ${text}`}>{fmt$(value)}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Line-item detail */}
+          <div className="space-y-2 pt-1 border-t border-[var(--gray-100)]">
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-400)]">Coordinator pays</span>
+              <span className="font-medium text-[var(--gray-700)]">{fmt$(totalPriceCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-400)]">VEHNDR fee (10%)</span>
+              <span className="font-medium text-red-400">−{fmt$(vehndrFee)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-400)]">Stripe processing (2.9% + $0.30)</span>
+              <span className="font-medium text-red-400">−{fmt$(stripeFee)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-400)]">Tax (8.25%)</span>
+              <span className="font-medium text-red-400">−{fmt$(tax)}</span>
+            </div>
+            {tipCents > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-400)]">Committed tip</span>
+                <span className="font-medium text-[var(--violet-600)]">+{fmt$(tipCents)}</span>
+              </div>
+            )}
+            <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
+              <span className="font-semibold text-[var(--gray-700)]">You receive</span>
+              <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmt$(payout)}</span>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-[var(--gray-400)] leading-relaxed">
+            Fees are deducted from your payout — the coordinator is charged exactly {fmt$(totalPriceCents)}.
+            Transfers within 2–7 business days after payment clears.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Offer card ───────────────────────────────────────────────────────────────
 
 function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevise, isConfirmed, inquiryId }) {
@@ -526,7 +637,7 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
       <div className="px-5 py-4 flex items-center justify-between border-b border-[var(--gray-100)]">
         <div className="flex items-center gap-2">
           <span className="text-[13px] font-semibold text-[var(--gray-800)]">
-            {offerAccepted ? "Accepted Offer" : "Your Offer"}
+            {offerAccepted ? "Accepted Offer" : offerDeclined ? "Declined Offer" : "Offer Sent"}
           </span>
           {offer.versionNumber > 1 && (
             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[var(--gray-100)] text-[var(--gray-400)]">v{offer.versionNumber}</span>
@@ -546,12 +657,6 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
             {isCash ? fmt$(calcVendorBase(offer.totalPriceCents)) : fmt$(offer.totalPriceCents)}
           </span>
         </div>
-        {isCash && tipCents > 0 && (
-          <div className="flex items-baseline justify-between">
-            <span className="text-sm text-[var(--gray-500)]">Committed tip</span>
-            <span className="text-sm font-semibold text-[var(--violet-600)] tabular-nums">+{fmt$(tipCents)}</span>
-          </div>
-        )}
         {offer.depositCents > 0 && (
           <div className="flex items-baseline justify-between pt-2 border-t border-[var(--gray-100)]">
             <span className="text-sm text-[var(--gray-500)]">Deposit{offer.depositType ? ` (${offer.depositType.replace(/_/g, " ")})` : ""}</span>
@@ -578,7 +683,7 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
         )}
         {offer.description && (
           <div className="pt-2 border-t border-[var(--gray-100)]">
-            <p className="text-xs text-[var(--gray-400)] font-semibold uppercase tracking-wider mb-1">Terms</p>
+            <p className="text-xs text-[var(--gray-400)] font-semibold uppercase tracking-wider mb-1">Note</p>
             <p className="text-[13px] text-[var(--gray-600)] leading-relaxed">{offer.description}</p>
           </div>
         )}
@@ -595,6 +700,7 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
           </div>
         )}
       </div>
+
     </Card>
   );
 }
@@ -630,19 +736,24 @@ function OfferHistory({ offers }) {
             const next = i === 0 ? active : arr[i - 1];
             const diff = next ? next.totalPriceCents - offer.totalPriceCents : null;
             return (
-              <div key={offer.id} className="flex items-center justify-between px-6 py-3.5 border-b border-[var(--gray-50)] last:border-0">
-                <div className="flex items-center gap-2.5">
-                  <span className="text-[10px] font-bold bg-[var(--gray-100)] px-1.5 py-0.5 rounded text-[var(--gray-400)]">v{offer.versionNumber}</span>
-                  <span className="text-xs text-[var(--gray-400)]">{timeAgo(offer.createdAt)}</span>
+              <div key={offer.id} className="px-6 py-3.5 border-b border-[var(--gray-50)] last:border-0">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-[10px] font-bold bg-[var(--gray-100)] px-1.5 py-0.5 rounded text-[var(--gray-400)]">v{offer.versionNumber}</span>
+                    <span className="text-xs text-[var(--gray-400)]">{timeAgo(offer.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {diff !== null && diff !== 0 && (
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${diff > 0 ? "bg-red-50 text-red-500" : "bg-[var(--mint-50)] text-[var(--mint-600)]"}`}>
+                        {diff > 0 ? `↑ ${fmt$(diff)}` : `↓ ${fmt$(Math.abs(diff))}`}
+                      </span>
+                    )}
+                    <span className="text-[13px] font-semibold text-[var(--gray-500)]">{fmt$(offer.totalPriceCents)}</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {diff !== null && diff !== 0 && (
-                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${diff > 0 ? "bg-red-50 text-red-500" : "bg-[var(--mint-50)] text-[var(--mint-600)]"}`}>
-                      {diff > 0 ? `↑ ${fmt$(diff)}` : `↓ ${fmt$(Math.abs(diff))}`}
-                    </span>
-                  )}
-                  <span className="text-[13px] font-semibold text-[var(--gray-500)]">{fmt$(offer.totalPriceCents)}</span>
-                </div>
+                {offer.description && (
+                  <p className="text-xs text-[var(--gray-400)] mt-1.5 leading-snug">{offer.description}</p>
+                )}
               </div>
             );
           })}
@@ -668,14 +779,12 @@ function calcVendorBase(coordinatorBudgetCents) {
 }
 
 function EarningsCard({ offer, tipCents = 0 }) {
-  const coordinatorBudget = offer.totalPriceCents ?? 0;
-  const vendorBase        = calcVendorBase(coordinatorBudget);
-  const vehndrFee         = Math.round(vendorBase * VENDOR_FEE_RATE);
-  const payout            = vendorBase - vehndrFee + tipCents;
-
-  const f = (c) =>
-    new Intl.NumberFormat("en-US", { style: "currency", currency: "USD",
-      minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(c / 100);
+  const total      = offer.totalPriceCents ?? 0;
+  const vehndrFee  = Math.round(total * VENDOR_FEE_RATE);
+  const stripeFee  = Math.round(total * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
+  const tax        = Math.round(total * TAX_RATE);
+  const base       = Math.max(total - vehndrFee - stripeFee - tax, 0);
+  const payout     = base + tipCents;
 
   return (
     <Card style={{ border: "1px solid var(--mint-200)" }}>
@@ -692,34 +801,42 @@ function EarningsCard({ offer, tipCents = 0 }) {
 
       <div className="px-5 py-5 space-y-3">
         <p className="text-[38px] font-bold leading-none tracking-tight" style={{ color: "var(--mint-700)" }}>
-          {f(payout)}
+          {fmt$(payout)}
         </p>
 
         <div className="space-y-2 pt-1">
           <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Your base</span>
-            <span className="font-medium text-[var(--gray-800)] tabular-nums">{f(vendorBase)}</span>
+            <span className="text-[var(--gray-500)]">Coordinator paid</span>
+            <span className="font-medium text-[var(--gray-800)] tabular-nums">{fmt$(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-            <span className="font-medium text-red-500 tabular-nums">−{f(vehndrFee)}</span>
+            <span className="font-medium text-red-400 tabular-nums">−{fmt$(vehndrFee)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">Stripe processing</span>
+            <span className="font-medium text-red-400 tabular-nums">−{fmt$(stripeFee)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+            <span className="font-medium text-red-400 tabular-nums">−{fmt$(tax)}</span>
           </div>
           {tipCents > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-500)]">Tips</span>
-              <span className="font-medium text-[var(--violet-600)] tabular-nums">+{f(tipCents)}</span>
+              <span className="text-[var(--gray-500)]">Tip</span>
+              <span className="font-medium text-[var(--violet-600)] tabular-nums">+{fmt$(tipCents)}</span>
             </div>
           )}
           <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
             <span className="font-semibold text-[var(--gray-700)]">You receive</span>
-            <span className="font-bold tabular-nums" style={{ color: "var(--mint-700)" }}>{f(payout)}</span>
+            <span className="font-bold tabular-nums" style={{ color: "var(--mint-700)" }}>{fmt$(payout)}</span>
           </div>
         </div>
       </div>
 
       <div className="px-5 py-3 border-t border-[var(--gray-100)]">
         <p className="text-[11px] text-[var(--gray-400)]">
-          Includes a 10% VEHNDR fee on your base. Transfers within 2–7 business days.
+          Fees deducted from your payout. Transfers within 2–7 business days after payment clears.
         </p>
       </div>
     </Card>
@@ -897,13 +1014,34 @@ function VendorInquiryDetailInner() {
           id={id}
         />
 
-        {/* 2. Earnings / payment info — visible as soon as offer is accepted */}
+        {/* 2a. Earnings confirmed card — after offer is accepted/booked */}
         {(offerAccepted || isConfirmed) && displayOffer?.proposalType === "cash" && (
           <EarningsCard
             offer={displayOffer}
             tipCents={bookingTipCents}
           />
         )}
+
+        {/* 2b. Fee breakdown — shown for cash engagements until the confirmed EarningsCard takes over */}
+        {!(offerAccepted || isConfirmed) && coordinatorType === "hiring_vendor" && (() => {
+          const amountCents = (activeOffer?.proposalType === "cash" && activeOffer.totalPriceCents > 0)
+            ? activeOffer.totalPriceCents
+            : (budgetCents ?? 0);
+          if (!amountCents) return null;
+          return (
+            <Card>
+              <div className="px-5 py-3.5 border-b border-[var(--gray-100)]">
+                <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest">Fee Breakdown</p>
+                <p className="text-[11px] text-[var(--gray-400)] mt-0.5">
+                  {activeOffer
+                    ? `Based on the agreed amount of ${fmt$(amountCents)}`
+                    : `Based on the coordinator's proposed budget of ${fmt$(amountCents)}`}
+                </p>
+              </div>
+              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} />
+            </Card>
+          );
+        })()}
 
         {/* 3. Message + event — side by side */}
         {(initialMessage || event) && (
