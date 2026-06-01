@@ -84,7 +84,7 @@ function VendorFeePreview({ totalPrice }) {
           </div>
         </div>
         <p className="text-[10px] text-[var(--gray-400)] mt-2 leading-relaxed">
-          Customer pays the Stripe processing fee. Tips go 100% to you.
+          Stripe processing is deducted from payout. Tips are shown separately at checkout.
         </p>
       </div>
     </div>

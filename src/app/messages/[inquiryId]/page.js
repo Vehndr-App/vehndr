@@ -77,25 +77,20 @@ function dollarsToC(val) {
 // ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
 const MP_TAX_RATE        = 0.0825;
 const MP_COORD_FEE       = 0.10;
-const MP_APP_FEE         = 0.20;
 const MP_STRIPE_RATE     = 0.029;
 const MP_STRIPE_FIXED    = 30;   // cents
 
 function mpTax(base)          { return Math.round(base * MP_TAX_RATE); }
 function mpCoordFee(base)     { return Math.round(base * MP_COORD_FEE); }
-function mpAppFee(base)       { return Math.round(base * MP_APP_FEE); }
 function mpPreStripeTotal(base, tipCents = 0) { return base + mpTax(base) + mpCoordFee(base) + tipCents; }
 function mpGrossTotal(base, tipCents = 0) {
-  const pre = mpPreStripeTotal(base, tipCents);
-  return Math.ceil((pre + MP_STRIPE_FIXED) / (1 - MP_STRIPE_RATE));
-}
-function mpStripeFeeToCustomer(base, tipCents = 0) {
-  return mpGrossTotal(base, tipCents) - mpPreStripeTotal(base, tipCents);
+  return mpPreStripeTotal(base, tipCents);
 }
 function mpStripeFee(total) { return Math.round(total * MP_STRIPE_RATE + MP_STRIPE_FIXED); }
-function mpTotal(base) { return base; }
-function mpVendorPayout(base) { return Math.round(base * 0.90); }
-function mpVendorPayoutWithTip(base, tipCents) { return Math.round(base * 0.90) + tipCents; }
+function mpVendorPayout(base, tipCents = 0) {
+  return Math.max(base - Math.round(base * 0.10) - mpStripeFee(mpGrossTotal(base, tipCents)), 0) + tipCents;
+}
+function mpVendorPayoutWithTip(base, tipCents) { return mpVendorPayout(base, tipCents); }
 
 function fmtExact(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -110,7 +105,6 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
   const base      = offer.totalPriceCents;
   const coordFee  = mpCoordFee(base);
   const tax       = mpTax(base);
-  const stripe    = mpStripeFeeToCustomer(base, tipCents);
   const estTotal  = mpGrossTotal(base, tipCents);
 
   const hasDeposit = offer.depositCents > 0;
@@ -141,10 +135,6 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
           <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
         </div>
         <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-600)]">Processing fee (Stripe)</span>
-          <span className="font-semibold text-[var(--gray-800)]">~{fmtExact(stripe)}</span>
-        </div>
-        <div className="flex justify-between text-xs">
           <span className="text-[var(--violet-500)]">Tip</span>
           {tipCents > 0
             ? <span className="font-semibold text-[var(--violet-700)]">{formatPrice(tipCents)}</span>
@@ -165,9 +155,6 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
               <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depGross)}</span>
             </div>
           )}
-          <p className="text-[10px] text-[var(--violet-500)] mt-1.5">
-            Tip goes 100% to vendor
-          </p>
         </div>
       </div>
     </div>
@@ -581,7 +568,7 @@ function VendorOfferPanel({ inquiryId, offers, onOfferSaved, tipCents = 0 }) {
                 </span>
               </div>
               <p className="text-[10px] text-[var(--gray-400)] mt-0.5">
-                90% of base + tip − Stripe fee (~{fmtExact(mpStripeFee(mpTotal(activeOffer.totalPriceCents) + tipCents))})
+                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpGrossTotal(activeOffer.totalPriceCents, tipCents)))})
               </p>
             </div>
             {activeOffer.status === "pending" && (
@@ -1445,13 +1432,9 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                         <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
                         <span className="text-[var(--gray-700)]">{formatPrice(mpTax(inquiry.budgetCents))}</span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-[var(--violet-600)]">Processing fee</span>
-                        <span className="text-[var(--gray-700)]">~{formatPrice(mpStripeFeeToCustomer(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
-                      </div>
                       {(inquiry.tipCents ?? 0) > 0 && (
                         <div className="flex justify-between text-[10px]">
-                          <span className="text-[var(--violet-600)]">Tip (100% to vendor)</span>
+                          <span className="text-[var(--violet-600)]">Tip</span>
                           <span className="text-[var(--gray-700)]">{formatPrice(inquiry.tipCents)}</span>
                         </div>
                       )}

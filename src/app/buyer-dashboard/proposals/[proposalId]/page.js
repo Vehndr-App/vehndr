@@ -500,7 +500,7 @@ function TipModal({ booking, inquiry, onClose, onTipPaid }) {
               <div>
                 <p className="font-semibold text-[var(--gray-900)]">Tip sent!</p>
                 <p className="text-sm text-[var(--gray-500)] mt-0.5">
-                  {formatPrice(intentData?.tipCents)} goes directly to {inquiry?.vendor?.name}.
+                  {formatPrice(intentData?.tipCents)} tip payment completed.
                 </p>
               </div>
               <button

@@ -165,11 +165,6 @@ export default function TipSelector({ subtotalCents, onTipChange, disabled = fal
           />
         </div>
       )}
-
-      {/* Tip Info */}
-      <p className="text-xs text-[var(--gray-500)] text-center">
-        100% of your tip goes directly to the vendor
-      </p>
     </div>
   );
 }

@@ -621,7 +621,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                       />
                     </div>
                     <p className="text-xs text-[var(--gray-400)] mt-1.5">
-                      100% goes directly to the vendor. Collected at checkout.
+                      Collected at checkout.
                     </p>
                   </div>
                 </section>

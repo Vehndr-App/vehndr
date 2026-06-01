@@ -19,17 +19,24 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-// ── Fee constants — fees are deducted from vendor payout, never added to coordinator charge ───
-const COORDINATOR_FEE_PERCENT = 0.10;
+// ── Fee constants — payer pays one 10% fee; recipient absorbs 10% + Stripe ───
+const BUYER_FEE_PERCENT       = 0.10;
+const SELLER_FEE_PERCENT      = 0.10;
 const STRIPE_FEE_PERCENT      = 0.029;
 const STRIPE_FEE_FIXED_CENTS  = 30;
 const TAX_RATE                = 0.0825;
 
-function calcPlatformFee(base)       { return Math.round(base * COORDINATOR_FEE_PERCENT); }
+function calcBuyerFee(base)          { return Math.round(base * BUYER_FEE_PERCENT); }
+function calcSellerFee(base)         { return Math.round(base * SELLER_FEE_PERCENT); }
+function calcVehndrFee(base)         { return calcBuyerFee(base) + calcSellerFee(base); }
 function calcStripeProcessing(total) { return Math.round(total * STRIPE_FEE_PERCENT) + STRIPE_FEE_FIXED_CENTS; }
 function calcTax(base)               { return Math.round(base * TAX_RATE); }
+function calcChargeTotal(base, tip = 0) {
+  return base + calcBuyerFee(base) + calcTax(base) + tip;
+}
 function calcVendorPayout(base, tip = 0) {
-  return base + tip - calcPlatformFee(base) - calcStripeProcessing(base + tip) - calcTax(base);
+  const stripe = calcStripeProcessing(calcChargeTotal(base, tip));
+  return Math.max(base - calcSellerFee(base) - stripe, 0) + tip;
 }
 
 function fmt(cents) {
@@ -159,15 +166,15 @@ function DevPaymentForm({ amountCents, label = "Pay", onSuccess }) {
 // ── Money Flow Bar ────────────────────────────────────────────────────────────
 
 function MoneyFlowBar({ baseCents, tipCents = 0 }) {
-  const total       = baseCents + tipCents;
-  const platformFee = calcPlatformFee(baseCents);
+  const total       = calcChargeTotal(baseCents, tipCents);
+  const vehndrFee   = calcVehndrFee(baseCents);
   const stripeProc  = calcStripeProcessing(total);
   const tax         = calcTax(baseCents);
-  const vendor      = total - platformFee - stripeProc - tax;
+  const vendor      = calcVendorPayout(baseCents, tipCents);
 
   const segments = [
     { label: "Vendor",  value: vendor,       color: "bg-violet-500",  textColor: "text-violet-700",  bg: "bg-violet-50"  },
-    { label: "VEHNDR",  value: platformFee,  color: "bg-emerald-500", textColor: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "VEHNDR",  value: vehndrFee,    color: "bg-emerald-500", textColor: "text-emerald-700", bg: "bg-emerald-50" },
     { label: "Stripe",  value: stripeProc,   color: "bg-gray-400",    textColor: "text-gray-600",    bg: "bg-gray-50"    },
     { label: "Tax",     value: tax,          color: "bg-amber-400",   textColor: "text-amber-700",   bg: "bg-amber-50"   },
   ];
@@ -192,7 +199,7 @@ function MoneyFlowBar({ baseCents, tipCents = 0 }) {
         ))}
       </div>
       <p className="text-[10px] text-gray-400 mt-2.5 text-center leading-relaxed">
-        VEHNDR fee &amp; Stripe processing deducted from vendor payout — not added to your charge.
+        Vendor payout reflects their VEHNDR fee and Stripe processing. Tip is included in vendor payout.
       </p>
     </div>
   );
@@ -248,7 +255,7 @@ function PostPaymentTip({ booking, inquiry, onTipAdded }) {
         </div>
         <div>
           <p className="text-sm font-semibold text-emerald-800">Tip sent!</p>
-          <p className="text-xs text-emerald-600">{fmt(intentData?.tipCents)} tip goes directly to {inquiry?.vendor?.name}.</p>
+          <p className="text-xs text-emerald-600">{fmt(intentData?.tipCents)} tip payment completed.</p>
         </div>
       </div>
     );
@@ -267,7 +274,7 @@ function PostPaymentTip({ booking, inquiry, onTipAdded }) {
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-400 mb-4">100% goes directly to the vendor. Processed securely by Stripe.</p>
+        <p className="text-xs text-gray-400 mb-4">Processed securely by Stripe.</p>
 
         {(phase === "idle" || phase === "selecting") && (
           <>
@@ -496,7 +503,8 @@ export default function MarketplaceCheckoutPage() {
     ? (payDeposit ? offer.depositCents : offer.totalPriceCents)
     : offer?.remainingBalanceCents ?? offer?.totalPriceCents ?? 0;
 
-  const chargeTotal = baseCents + tipCents;
+  const estimatedChargeTotal = isCash ? calcChargeTotal(baseCents, tipCents) : baseCents + tipCents;
+  const chargeTotal = intentData?.amountCents ?? estimatedChargeTotal;
 
   const handleTipChange = useCallback((cents) => setTipCents(cents), []);
 
@@ -725,12 +733,24 @@ export default function MarketplaceCheckoutPage() {
                     <span className="font-medium text-violet-600">{fmt(tipCents)}</span>
                   </div>
                 )}
+                {isCash && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">VEHNDR fee (10%)</span>
+                      <span className="font-medium text-gray-900">{fmt(intentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents))}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Tax (8.25%)</span>
+                      <span className="font-medium text-gray-900">{fmt(intentData?.taxCents ?? calcTax(baseCents))}</span>
+                    </div>
+                  </>
+                )}
                 <div className="flex justify-between font-semibold text-sm pt-2 border-t border-gray-100">
                   <span className="text-gray-800">Total due today</span>
                   <span className="text-gray-900">{fmtExact(chargeTotal)}</span>
                 </div>
                 {isCash && (
-                  <p className="text-[10px] text-gray-400 pt-1">Platform fee &amp; processing deducted from vendor payout</p>
+                  <p className="text-[10px] text-gray-400 pt-1">Stripe processing is deducted from vendor payout.</p>
                 )}
 
                 {/* Money flow — collapsible sub-section */}

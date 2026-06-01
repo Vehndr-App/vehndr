@@ -13,6 +13,13 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
+const BUYER_FEE_PERCENT = 0.10;
+const TAX_RATE = 0.0825;
+
+function calcBuyerFee(base) { return Math.round(base * BUYER_FEE_PERCENT); }
+function calcTax(base) { return Math.round(base * TAX_RATE); }
+function calcChargeTotal(base) { return base + calcBuyerFee(base) + calcTax(base); }
+
 function formatPrice(cents) {
   if (!cents && cents !== 0) return "—";
   return new Intl.NumberFormat("en-US", {
@@ -160,6 +167,8 @@ function VendorPayInner() {
   const [intent,   setIntent]   = useState(null);   // { clientSecret, paymentIntentId, amountCents, bookingId, devMode }
   const [intentLoading, setIntentLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const activeOffer = inquiry?.activeOffer;
+  const estimatedTotalCents = activeOffer ? calcChargeTotal(activeOffer.totalPriceCents) : null;
 
   useEffect(() => {
     if (!id) return;
@@ -244,20 +253,34 @@ function VendorPayInner() {
         ) : (
           <>
             {/* Amount summary */}
-            {inquiry?.activeOffer && (
+            {activeOffer && (
               <div className="bg-white rounded-2xl border border-[var(--gray-100)] p-5">
                 <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider mb-3">Participation Fee</p>
                 <div className="flex items-end justify-between">
                   <div>
                     <p className="text-3xl font-bold text-[var(--gray-900)]">
-                      {formatPrice(inquiry.activeOffer.totalPriceCents)}
+                      {formatPrice(estimatedTotalCents)}
                     </p>
-                    <p className="text-xs text-[var(--gray-500)] mt-1">Payable to event organizer</p>
+                    <p className="text-xs text-[var(--gray-500)] mt-1">Payable today</p>
                   </div>
                 </div>
-                {inquiry.activeOffer.description && (
+                <div className="mt-4 pt-3 border-t border-[var(--gray-100)] space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--gray-500)]">Booth fee</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(activeOffer.totalPriceCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(calcBuyerFee(activeOffer.totalPriceCents))}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(calcTax(activeOffer.totalPriceCents))}</span>
+                  </div>
+                </div>
+                {activeOffer.description && (
                   <p className="text-sm text-[var(--gray-600)] mt-3 pt-3 border-t border-[var(--gray-100)] leading-relaxed">
-                    {inquiry.activeOffer.description}
+                    {activeOffer.description}
                   </p>
                 )}
               </div>
@@ -280,7 +303,7 @@ function VendorPayInner() {
                       <span className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
                       Setting up…
                     </span>
-                  ) : `Pay ${inquiry?.activeOffer ? formatPrice(inquiry.activeOffer.totalPriceCents) : ""} →`}
+                  ) : `Pay ${estimatedTotalCents != null ? formatPrice(estimatedTotalCents) : ""} →`}
                 </button>
               ) : intent.devMode ? (
                 <DevPaymentForm amountCents={intent.amountCents} onSuccess={handleDevSuccess} />
