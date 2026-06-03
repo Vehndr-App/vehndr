@@ -6,6 +6,13 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { listMessages, sendMessage, updateInquiryTip } from "../../../services/inquiries";
 import { listOffers, createOffer, updateOffer, acceptOffer, declineOffer } from "../../../services/offers";
 import Link from "next/link";
+import {
+  marketplaceChargeTotalCents,
+  marketplacePayerFeeCents,
+  marketplaceRecipientPayoutCents,
+  marketplaceStripeFeeCents,
+  marketplaceTaxCents,
+} from "../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,21 +82,11 @@ function dollarsToC(val) {
 }
 
 // ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
-const MP_TAX_RATE        = 0.0825;
-const MP_COORD_FEE       = 0.10;
-const MP_STRIPE_RATE     = 0.029;
-const MP_STRIPE_FIXED    = 30;   // cents
-
-function mpTax(base)          { return Math.round(base * MP_TAX_RATE); }
-function mpCoordFee(base)     { return Math.round(base * MP_COORD_FEE); }
-function mpPreStripeTotal(base, tipCents = 0) { return base + mpTax(base) + mpCoordFee(base) + tipCents; }
-function mpGrossTotal(base, tipCents = 0) {
-  return mpPreStripeTotal(base, tipCents);
-}
-function mpStripeFee(total) { return Math.round(total * MP_STRIPE_RATE + MP_STRIPE_FIXED); }
-function mpVendorPayout(base, tipCents = 0) {
-  return Math.max(base - Math.round(base * 0.10) - mpStripeFee(mpGrossTotal(base, tipCents)), 0) + tipCents;
-}
+function mpTax(base)          { return marketplaceTaxCents(base); }
+function mpCoordFee(base)     { return marketplacePayerFeeCents(base); }
+function mpChargeTotal(base, tipCents = 0) { return marketplaceChargeTotalCents(base, tipCents); }
+function mpStripeFee(total)   { return marketplaceStripeFeeCents(total); }
+function mpVendorPayout(base, tipCents = 0) { return marketplaceRecipientPayoutCents(base, tipCents); }
 function mpVendorPayoutWithTip(base, tipCents) { return mpVendorPayout(base, tipCents); }
 
 function fmtExact(cents) {
@@ -105,10 +102,10 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
   const base      = offer.totalPriceCents;
   const coordFee  = mpCoordFee(base);
   const tax       = mpTax(base);
-  const estTotal  = mpGrossTotal(base, tipCents);
+  const estTotal  = mpChargeTotal(base, tipCents);
 
   const hasDeposit = offer.depositCents > 0;
-  const depGross   = hasDeposit ? mpGrossTotal(offer.depositCents ?? 0) : 0;
+  const depositTotal = hasDeposit ? mpChargeTotal(offer.depositCents ?? 0) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -152,7 +149,7 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
           {hasDeposit && (
             <div className="flex justify-between mt-1">
               <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
-              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depGross)}</span>
+              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depositTotal)}</span>
             </div>
           )}
         </div>
@@ -569,7 +566,7 @@ function VendorOfferPanel({ inquiryId, offers, onOfferSaved, tipCents = 0 }) {
                 </span>
               </div>
               <p className="text-[10px] text-[var(--gray-400)] mt-0.5">
-                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpGrossTotal(activeOffer.totalPriceCents, tipCents)))})
+                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpChargeTotal(activeOffer.totalPriceCents, tipCents)))})
               </p>
             </div>
             {activeOffer.status === "pending" && (
@@ -1464,7 +1461,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     </div>
                     <div className="flex justify-between text-[10px] font-bold pt-1 border-t border-[var(--violet-200)]">
                       <span className="text-[var(--violet-800)]">Est. total</span>
-                      <span className="text-[var(--violet-900)]">~{formatPrice(mpGrossTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
+                      <span className="text-[var(--violet-900)]">~{formatPrice(mpChargeTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
                     </div>
                   </div>
                 </div>

@@ -9,6 +9,7 @@ import { getEvent } from "../../../../services/events";
 import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
 import TipSelector from "../../../../components/TipSelector";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
+import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -59,20 +60,6 @@ const BADGE = {
   mint:   "bg-[var(--mint-50)]   text-[var(--mint-700)]   ring-1 ring-[var(--mint-100)]",
   gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]   ring-1 ring-[var(--gray-200)]",
 };
-
-// ─── Fee helpers (matches MarketplacePricing) ────────────────────────────────
-
-const VEHNDR_FEE_RATE   = 0.10;
-const STRIPE_FEE_RATE   = 0.029;
-const STRIPE_FEE_FIXED  = 30; // cents
-const TAX_RATE          = 0.0825;
-
-function calcVehndrFee(base)       { return Math.round(base * VEHNDR_FEE_RATE); }
-function calcStripeFee(total)      { return Math.round(total * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED; }
-function calcTaxFee(base)          { return Math.round(base * TAX_RATE); }
-function calcVendorPayout(base, tip = 0) {
-  return base + tip - calcVehndrFee(base) - calcStripeFee(base + tip) - calcTaxFee(base);
-}
 
 const fmtC = (c) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -165,7 +152,9 @@ function PricingCard({ offer, tipCents, booking }) {
   const committedTip = tipCents ?? 0;
   const extraTip     = Math.max(0, (booking?.tipCents ?? 0) - committedTip);
   const totalTip     = committedTip + extraTip;
-  const total        = base + totalTip;
+  const isCash       = offer.proposalType === "cash";
+  const pricing      = marketplaceBreakdown(base, totalTip);
+  const total        = isCash ? pricing.totalChargeCents : base + totalTip;
 
   const ChevronIcon = ({ open }) => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -201,6 +190,18 @@ function PricingCard({ offer, tipCents, booking }) {
               <span className="text-[var(--gray-500)]">Base service</span>
               <span className="font-medium text-[var(--gray-800)]">{fmtC(base)}</span>
             </div>
+            {isCash && (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.coordinatorFeeCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.taxCents)}</span>
+                </div>
+              </>
+            )}
             {committedTip > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--gray-500)]">Tip</span>

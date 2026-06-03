@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../services/inquiries";
+import { marketplaceChargeTotalCents } from "../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,13 +55,6 @@ function matchTab(inq, tab) {
   if (tab === "sent")   return SENT_STATUSES.has(s);
   if (tab === "booked") return BOOKED_STATUSES.has(s);
   return true;
-}
-
-// ─── Fee helpers ──────────────────────────────────────────────────────────────
-
-function feeGrossTotal(base, tip = 0) {
-  const pre = base + Math.round(base * 0.0825) + Math.round(base * 0.10) + tip;
-  return Math.ceil((pre + 30) / (1 - 0.029));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -126,7 +120,11 @@ function ProposalCard({ inquiry, onDelete }) {
   const tip   = displayTipCents(inquiry);
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
-    ? formatPrice(offer.totalPriceCents + tip)
+    ? formatPrice(
+        offer.proposalType === "cash"
+          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip)
+          : offer.totalPriceCents + tip
+      )
     : null;
 
   return (

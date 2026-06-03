@@ -14,30 +14,26 @@ import TipSelector from "../../../../components/TipSelector";
 import Link from "next/link";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import {
+  marketplaceBreakdown,
+  marketplaceChargeTotalCents,
+  marketplacePayerFeeCents,
+  marketplaceRecipientPayoutCents,
+  marketplaceStripeFeeCents,
+  marketplaceTaxCents,
+} from "../../../../utils/marketplacePricing";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-// ── Fee constants — payer pays one 10% fee; recipient absorbs 10% + Stripe ───
-const BUYER_FEE_PERCENT       = 0.10;
-const SELLER_FEE_PERCENT      = 0.10;
-const STRIPE_FEE_PERCENT      = 0.029;
-const STRIPE_FEE_FIXED_CENTS  = 30;
-const TAX_RATE                = 0.0825;
-
-function calcBuyerFee(base)          { return Math.round(base * BUYER_FEE_PERCENT); }
-function calcSellerFee(base)         { return Math.round(base * SELLER_FEE_PERCENT); }
-function calcVehndrFee(base)         { return calcBuyerFee(base) + calcSellerFee(base); }
-function calcStripeProcessing(total) { return Math.round(total * STRIPE_FEE_PERCENT) + STRIPE_FEE_FIXED_CENTS; }
-function calcTax(base)               { return Math.round(base * TAX_RATE); }
-function calcChargeTotal(base, tip = 0) {
-  return base + calcBuyerFee(base) + calcTax(base) + tip;
-}
-function calcVendorPayout(base, tip = 0) {
-  const stripe = calcStripeProcessing(calcChargeTotal(base, tip));
-  return Math.max(base - calcSellerFee(base) - stripe, 0) + tip;
-}
+// ── Fee helpers — payer pays one 10% fee; recipient absorbs 10% + Stripe ─────
+function calcBuyerFee(base)          { return marketplacePayerFeeCents(base); }
+function calcVehndrFee(base)         { return marketplaceBreakdown(base).vehndrFeeCents; }
+function calcStripeProcessing(total) { return marketplaceStripeFeeCents(total); }
+function calcTax(base)               { return marketplaceTaxCents(base); }
+function calcChargeTotal(base, tip = 0) { return marketplaceChargeTotalCents(base, tip); }
+function calcVendorPayout(base, tip = 0) { return marketplaceRecipientPayoutCents(base, tip); }
 
 function fmt(cents) {
   if (cents == null) return "—";
