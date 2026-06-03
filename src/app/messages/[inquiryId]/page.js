@@ -712,9 +712,12 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   }
 
   async function handleSaveTip() {
-    setEditingTip(false);
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditingTip(false);
+      return;
+    }
     setSavingTip(true);
     setActionError(null);
     try {
@@ -722,11 +725,17 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
       if (result?.requiresVendorReview) {
         setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
       }
+      setEditingTip(false);
     } catch (err) {
       setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
+  }
+
+  function handleCancelTip() {
+    setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditingTip(false);
   }
 
   async function handleSendRequest() {
@@ -747,6 +756,8 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   }
 
   const previousOffers = offers.filter((o) => !o.isActive);
+  const draftTipCents = Math.round(parseFloat(tipInput || 0) * 100);
+  const canSendTip = editingTip && !savingTip && !isNaN(draftTipCents) && draftTipCents >= 0 && draftTipCents !== tipCents;
 
   return (
     <div className="p-4 pb-28 space-y-4">
@@ -845,21 +856,40 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                 </div>
               )}
               {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
-                <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                <div className="flex justify-between items-start gap-3 pt-2 border-t border-[var(--gray-100)]">
                   <span className="text-xs text-[var(--gray-500)]">Tip</span>
                   {editingTip ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-[var(--gray-400)]">$</span>
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={tipInput}
-                        onChange={(e) => setTipInput(e.target.value)}
-                        onBlur={handleSaveTip}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
-                        autoFocus
-                        disabled={savingTip}
-                        className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-[var(--gray-400)]">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={tipInput}
+                          onChange={(e) => setTipInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Escape") handleCancelTip(); }}
+                          autoFocus
+                          disabled={savingTip}
+                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleCancelTip}
+                          disabled={savingTip}
+                          className="px-2.5 py-1.5 rounded-lg border border-[var(--gray-200)] text-[11px] font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveTip}
+                          disabled={!canSendTip}
+                          className="px-2.5 py-1.5 rounded-lg bg-[var(--violet-600)] text-[11px] font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+                        >
+                          {savingTip ? "Sending..." : "Send Revised Tip"}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1115,9 +1145,12 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   }
 
   async function handleSaveTip() {
-    setEditingTip(false);
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditingTip(false);
+      return;
+    }
     setSavingTip(true);
     setActionError(null);
     try {
@@ -1125,11 +1158,17 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
       if (result?.requiresVendorReview) {
         setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
       }
+      setEditingTip(false);
     } catch (err) {
       setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
+  }
+
+  function handleCancelTip() {
+    setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditingTip(false);
   }
 
   async function handleSendRequest() {
@@ -1150,6 +1189,8 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   }
 
   const previousOffers = offers.filter((o) => !o.isActive);
+  const draftTipCents = Math.round(parseFloat(tipInput || 0) * 100);
+  const canSendTip = editingTip && !savingTip && !isNaN(draftTipCents) && draftTipCents >= 0 && draftTipCents !== tipCents;
 
   return (
     <div className="hidden lg:flex flex-col w-80 xl:w-96 flex-shrink-0 border-l border-[var(--gray-100)] overflow-y-auto bg-white">
@@ -1270,21 +1311,40 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                   </div>
                 )}
                 {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
-                  <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                  <div className="flex justify-between items-start gap-3 pt-2 border-t border-[var(--gray-100)]">
                     <span className="text-xs text-[var(--gray-500)]">Tip</span>
                     {editingTip ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-[var(--gray-400)]">$</span>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={tipInput}
-                          onChange={(e) => setTipInput(e.target.value)}
-                          onBlur={handleSaveTip}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
-                          autoFocus
-                          disabled={savingTip}
-                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-[var(--gray-400)]">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={tipInput}
+                            onChange={(e) => setTipInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Escape") handleCancelTip(); }}
+                            autoFocus
+                            disabled={savingTip}
+                            className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleCancelTip}
+                            disabled={savingTip}
+                            className="px-2.5 py-1.5 rounded-lg border border-[var(--gray-200)] text-[11px] font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveTip}
+                            disabled={!canSendTip}
+                            className="px-2.5 py-1.5 rounded-lg bg-[var(--violet-600)] text-[11px] font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+                          >
+                            {savingTip ? "Sending..." : "Send Revised Tip"}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button

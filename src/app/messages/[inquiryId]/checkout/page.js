@@ -190,7 +190,7 @@ function MoneyFlowBar({ baseCents, tipCents = 0 }) {
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
               <span className="text-[11px] text-gray-500 font-medium">{label}</span>
             </div>
-            <span className={`text-xs font-bold ${textColor}`}>{fmt(value)}</span>
+            <span className={`text-xs font-bold ${textColor}`}>{fmtExact(value)}</span>
           </div>
         ))}
       </div>
@@ -351,7 +351,7 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
         <p className="text-sm text-gray-500 max-w-xs leading-relaxed">
           {fullyPaid
             ? `Your booking with ${inquiry?.vendor?.name} is confirmed.`
-            : `Deposit of ${fmt(paidCents)} secured your spot with ${inquiry?.vendor?.name}.`}
+            : `Deposit of ${fmtExact(paidCents)} secured your spot with ${inquiry?.vendor?.name}.`}
         </p>
       </div>
 
@@ -362,11 +362,11 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
         </div>
         <div className="divide-y divide-gray-50">
           <ReceiptRow label="Vendor" value={inquiry?.vendor?.name} bold />
-          {offer?.totalPriceCents && <ReceiptRow label="Base service" value={fmt(baseCents)} />}
-          {totalTip > 0 && <ReceiptRow label="Tip" value={fmt(totalTip)} accent />}
+          {offer?.totalPriceCents && <ReceiptRow label="Base service" value={fmtExact(baseCents)} />}
+          {totalTip > 0 && <ReceiptRow label="Tip" value={fmtExact(totalTip)} accent />}
           <ReceiptRow label="Paid now" value={fmtExact(paidCents)} green />
           {!fullyPaid && offer?.remainingBalanceCents > 0 && (
-            <ReceiptRow label="Balance due" value={fmt(offer.remainingBalanceCents)} amber />
+            <ReceiptRow label="Balance due" value={fmtExact(offer.remainingBalanceCents)} amber />
           )}
           <div className="px-5 py-3 flex justify-between items-center">
             <span className="text-sm text-gray-500">Status</span>
@@ -383,7 +383,7 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
 
       {!fullyPaid && offer?.remainingBalanceCents > 0 && (
         <p className="text-xs text-gray-400 text-center leading-relaxed px-4">
-          Remaining {fmt(offer.remainingBalanceCents)} can be paid any time before your event from this conversation.
+          Remaining {fmtExact(offer.remainingBalanceCents)} can be paid any time before your event from this conversation.
         </p>
       )}
 
@@ -711,12 +711,12 @@ export default function MarketplaceCheckoutPage() {
               <div className="border-t border-gray-50 px-4 pb-4 pt-3 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Base service</span>
-                  <span className="font-medium text-gray-900">{fmt(baseCents)}</span>
+                  <span className="font-medium text-gray-900">{fmtExact(baseCents)}</span>
                 </div>
                 {depositAvailable && payDeposit && offer.remainingBalanceCents > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Remaining after today</span>
-                    <span className="font-medium text-gray-900">{fmt(offer.remainingBalanceCents)}</span>
+                    <span className="font-medium text-gray-900">{fmtExact(offer.remainingBalanceCents)}</span>
                   </div>
                 )}
                 {remainingDue && (
@@ -728,24 +728,24 @@ export default function MarketplaceCheckoutPage() {
                 {effectiveTipCents > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Tip</span>
-                    <span className="font-medium text-violet-600">{fmt(effectiveTipCents)}</span>
+                    <span className="font-medium text-violet-600">{fmtExact(effectiveTipCents)}</span>
                   </div>
                 )}
                 {deferredTipCents > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Tip due with final payment</span>
-                    <span className="font-medium text-violet-600">{fmt(deferredTipCents)}</span>
+                    <span className="font-medium text-violet-600">{fmtExact(deferredTipCents)}</span>
                   </div>
                 )}
                 {isCash && (
                   <>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">VEHNDR fee (10%)</span>
-                      <span className="font-medium text-gray-900">{fmt(intentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents))}</span>
+                      <span className="font-medium text-gray-900">{fmtExact(intentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents))}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500">Tax (8.25%)</span>
-                      <span className="font-medium text-gray-900">{fmt(intentData?.taxCents ?? calcTax(baseCents))}</span>
+                      <span className="font-medium text-gray-900">{fmtExact(intentData?.taxCents ?? calcTax(baseCents))}</span>
                     </div>
                   </>
                 )}
@@ -821,7 +821,7 @@ export default function MarketplaceCheckoutPage() {
               </div>
               <div>
                 <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider">Balance due</p>
-                <p className="text-xl font-bold text-gray-900 tracking-tight">{fmt(offer.remainingBalanceCents)}</p>
+                <p className="text-xl font-bold text-gray-900 tracking-tight">{fmtExact(offer.remainingBalanceCents)}</p>
                 <p className="text-xs text-amber-600 mt-0.5">Deposit was already paid</p>
               </div>
             </div>
