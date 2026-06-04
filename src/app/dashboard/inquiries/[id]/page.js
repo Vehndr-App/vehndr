@@ -371,11 +371,18 @@ function HeroCard({
 function EventBrief({ event }) {
   if (!event) return null;
 
-  const startDt = event.startDate ? new Date(event.startDate) : null;
   const address = event.streetAddress || event.location;
-  const dateStr = startDt
-    ? startDt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
-    : null;
+  const dateStr = (() => {
+    if (!event.startDate) return null;
+    const parse = (r) => new Date(r.includes("T") ? r : r + "T00:00:00");
+    const fmtFull = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    const fmtShort = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const start = parse(event.startDate);
+    if (!event.endDate) return fmtFull(start);
+    const end = parse(event.endDate);
+    if (start.toDateString() === end.toDateString()) return fmtFull(start);
+    return `${fmtShort(start)} – ${fmtShort(end)}, ${start.getFullYear()}`;
+  })();
 
   // Show top-level load times only for single-day events (multi-day shows per-day in DailyScheduleCard)
   const hasPerDaySchedule = event.dailySchedule?.some(d => d.vendorLoadIn || d.vendorLoadOut);

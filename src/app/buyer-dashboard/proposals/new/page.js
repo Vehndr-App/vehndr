@@ -123,20 +123,30 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
   );
 }
 
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+
+function fmtEventDate(startRaw, endRaw) {
+  if (!startRaw) return null;
+  const parse = (r) => new Date(r.includes("T") ? r : r + "T00:00:00");
+  const fmt = (d) => d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const start = parse(startRaw);
+  if (!endRaw || endRaw === startRaw) return fmt(start);
+  const end = parse(endRaw);
+  if (start.toDateString() === end.toDateString()) return fmt(start);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
 // ─── Message builder ──────────────────────────────────────────────────────────
 
 function buildMessage(vendor, event, coordinatorType, fields) {
   if (!vendor || !event) return "";
 
   const rawDate = event.startDate || event.start_date;
+  const rawEndDate = event.endDate || event.end_date;
   const location = event.streetAddress || event.location;
   const attendees = event.attendees;
 
-  const datePart = rawDate
-    ? new Date(rawDate.includes("T") ? rawDate : rawDate + "T00:00:00").toLocaleDateString("en-US", {
-        month: "long", day: "numeric", year: "numeric",
-      })
-    : "[date TBD]";
+  const datePart = fmtEventDate(rawDate, rawEndDate) ?? "[date TBD]";
   const locationPart = location || "[location TBD]";
   const guestPart = attendees ? `approximately ${attendees} guests` : "guests";
 
@@ -344,7 +354,7 @@ function NewProposalPageInner() {
               <p className="text-[10px] font-semibold text-[var(--gray-400)] uppercase tracking-wider mb-0.5">Event</p>
               <p className="font-semibold text-[var(--gray-900)] truncate">{event.name}</p>
               {(event.startDate || event.start_date) && (
-                <p className="text-xs text-[var(--gray-500)]">{fmt(event.startDate || event.start_date)}</p>
+                <p className="text-xs text-[var(--gray-500)]">{fmtEventDate(event.startDate || event.start_date, event.endDate || event.end_date)}</p>
               )}
             </div>
           </div>
