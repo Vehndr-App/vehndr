@@ -79,6 +79,11 @@ function formatLoadTime(stored) {
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
 }
 
+function isCoordinatorPaysOffer(offer, coordinatorType) {
+  return offer?.proposalType === "cash" ||
+    (coordinatorType === "hiring_vendor" && offer?.proposalType !== "product" && offer?.proposalType !== "both");
+}
+
 // ─── Proposal details card (pre-offer) ────────────────────────────────────────
 
 function ProposalDetailsCard({ budgetCents, tipCents, coordinatorType, vendorLoadIn, vendorLoadOut }) {
@@ -145,14 +150,14 @@ function ProposalDetailsCard({ budgetCents, tipCents, coordinatorType, vendorLoa
 
 // ─── Pricing card (post-offer) ────────────────────────────────────────────────
 
-function PricingCard({ offer, tipCents, booking }) {
+function PricingCard({ offer, tipCents, booking, coordinatorType }) {
   const [youPayOpen, setYouPayOpen] = useState(false);
 
   const base         = offer.totalPriceCents;
   const committedTip = tipCents ?? 0;
   const extraTip     = Math.max(0, (booking?.tipCents ?? 0) - committedTip);
   const totalTip     = committedTip + extraTip;
-  const isCash       = offer.proposalType === "cash";
+  const isCash       = isCoordinatorPaysOffer(offer, coordinatorType);
   const pricing      = marketplaceBreakdown(base, totalTip);
   const total        = isCash ? pricing.totalChargeCents : base + totalTip;
 
@@ -657,7 +662,7 @@ export default function ProposalDetailPage() {
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
   const canEdit   = !activeOffer && !isPaid && status !== "scheduled" && status !== "completed" && status !== "expired";
   const booking          = inquiry.marketplaceBooking;
-  const isCash           = activeOffer?.proposalType === "cash";
+  const isCash           = isCoordinatorPaysOffer(activeOffer, coordinatorType);
   const displayTip       = displayTipCents(inquiry);
   const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);
   const canTip           = isPaid && isCash && !!booking && !hasPostPaymentTip && !isCancelled;
@@ -913,8 +918,8 @@ export default function ProposalDetailPage() {
       )}
 
       {/* ── Pricing summary ── */}
-      {activeOffer?.proposalType === "cash" && activeOffer?.totalPriceCents > 0 ? (
-        <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} />
+      {isCash && activeOffer?.totalPriceCents > 0 ? (
+        <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} />
       ) : (budgetCents > 0 || tipCents > 0 || coordinatorType || event?.vendorLoadIn || event?.vendorLoadOut) && (
         <ProposalDetailsCard
           budgetCents={budgetCents}

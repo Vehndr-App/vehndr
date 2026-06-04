@@ -323,14 +323,16 @@ function PostPaymentTip({ booking, inquiry, onTipAdded }) {
 
 // ── Confirmation Screen ───────────────────────────────────────────────────────
 
-function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, onBackToThread }) {
+function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, transactionBaseCents, onBackToThread }) {
   const [currentBooking, setCurrentBooking] = useState(booking);
   const [tipDone, setTipDone] = useState(false);
   const offer      = inquiry?.activeOffer;
   const fullyPaid  = isDeposit === false || currentBooking?.paymentStatus === "fully_paid" || currentBooking?.payment_status === "fully_paid";
-  const baseCents  = offer?.totalPriceCents ?? 0;
+  const baseCents  = transactionBaseCents ?? offer?.totalPriceCents ?? 0;
   const isCash     = offer?.proposalType === "cash";
   const totalTip   = tipDone ? (currentBooking?.tip_cents ?? currentBooking?.tipCents ?? 0) : (tipCents ?? 0);
+  const pricing    = marketplaceBreakdown(baseCents, totalTip);
+  const paidNow    = paidCents ?? (isCash ? pricing.totalChargeCents : baseCents + totalTip);
 
   return (
     <div className="space-y-5 pb-8">
@@ -351,20 +353,22 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
         <p className="text-sm text-gray-500 max-w-xs leading-relaxed">
           {fullyPaid
             ? `Your booking with ${inquiry?.vendor?.name} is confirmed.`
-            : `Deposit of ${fmtExact(paidCents)} secured your spot with ${inquiry?.vendor?.name}.`}
+            : `Deposit of ${fmtExact(paidNow)} secured your spot with ${inquiry?.vendor?.name}.`}
         </p>
       </div>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 bg-gradient-to-r from-violet-600 to-purple-600">
           <p className="text-xs font-semibold text-white/70 uppercase tracking-wider">Receipt</p>
-          <p className="text-2xl font-bold text-white mt-0.5">{fmtExact(paidCents)}</p>
+          <p className="text-2xl font-bold text-white mt-0.5">{fmtExact(paidNow)}</p>
         </div>
         <div className="divide-y divide-gray-50">
           <ReceiptRow label="Vendor" value={inquiry?.vendor?.name} bold />
           {offer?.totalPriceCents && <ReceiptRow label="Base service" value={fmtExact(baseCents)} />}
+          {isCash && <ReceiptRow label="VEHNDR fee (10%)" value={fmtExact(pricing.coordinatorFeeCents)} />}
+          {isCash && <ReceiptRow label="Tax (8.25%)" value={fmtExact(pricing.taxCents)} />}
           {totalTip > 0 && <ReceiptRow label="Tip" value={fmtExact(totalTip)} accent />}
-          <ReceiptRow label="Paid now" value={fmtExact(paidCents)} green />
+          <ReceiptRow label="Paid now" value={fmtExact(paidNow)} green />
           {!fullyPaid && offer?.remainingBalanceCents > 0 && (
             <ReceiptRow label="Balance due" value={fmtExact(offer.remainingBalanceCents)} amber />
           )}
@@ -502,7 +506,14 @@ export default function MarketplaceCheckoutPage() {
   const effectiveTipCents = depositAvailable && payDeposit ? 0 : tipCents;
   const deferredTipCents = depositAvailable && payDeposit ? tipCents : 0;
   const estimatedChargeTotal = isCash ? calcChargeTotal(baseCents, effectiveTipCents) : baseCents + effectiveTipCents;
-  const chargeTotal = intentData?.amountCents ?? estimatedChargeTotal;
+  const payDepositRequest = depositAvailable && payDeposit;
+  const intentMatchesSelection = intentData &&
+    intentData.bookingId === booking?.id &&
+    intentData.isDeposit === payDepositRequest &&
+    intentData.subtotalCents === baseCents &&
+    (intentData.tipCents ?? 0) === effectiveTipCents;
+  const currentIntentData = intentMatchesSelection ? intentData : null;
+  const chargeTotal = currentIntentData?.amountCents ?? estimatedChargeTotal;
 
   const handleTipChange = useCallback((cents) => setTipCents(cents), []);
 
@@ -510,40 +521,44 @@ export default function MarketplaceCheckoutPage() {
   useEffect(() => {
     if (!booking || !offer) return;
 
+    let cancelled = false;
     clearTimeout(intentTimerRef.current);
     const delay = intentData ? 600 : 0; // debounce tip changes, immediate on first load
-    intentTimerRef.current = setTimeout(async () => {
-      setCreatingIntent(true);
-      setIntentError(null);
-      setIntentData(null);
+    setCreatingIntent(true);
+    setIntentError(null);
+    setIntentData(null);
 
+    intentTimerRef.current = setTimeout(async () => {
       try {
         const data = await createMarketplacePaymentIntent({
           bookingId:  booking.id,
-          payDeposit: depositAvailable && payDeposit,
+          payDeposit: payDepositRequest,
           tipCents: effectiveTipCents,
         });
-        setIntentData(data);
+        if (!cancelled) setIntentData(data);
       } catch (err) {
-        setIntentError(err.message ?? "Failed to initialize payment. Please try again.");
+        if (!cancelled) setIntentError(err.message ?? "Failed to initialize payment. Please try again.");
       } finally {
-        setCreatingIntent(false);
+        if (!cancelled) setCreatingIntent(false);
       }
     }, delay);
 
-    return () => clearTimeout(intentTimerRef.current);
+    return () => {
+      cancelled = true;
+      clearTimeout(intentTimerRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [booking?.id, depositAvailable, payDeposit, effectiveTipCents]);
 
   async function handlePaymentSuccess(paymentIntentId) {
     try {
       const updatedBooking = await confirmMarketplacePayment({
-        paymentIntentId: paymentIntentId ?? intentData?.paymentIntentId,
-        bookingId:       intentData?.bookingId,
-        isDeposit:       intentData?.isDeposit,
-        tipCents:        intentData?.tipCents ?? effectiveTipCents,
+        paymentIntentId: paymentIntentId ?? currentIntentData?.paymentIntentId,
+        bookingId:       currentIntentData?.bookingId,
+        isDeposit:       currentIntentData?.isDeposit,
+        tipCents:        currentIntentData?.tipCents ?? effectiveTipCents,
       });
-      setPaidCents(intentData?.amountCents);
+      setPaidCents(currentIntentData?.amountCents ?? estimatedChargeTotal);
       setConfirmedBooking(updatedBooking);
       setConfirmed(true);
     } catch (err) {
@@ -635,8 +650,9 @@ export default function MarketplaceCheckoutPage() {
               inquiry={inquiry}
               booking={confirmedBooking ?? booking}
               paidCents={paidCents}
-              isDeposit={intentData?.isDeposit}
-              tipCents={intentData?.tipCents ?? effectiveTipCents}
+              isDeposit={currentIntentData?.isDeposit}
+              tipCents={currentIntentData?.tipCents ?? effectiveTipCents}
+              transactionBaseCents={baseCents}
               onBackToThread={() => router.push(`/messages/${inquiryId}`)}
             />
           </div>
@@ -725,6 +741,18 @@ export default function MarketplaceCheckoutPage() {
                     <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">Paid</span>
                   </div>
                 )}
+                {isCash && (
+                  <>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">VEHNDR fee (10%)</span>
+                      <span className="font-medium text-gray-900">{fmtExact(currentIntentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents))}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Tax (8.25%)</span>
+                      <span className="font-medium text-gray-900">{fmtExact(currentIntentData?.taxCents ?? calcTax(baseCents))}</span>
+                    </div>
+                  </>
+                )}
                 {effectiveTipCents > 0 && (
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Tip</span>
@@ -736,18 +764,6 @@ export default function MarketplaceCheckoutPage() {
                     <span className="text-gray-500">Tip due with final payment</span>
                     <span className="font-medium text-violet-600">{fmtExact(deferredTipCents)}</span>
                   </div>
-                )}
-                {isCash && (
-                  <>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">VEHNDR fee (10%)</span>
-                      <span className="font-medium text-gray-900">{fmtExact(intentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents))}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">Tax (8.25%)</span>
-                      <span className="font-medium text-gray-900">{fmtExact(intentData?.taxCents ?? calcTax(baseCents))}</span>
-                    </div>
-                  </>
                 )}
                 <div className="flex justify-between font-semibold text-sm pt-2 border-t border-gray-100">
                   <span className="text-gray-800">Total due today</span>
@@ -833,7 +849,7 @@ export default function MarketplaceCheckoutPage() {
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment</p>
               <div className="flex items-baseline gap-1 mt-0.5">
                 <p className="text-2xl font-bold text-gray-900">{fmtExact(chargeTotal)}</p>
-                {intentData?.isDeposit && <span className="text-xs text-gray-400">deposit</span>}
+                {currentIntentData?.isDeposit && <span className="text-xs text-gray-400">deposit</span>}
               </div>
             </div>
             <div className="p-4">
@@ -858,23 +874,23 @@ export default function MarketplaceCheckoutPage() {
                 </div>
               )}
 
-              {(creatingIntent || (!intentData && !intentError)) ? (
+              {(creatingIntent || (!currentIntentData && !intentError)) ? (
                 <div className="space-y-3 animate-pulse">
                   <div className="h-12 bg-gray-100 rounded-xl" />
                   <div className="h-12 bg-gray-100 rounded-xl" />
                   <div className="h-12 bg-gray-100 rounded-2xl" />
                 </div>
-              ) : intentData ? (
-                intentData.devMode ? (
+              ) : currentIntentData ? (
+                currentIntentData.devMode ? (
                   <DevPaymentForm
-                    amountCents={intentData.amountCents}
+                    amountCents={currentIntentData.amountCents}
                     onSuccess={() => handlePaymentSuccess(null)}
                   />
-                ) : intentData.clientSecret ? (
+                ) : currentIntentData.clientSecret ? (
                   <Elements
                     stripe={stripePromise}
                     options={{
-                      clientSecret: intentData.clientSecret,
+                      clientSecret: currentIntentData.clientSecret,
                       appearance: {
                         theme: "stripe",
                         variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit", spacingUnit: "4px" },
@@ -882,7 +898,7 @@ export default function MarketplaceCheckoutPage() {
                     }}
                   >
                     <StripePaymentForm
-                      amountCents={intentData.amountCents}
+                      amountCents={currentIntentData.amountCents}
                       onSuccess={(id) => handlePaymentSuccess(id)}
                       onError={(err) => setIntentError(err.message)}
                     />

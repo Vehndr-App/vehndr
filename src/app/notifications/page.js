@@ -28,6 +28,30 @@ function formatRelativeTime(dateStr) {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatMoney(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format((cents ?? 0) / 100);
+}
+
+function notificationBody(notification) {
+  const body = notification.body ?? "";
+  const refundCents = notification.data?.refund_amount_cents ?? notification.data?.refundAmountCents;
+
+  if (notification.type === "booking_cancelled" && refundCents > 0) {
+    const exactRefund = `A refund of ${formatMoney(refundCents)} is being processed.`;
+    const refundPattern = /A refund of \$[\d,]+(?:\.\d{2})? is being processed\./;
+    return refundPattern.test(body)
+      ? body.replace(refundPattern, exactRefund)
+      : `${body} ${exactRefund}`.trim();
+  }
+
+  return body;
+}
+
 function groupByDate(notifications) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -150,6 +174,7 @@ function NotificationIcon({ type }) {
 function NotificationRow({ notification, onRead }) {
   const link = notificationLink(notification);
   const unread = !notification.readAt;
+  const body = notificationBody(notification);
 
   async function handleClick() {
     if (unread) {
@@ -176,9 +201,9 @@ function NotificationRow({ notification, onRead }) {
             {formatRelativeTime(notification.createdAt)}
           </span>
         </div>
-        {notification.body && (
+        {body && (
           <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-relaxed">
-            {notification.body}
+            {body}
           </p>
         )}
       </div>
