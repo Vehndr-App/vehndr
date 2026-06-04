@@ -6,6 +6,11 @@ import Link from "next/link";
 import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../services/inquiries";
 import { createVendorPaymentIntent, confirmVendorPayment } from "../../../../../services/checkout";
+import {
+  marketplaceChargeTotalCents,
+  marketplacePayerFeeCents,
+  marketplaceTaxCents,
+} from "../../../../../utils/marketplacePricing";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -13,12 +18,9 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-const BUYER_FEE_PERCENT = 0.10;
-const TAX_RATE = 0.0825;
-
-function calcBuyerFee(base) { return Math.round(base * BUYER_FEE_PERCENT); }
-function calcTax(base) { return Math.round(base * TAX_RATE); }
-function calcChargeTotal(base) { return base + calcBuyerFee(base) + calcTax(base); }
+function calcBuyerFee(base) { return marketplacePayerFeeCents(base); }
+function calcTax(base) { return marketplaceTaxCents(base); }
+function calcChargeTotal(base) { return marketplaceChargeTotalCents(base); }
 
 function formatPrice(cents) {
   if (!cents && cents !== 0) return "—";

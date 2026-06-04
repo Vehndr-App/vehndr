@@ -7,6 +7,7 @@ import AuthGate from "../../../../components/AuthGate";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
 import { getInquiry, declineInquiry } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
+import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -231,7 +232,7 @@ function HeroCard({
           {coordinatorType === "hiring_vendor" && budgetCents > 0 && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You&apos;d receive</span>
-              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(calcVendorBase(budgetCents))}</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents).vendorPayoutCents)}</span>
             </div>
           )}
           {coordinatorType === "charges_fees" && vendingFeeCents > 0 && (
@@ -523,17 +524,18 @@ function MessageCard({ customer, initialMessage }) {
 function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  const vehndrFee = Math.round(totalPriceCents * VENDOR_FEE_RATE);
-  const stripeFee = Math.round(totalPriceCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  const tax       = Math.round(totalPriceCents * TAX_RATE);
-  const base      = Math.max(totalPriceCents - vehndrFee - stripeFee - tax, 0);
-  const payout    = base + tipCents;
+  const pricing   = marketplaceBreakdown(totalPriceCents, tipCents);
+  const vehndrFee = pricing.vendorFeeCents;
+  const totalVehndrFee = pricing.vehndrFeeCents;
+  const stripeFee = pricing.stripeFeeCents;
+  const tax       = pricing.taxCents;
+  const payout    = pricing.vendorPayoutCents;
 
-  // Bar total includes the tip so the "Your payout" slice reflects what you actually receive
-  const barTotal = totalPriceCents + tipCents;
+  // The bar shows the full customer-facing charge split into payout, fees, Stripe, and tax.
+  const barTotal = pricing.totalChargeCents;
   const segments = [
     { label: "Your payout", value: payout,    pct: payout    / barTotal, color: "bg-violet-500",  dot: "bg-violet-500",  text: "text-violet-700",  bg: "bg-violet-50"  },
-    { label: "VEHNDR fee",  value: vehndrFee,  pct: vehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "VEHNDR",      value: totalVehndrFee, pct: totalVehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
     { label: "Stripe",      value: stripeFee,  pct: stripeFee / barTotal, color: "bg-gray-400",    dot: "bg-gray-400",    text: "text-gray-600",    bg: "bg-gray-50"    },
     { label: "Tax",         value: tax,        pct: tax       / barTotal, color: "bg-amber-400",   dot: "bg-amber-400",   text: "text-amber-700",   bg: "bg-amber-50"   },
   ];
@@ -592,7 +594,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
           {/* Line-item detail */}
           <div className="space-y-2 pt-1 border-t border-[var(--gray-100)]">
             <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-400)]">Coordinator pays</span>
+              <span className="text-[var(--gray-400)]">Agreed price</span>
               <span className="font-medium text-[var(--gray-700)]">{fmt$(totalPriceCents)}</span>
             </div>
             <div className="flex justify-between text-sm">
@@ -604,8 +606,8 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
               <span className="font-medium text-red-400">−{fmt$(stripeFee)}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-400)]">Tax (8.25%)</span>
-              <span className="font-medium text-red-400">−{fmt$(tax)}</span>
+              <span className="text-[var(--gray-400)]">Tax collected</span>
+              <span className="font-medium text-[var(--gray-500)]">{fmt$(tax)}</span>
             </div>
             {tipCents > 0 && (
               <div className="flex justify-between text-sm">
@@ -620,8 +622,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
           </div>
 
           <p className="text-[10px] text-[var(--gray-400)] leading-relaxed">
-            Fees are deducted from your payout — the coordinator is charged exactly {fmt$(totalPriceCents)}.
-            Transfers within 2–7 business days after payment clears.
+            Coordinator pays {fmt$(pricing.totalChargeCents)} at checkout. Tax is remitted by VEHNDR and is not part of payout.
           </p>
         </div>
       )}
@@ -662,7 +663,7 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
         <div className="flex items-baseline justify-between">
           <span className="text-sm text-[var(--gray-500)]">{isCash ? "Your base" : offer.proposalType === "product" ? "You pay" : "Price"}</span>
           <span className="text-[22px] font-bold text-[var(--gray-900)] tabular-nums">
-            {isCash ? fmt$(calcVendorBase(offer.totalPriceCents)) : fmt$(offer.totalPriceCents)}
+            {fmt$(offer.totalPriceCents)}
           </span>
         </div>
         {offer.depositCents > 0 && (
@@ -773,26 +774,13 @@ function OfferHistory({ offers }) {
 
 // ─── Earnings card ────────────────────────────────────────────────────────────
 
-const VENDOR_FEE_RATE  = 0.10;
-const STRIPE_FEE_RATE  = 0.029;
-const STRIPE_FEE_FIXED = 30; // cents
-const TAX_RATE         = 0.0825;
-
-// Layer 1: coordinator budget → vendor base (deducts VEHNDR fee, Stripe, and VAT)
-function calcVendorBase(coordinatorBudgetCents) {
-  const vehndrFee = Math.round(coordinatorBudgetCents * VENDOR_FEE_RATE);
-  const stripeFee = Math.round(coordinatorBudgetCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  const tax       = Math.round(coordinatorBudgetCents * TAX_RATE);
-  return Math.max(coordinatorBudgetCents - vehndrFee - stripeFee - tax, 0);
-}
-
 function EarningsCard({ offer, tipCents = 0 }) {
   const total      = offer.totalPriceCents ?? 0;
-  const vehndrFee  = Math.round(total * VENDOR_FEE_RATE);
-  const stripeFee  = Math.round(total * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  const tax        = Math.round(total * TAX_RATE);
-  const base       = Math.max(total - vehndrFee - stripeFee - tax, 0);
-  const payout     = base + tipCents;
+  const pricing    = marketplaceBreakdown(total, tipCents);
+  const vehndrFee  = pricing.vendorFeeCents;
+  const stripeFee  = pricing.stripeFeeCents;
+  const tax        = pricing.taxCents;
+  const payout     = pricing.vendorPayoutCents;
 
   return (
     <Card style={{ border: "1px solid var(--mint-200)" }}>
@@ -814,7 +802,7 @@ function EarningsCard({ offer, tipCents = 0 }) {
 
         <div className="space-y-2 pt-1">
           <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Coordinator paid</span>
+            <span className="text-[var(--gray-500)]">Agreed price</span>
             <span className="font-medium text-[var(--gray-800)] tabular-nums">{fmt$(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
@@ -826,8 +814,8 @@ function EarningsCard({ offer, tipCents = 0 }) {
             <span className="font-medium text-red-400 tabular-nums">−{fmt$(stripeFee)}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-            <span className="font-medium text-red-400 tabular-nums">−{fmt$(tax)}</span>
+            <span className="text-[var(--gray-500)]">Tax collected</span>
+            <span className="font-medium text-[var(--gray-500)] tabular-nums">{fmt$(tax)}</span>
           </div>
           {tipCents > 0 && (
             <div className="flex justify-between text-sm">

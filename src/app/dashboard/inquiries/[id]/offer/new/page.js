@@ -6,14 +6,9 @@ import Link from "next/link";
 import AuthGate from "../../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../../services/inquiries";
 import { createOffer, updateOffer } from "../../../../../../services/offers";
+import { marketplaceBreakdown } from "../../../../../../utils/marketplacePricing";
 
 // ─── Fee helpers (mirrors MarketplacePricing) ─────────────────────────────────
-
-const MP_TAX    = 0.0825;
-const MP_COORD  = 0.10;
-const MP_VENDOR = 0.10;
-const MP_ST_PCT = 0.029;
-const MP_ST_FIX = 30; // cents
 
 function mp$fmt(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -21,22 +16,18 @@ function mp$fmt(cents) {
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(cents / 100);
 }
-function mpCalcTax(b)        { return Math.round(b * MP_TAX); }
-function mpCalcCoord(b)      { return Math.round(b * MP_COORD); }
-function mpCalcPreStripe(b)  { return b + mpCalcTax(b) + mpCalcCoord(b); }
-function mpCalcGrossTotal(b) { return Math.ceil((mpCalcPreStripe(b) + MP_ST_FIX) / (1 - MP_ST_PCT)); }
-function mpCalcStripe(b)     { return mpCalcGrossTotal(b) - mpCalcPreStripe(b); }
-function mpCalcPayout(b)     { return Math.round(b * (1 - MP_VENDOR)); }
 
 function VendorFeePreview({ totalPrice }) {
   const base = Math.round(Number(totalPrice) * 100);
   if (!base || base <= 0) return null;
 
-  const coord      = mpCalcCoord(base);
-  const tax        = mpCalcTax(base);
-  const stripe     = mpCalcStripe(base);
-  const custTotal  = mpCalcGrossTotal(base);
-  const payout     = mpCalcPayout(base);
+  const pricing   = marketplaceBreakdown(base);
+  const coord     = pricing.coordinatorFeeCents;
+  const vendorFee = pricing.vendorFeeCents;
+  const tax       = pricing.taxCents;
+  const stripe    = pricing.stripeFeeCents;
+  const custTotal = pricing.totalChargeCents;
+  const payout    = pricing.vendorPayoutCents;
 
   return (
     <div className="rounded-xl border border-[var(--gray-200)] overflow-hidden text-xs">
@@ -56,13 +47,9 @@ function VendorFeePreview({ totalPrice }) {
             <span className="text-[var(--gray-500)]">Sales tax (8.25%)</span>
             <span className="text-[var(--gray-700)]">{mp$fmt(tax)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--gray-500)]">Processing fee (Stripe)</span>
-            <span className="text-[var(--gray-700)]">~{mp$fmt(stripe)}</span>
-          </div>
           <div className="flex justify-between font-bold pt-1 border-t border-[var(--gray-200)]">
             <span className="text-[var(--gray-800)]">Customer total</span>
-            <span className="text-[var(--gray-900)]">~{mp$fmt(custTotal)}</span>
+            <span className="text-[var(--gray-900)]">{mp$fmt(custTotal)}</span>
           </div>
         </div>
       </div>
@@ -76,7 +63,11 @@ function VendorFeePreview({ totalPrice }) {
           </div>
           <div className="flex justify-between">
             <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-            <span className="text-[var(--error,#ef4444)]">-{mp$fmt(Math.round(base * MP_VENDOR))}</span>
+            <span className="text-[var(--error,#ef4444)]">-{mp$fmt(vendorFee)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-[var(--gray-500)]">Processing fee (Stripe)</span>
+            <span className="text-[var(--error,#ef4444)]">-{mp$fmt(stripe)}</span>
           </div>
           <div className="flex justify-between font-bold pt-1 border-t border-[var(--gray-200)]">
             <span className="text-[var(--gray-800)]">Est. your payout</span>
@@ -84,7 +75,7 @@ function VendorFeePreview({ totalPrice }) {
           </div>
         </div>
         <p className="text-[10px] text-[var(--gray-400)] mt-2 leading-relaxed">
-          Stripe processing is deducted from payout. Tips are shown separately at checkout.
+          Tax is remitted by VEHNDR and is not included in payout. Tips are shown separately at checkout.
         </p>
       </div>
     </div>

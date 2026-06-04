@@ -6,6 +6,13 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { listMessages, sendMessage, updateInquiryTip } from "../../../services/inquiries";
 import { listOffers, createOffer, updateOffer, acceptOffer, declineOffer } from "../../../services/offers";
 import Link from "next/link";
+import {
+  marketplaceChargeTotalCents,
+  marketplacePayerFeeCents,
+  marketplaceRecipientPayoutCents,
+  marketplaceStripeFeeCents,
+  marketplaceTaxCents,
+} from "../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,21 +82,11 @@ function dollarsToC(val) {
 }
 
 // ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
-const MP_TAX_RATE        = 0.0825;
-const MP_COORD_FEE       = 0.10;
-const MP_STRIPE_RATE     = 0.029;
-const MP_STRIPE_FIXED    = 30;   // cents
-
-function mpTax(base)          { return Math.round(base * MP_TAX_RATE); }
-function mpCoordFee(base)     { return Math.round(base * MP_COORD_FEE); }
-function mpPreStripeTotal(base, tipCents = 0) { return base + mpTax(base) + mpCoordFee(base) + tipCents; }
-function mpGrossTotal(base, tipCents = 0) {
-  return mpPreStripeTotal(base, tipCents);
-}
-function mpStripeFee(total) { return Math.round(total * MP_STRIPE_RATE + MP_STRIPE_FIXED); }
-function mpVendorPayout(base, tipCents = 0) {
-  return Math.max(base - Math.round(base * 0.10) - mpStripeFee(mpGrossTotal(base, tipCents)), 0) + tipCents;
-}
+function mpTax(base)          { return marketplaceTaxCents(base); }
+function mpCoordFee(base)     { return marketplacePayerFeeCents(base); }
+function mpChargeTotal(base, tipCents = 0) { return marketplaceChargeTotalCents(base, tipCents); }
+function mpStripeFee(total)   { return marketplaceStripeFeeCents(total); }
+function mpVendorPayout(base, tipCents = 0) { return marketplaceRecipientPayoutCents(base, tipCents); }
 function mpVendorPayoutWithTip(base, tipCents) { return mpVendorPayout(base, tipCents); }
 
 function fmtExact(cents) {
@@ -105,10 +102,10 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
   const base      = offer.totalPriceCents;
   const coordFee  = mpCoordFee(base);
   const tax       = mpTax(base);
-  const estTotal  = mpGrossTotal(base, tipCents);
+  const estTotal  = mpChargeTotal(base, tipCents);
 
   const hasDeposit = offer.depositCents > 0;
-  const depGross   = hasDeposit ? mpGrossTotal(offer.depositCents ?? 0) : 0;
+  const depositTotal = hasDeposit ? mpChargeTotal(offer.depositCents ?? 0) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -152,7 +149,7 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
           {hasDeposit && (
             <div className="flex justify-between mt-1">
               <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
-              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depGross)}</span>
+              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depositTotal)}</span>
             </div>
           )}
         </div>
@@ -569,7 +566,7 @@ function VendorOfferPanel({ inquiryId, offers, onOfferSaved, tipCents = 0 }) {
                 </span>
               </div>
               <p className="text-[10px] text-[var(--gray-400)] mt-0.5">
-                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpGrossTotal(activeOffer.totalPriceCents, tipCents)))})
+                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpChargeTotal(activeOffer.totalPriceCents, tipCents)))})
               </p>
             </div>
             {activeOffer.status === "pending" && (
@@ -715,9 +712,12 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   }
 
   async function handleSaveTip() {
-    setEditingTip(false);
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditingTip(false);
+      return;
+    }
     setSavingTip(true);
     setActionError(null);
     try {
@@ -725,11 +725,17 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
       if (result?.requiresVendorReview) {
         setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
       }
+      setEditingTip(false);
     } catch (err) {
       setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
+  }
+
+  function handleCancelTip() {
+    setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditingTip(false);
   }
 
   async function handleSendRequest() {
@@ -750,6 +756,8 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   }
 
   const previousOffers = offers.filter((o) => !o.isActive);
+  const draftTipCents = Math.round(parseFloat(tipInput || 0) * 100);
+  const canSendTip = editingTip && !savingTip && !isNaN(draftTipCents) && draftTipCents >= 0 && draftTipCents !== tipCents;
 
   return (
     <div className="p-4 pb-28 space-y-4">
@@ -848,21 +856,40 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                 </div>
               )}
               {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
-                <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                <div className="flex justify-between items-start gap-3 pt-2 border-t border-[var(--gray-100)]">
                   <span className="text-xs text-[var(--gray-500)]">Tip</span>
                   {editingTip ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-[var(--gray-400)]">$</span>
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={tipInput}
-                        onChange={(e) => setTipInput(e.target.value)}
-                        onBlur={handleSaveTip}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
-                        autoFocus
-                        disabled={savingTip}
-                        className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-[var(--gray-400)]">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={tipInput}
+                          onChange={(e) => setTipInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Escape") handleCancelTip(); }}
+                          autoFocus
+                          disabled={savingTip}
+                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleCancelTip}
+                          disabled={savingTip}
+                          className="px-2.5 py-1.5 rounded-lg border border-[var(--gray-200)] text-[11px] font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveTip}
+                          disabled={!canSendTip}
+                          className="px-2.5 py-1.5 rounded-lg bg-[var(--violet-600)] text-[11px] font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+                        >
+                          {savingTip ? "Sending..." : "Send Revised Tip"}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -1118,9 +1145,12 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   }
 
   async function handleSaveTip() {
-    setEditingTip(false);
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditingTip(false);
+      return;
+    }
     setSavingTip(true);
     setActionError(null);
     try {
@@ -1128,11 +1158,17 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
       if (result?.requiresVendorReview) {
         setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
       }
+      setEditingTip(false);
     } catch (err) {
       setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
+  }
+
+  function handleCancelTip() {
+    setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditingTip(false);
   }
 
   async function handleSendRequest() {
@@ -1153,6 +1189,8 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   }
 
   const previousOffers = offers.filter((o) => !o.isActive);
+  const draftTipCents = Math.round(parseFloat(tipInput || 0) * 100);
+  const canSendTip = editingTip && !savingTip && !isNaN(draftTipCents) && draftTipCents >= 0 && draftTipCents !== tipCents;
 
   return (
     <div className="hidden lg:flex flex-col w-80 xl:w-96 flex-shrink-0 border-l border-[var(--gray-100)] overflow-y-auto bg-white">
@@ -1273,21 +1311,40 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                   </div>
                 )}
                 {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
-                  <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                  <div className="flex justify-between items-start gap-3 pt-2 border-t border-[var(--gray-100)]">
                     <span className="text-xs text-[var(--gray-500)]">Tip</span>
                     {editingTip ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-[var(--gray-400)]">$</span>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={tipInput}
-                          onChange={(e) => setTipInput(e.target.value)}
-                          onBlur={handleSaveTip}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
-                          autoFocus
-                          disabled={savingTip}
-                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-[var(--gray-400)]">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={tipInput}
+                            onChange={(e) => setTipInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Escape") handleCancelTip(); }}
+                            autoFocus
+                            disabled={savingTip}
+                            className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleCancelTip}
+                            disabled={savingTip}
+                            className="px-2.5 py-1.5 rounded-lg border border-[var(--gray-200)] text-[11px] font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveTip}
+                            disabled={!canSendTip}
+                            className="px-2.5 py-1.5 rounded-lg bg-[var(--violet-600)] text-[11px] font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+                          >
+                            {savingTip ? "Sending..." : "Send Revised Tip"}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1464,7 +1521,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     </div>
                     <div className="flex justify-between text-[10px] font-bold pt-1 border-t border-[var(--violet-200)]">
                       <span className="text-[var(--violet-800)]">Est. total</span>
-                      <span className="text-[var(--violet-900)]">~{formatPrice(mpGrossTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
+                      <span className="text-[var(--violet-900)]">~{formatPrice(mpChargeTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
                     </div>
                   </div>
                 </div>

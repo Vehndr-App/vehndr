@@ -7,6 +7,7 @@ import { getVendorProfile } from "../../../../services/vendors";
 import { getEvent } from "../../../../services/events";
 import { createInquiry } from "../../../../services/inquiries";
 import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
+import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
 
 
 // ─── Coordinator types ────────────────────────────────────────────────────────
@@ -50,22 +51,7 @@ const COORDINATOR_TYPES = [
 
 // ─── Fee estimate helpers (mirrors MarketplacePricing) ───────────────────────
 
-const FEE_TAX_RATE     = 0.0825;
-const FEE_COORD_RATE   = 0.10;
-const FEE_STRIPE_RATE  = 0.029;
-const FEE_STRIPE_FIXED = 30; // cents
-
 function feeBase(dollars)              { return Math.round(Number(dollars) * 100); }
-function feeTax(base)                  { return Math.round(base * FEE_TAX_RATE); }
-function feeCoord(base)                { return Math.round(base * FEE_COORD_RATE); }
-function feePreStripe(base, tip = 0)   { return base + feeTax(base) + feeCoord(base) + tip; }
-function feeGrossTotal(base, tip = 0)  {
-  const pre = feePreStripe(base, tip);
-  return Math.ceil((pre + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE));
-}
-function feeStripeToCustomer(base, tip = 0) { return feeGrossTotal(base, tip) - feePreStripe(base, tip); }
-function feeStripeDeduction(base)            { return Math.round(base * FEE_STRIPE_RATE) + FEE_STRIPE_FIXED; }
-function feeVendorNet(base, tip = 0)         { return base - feeCoord(base) - feeTax(base) - feeStripeDeduction(base) + tip; }
 
 function formatFee(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -79,10 +65,10 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
   const base = feeBase(budgetDollars);
   if (!base || base <= 0) return null;
   const tip    = feeBase(tipDollars) || 0;
-  const coord  = feeCoord(base);
-  const tax    = feeTax(base);
-  const stripe = feeStripeDeduction(base);
-  const total  = feeVendorNet(base, tip);
+  const pricing = marketplaceBreakdown(base, tip);
+  const coordinatorFee = pricing.coordinatorFeeCents;
+  const tax       = pricing.taxCents;
+  const total     = pricing.totalChargeCents;
 
   return (
     <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
@@ -95,7 +81,7 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
           </svg>
-          <span className="text-xs font-semibold text-[var(--violet-700)]">Vendor receives</span>
+          <span className="text-xs font-semibold text-[var(--violet-700)]">You pay</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm font-bold text-[var(--violet-900)]">~{formatFee(total)}</span>
@@ -112,15 +98,11 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">− {formatFee(coord)}</span>
+            <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(coordinatorFee)}</span>
           </div>
           <div className="flex justify-between text-xs">
             <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">− {formatFee(tax)}</span>
-          </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Processing fee (Stripe)</span>
-            <span className="font-semibold text-[var(--gray-800)]">− ~{formatFee(stripe)}</span>
+            <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tax)}</span>
           </div>
           {tip > 0 && (
             <div className="flex justify-between text-xs">
@@ -128,8 +110,12 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
               <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tip)}</span>
             </div>
           )}
+          <div className="flex justify-between text-xs font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+            <span className="text-[var(--violet-900)]">Estimated total</span>
+            <span className="text-[var(--violet-900)]">{formatFee(total)}</span>
+          </div>
           <p className="text-[10px] text-[var(--violet-500)] leading-relaxed pt-1">
-            Estimate based on your budget. The vendor sets the final price in their offer.
+            Estimate based on your budget and optional tip. Final checkout may update if the vendor changes the offer.
           </p>
         </div>
       )}
