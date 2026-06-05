@@ -96,6 +96,17 @@ function fmtExact(cents) {
   }).format(cents / 100);
 }
 
+function fmtEventDate(startRaw, endRaw) {
+  if (!startRaw) return null;
+  const parse = (r) => new Date(r.includes("T") ? r : r + "T00:00:00");
+  const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const start = parse(startRaw);
+  if (!endRaw) return fmt(start);
+  const end = parse(endRaw);
+  if (start.toDateString() === end.toDateString()) return fmt(start);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
 // ─── Cost Preview Card — shown before buyer accepts a cash offer ───────────────
 
 function CostPreviewCard({ offer, tipCents = 0 }) {
@@ -1031,6 +1042,9 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
               <div>
                 <p className="text-[10px] text-[var(--gray-400)]">Event</p>
                 <p className="text-xs font-semibold text-[var(--gray-700)]">{inquiry.event.name}</p>
+                {(inquiry.event.startDate || inquiry.event.start_date) && (
+                  <p className="text-[10px] text-[var(--gray-500)] mt-0.5">{fmtEventDate(inquiry.event.startDate || inquiry.event.start_date, inquiry.event.endDate || inquiry.event.end_date)}</p>
+                )}
               </div>
             </div>
           )}
@@ -1486,6 +1500,9 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                 <div>
                   <p className="text-[10px] text-[var(--gray-400)]">Event</p>
                   <p className="text-xs font-semibold text-[var(--gray-700)]">{inquiry.event.name}</p>
+                  {(inquiry.event.startDate || inquiry.event.start_date) && (
+                    <p className="text-[10px] text-[var(--gray-500)] mt-0.5">{fmtEventDate(inquiry.event.startDate || inquiry.event.start_date, inquiry.event.endDate || inquiry.event.end_date)}</p>
+                  )}
                 </div>
               </div>
             )}
