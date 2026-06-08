@@ -72,8 +72,8 @@ function shouldShowTimestamp(messages, index) {
 }
 
 function formatPrice(cents) {
-  if (!cents && cents !== 0) return "$0";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+  if (!cents && cents !== 0) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 function dollarsToC(val) {

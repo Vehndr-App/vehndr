@@ -73,7 +73,7 @@ function formatDate(raw) {
 
 function formatPrice(cents) {
   if (!cents) return null;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
