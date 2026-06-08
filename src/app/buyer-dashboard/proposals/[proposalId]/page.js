@@ -253,8 +253,8 @@ function fmtDateTime(raw) {
 }
 
 function formatPrice(cents) {
-  if (!cents) return "$0";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+  if (!cents) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 function YesNo({ value }) {
@@ -662,6 +662,8 @@ export default function ProposalDetailPage() {
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
   const canEdit   = !activeOffer && !isPaid && status !== "scheduled" && status !== "completed" && status !== "expired";
   const booking          = inquiry.marketplaceBooking;
+  const depositPaid       = booking?.paymentStatus === "deposit_paid";
+  const remainingBalanceDue = depositPaid && (activeOffer?.remainingBalanceCents ?? 0) > 0 && !isCancelled;
   const isCash           = isCoordinatorPaysOffer(activeOffer, coordinatorType);
   const displayTip       = displayTipCents(inquiry);
   const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);
@@ -779,6 +781,18 @@ export default function ProposalDetailPage() {
                   <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
                 </svg>
                 Complete Payment
+              </Link>
+            )}
+
+            {remainingBalanceDue && (
+              <Link
+                href={`/messages/${inquiry.id}/checkout`}
+                className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-gradient-to-r from-[var(--mint-500)] to-[var(--mint-600)] text-white text-sm font-semibold hover:shadow-md transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                </svg>
+                Pay Remaining Balance — {formatPrice(activeOffer.remainingBalanceCents)}
               </Link>
             )}
 

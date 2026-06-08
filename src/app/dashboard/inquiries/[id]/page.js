@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
-import { getInquiry, declineInquiry } from "../../../../services/inquiries";
+import { getInquiry, declineInquiry, requestFinalPayment } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
 import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
 
@@ -162,6 +162,7 @@ function HeroCard({
   declining, handleDecline, accepting, handleQuickAccept,
   withdrawing, handleWithdrawOffer,
   canCancel, onCancel,
+  canRequestFinalPayment, finalPaymentRequested, requestingFinalPayment, onRequestFinalPayment,
   id,
 }) {
   const statusLabel = isCancelled ? "Cancelled"
@@ -342,6 +343,26 @@ function HeroCard({
             </svg>
             Awaiting payment
           </span>
+        )}
+
+        {canRequestFinalPayment && (
+          finalPaymentRequested ? (
+            <span className="h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)]">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Payment request sent
+            </span>
+          ) : (
+            <button type="button" onClick={onRequestFinalPayment} disabled={requestingFinalPayment}
+              className="h-9 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+              style={{ background: "linear-gradient(to right, var(--violet-600), var(--magenta-600))" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+              {requestingFinalPayment ? "Sending…" : "Request Final Payment"}
+            </button>
+          )
         )}
         {(vendorPaid || freeConfirmed) && (
           <span className="h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)]">
@@ -863,6 +884,8 @@ function VendorInquiryDetailInner() {
   const [accepting,      setAccepting]      = useState(false);
   const [withdrawing,    setWithdrawing]    = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [requestingFinalPayment, setRequestingFinalPayment] = useState(false);
+  const [finalPaymentRequested,  setFinalPaymentRequested]  = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -891,6 +914,15 @@ function VendorInquiryDetailInner() {
       setInquiry(inq); setOffers(Array.isArray(list) ? list : []);
     } catch (e) { alert(e.message || "Failed to withdraw offer."); }
     finally { setWithdrawing(false); }
+  }
+
+  async function handleRequestFinalPayment() {
+    setRequestingFinalPayment(true);
+    try {
+      await requestFinalPayment(id);
+      setFinalPaymentRequested(true);
+    } catch (e) { alert(e.message || "Failed to send payment request."); }
+    finally { setRequestingFinalPayment(false); }
   }
 
   async function handleQuickAccept() {
@@ -939,6 +971,9 @@ function VendorInquiryDetailInner() {
   const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both" && !isCancelled;
   const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined && !isCancelled;
   const canCancel      = !!marketplaceBooking && !isCancelled && (isConfirmed || offerAccepted);
+  const canRequestFinalPayment = marketplaceBooking?.paymentStatus === "deposit_paid"
+    && (activeOffer?.remainingBalanceCents ?? 0) > 0
+    && !isCancelled;
 
   const primaryHref = (offerDeclined || canRevise || (needsProposal && !offerDeclined && !isExpired && !isVendorDeclined))
     ? `/dashboard/inquiries/${id}/offer/new` : null;
@@ -1015,6 +1050,10 @@ function VendorInquiryDetailInner() {
           accepting={accepting} handleQuickAccept={handleQuickAccept}
           canWithdraw={canWithdraw} withdrawing={withdrawing} handleWithdrawOffer={handleWithdrawOffer}
           canCancel={canCancel} onCancel={() => setShowCancelModal(true)}
+          canRequestFinalPayment={canRequestFinalPayment}
+          finalPaymentRequested={finalPaymentRequested}
+          requestingFinalPayment={requestingFinalPayment}
+          onRequestFinalPayment={handleRequestFinalPayment}
           id={id}
         />
 
@@ -1043,6 +1082,45 @@ function VendorInquiryDetailInner() {
                 </p>
               </div>
               <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} />
+            </Card>
+          );
+        })()}
+
+        {/* 2c. Fee breakdown — shown for product (vendor-pays) engagements */}
+        {coordinatorType === "charges_fees" && !isCancelled && (() => {
+          const baseCents = (activeOffer?.proposalType === "product" && activeOffer.totalPriceCents > 0)
+            ? activeOffer.totalPriceCents
+            : (vendingFeeCents ?? 0);
+          if (!baseCents) return null;
+          const pricing = marketplaceBreakdown(baseCents);
+          return (
+            <Card>
+              <div className="px-5 py-3.5 border-b border-[var(--gray-100)]">
+                <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest">What You&apos;ll Pay</p>
+                <p className="text-[11px] text-[var(--gray-400)] mt-0.5">
+                  {activeOffer
+                    ? `Based on the agreed booth fee of ${fmt$(baseCents)}`
+                    : `Based on the event vending fee of ${fmt$(baseCents)}`}
+                </p>
+              </div>
+              <div className="px-5 py-4 space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Booth fee</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(baseCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(pricing.buyerFeeCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(pricing.taxCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
+                  <span className="font-semibold text-[var(--gray-700)]">Total you pay</span>
+                  <span className="font-bold text-[var(--gray-900)]">{fmt$(pricing.totalChargeCents)}</span>
+                </div>
+              </div>
             </Card>
           );
         })()}

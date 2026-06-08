@@ -270,7 +270,7 @@ function NewProposalPageInner() {
       const res = await createInquiry(payload);
       const inquiry = res?.inquiry ?? res;
       setSubmitted(true);
-      setTimeout(() => router.push(`/messages/${inquiry.id}`), 1200);
+      setTimeout(() => router.push(`/buyer-dashboard/proposals/${inquiry.id}`), 1200);
     } catch (err) {
       setError(err?.message ?? "Something went wrong. Please try again.");
     } finally {

@@ -168,7 +168,7 @@ function VendorEventsInner() {
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                       </svg>
-                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(inq.budgetCents / 100)} budget
+                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(inq.budgetCents / 100)} budget
                     </div>
                   )}
                 </div>
@@ -177,7 +177,7 @@ function VendorEventsInner() {
                   <span className="text-[11px] text-[var(--gray-400)]">View details →</span>
                   {inq.activeOffer && (
                     <span className="text-[11px] font-semibold text-[var(--violet-600)]">
-                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(inq.activeOffer.totalPriceCents / 100)} offer
+                      {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(inq.activeOffer.totalPriceCents / 100)} offer
                     </span>
                   )}
                 </div>
