@@ -121,7 +121,7 @@ function PaymentsInner() {
   }
 
   const isConnected = accountStatus?.chargesEnabled;
-  const taxCollectionEnabled = vendorProfile?.collectTax !== false;
+  const taxCollectionEnabled = vendorProfile ? vendorProfile.collectTax !== false : false;
   let taxCollectionLabel = 'Unavailable';
   if (taxSaving) {
     taxCollectionLabel = 'Saving...';
@@ -193,16 +193,29 @@ function PaymentsInner() {
                   Automatically collect tax during checkout
                 </p>
               </div>
-              <label className="flex items-center gap-2 text-sm font-medium text-[var(--gray-700)] shrink-0">
-                <input
-                  type="checkbox"
-                  checked={taxCollectionEnabled}
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-sm font-medium text-[var(--gray-700)]">{taxCollectionLabel}</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label="Tax collection"
+                  aria-checked={taxCollectionEnabled}
+                  aria-busy={taxSaving}
                   disabled={!vendorProfile || taxSaving}
-                  onChange={(e) => updateTaxCollection(e.target.checked)}
-                  className="w-5 h-5 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)] disabled:opacity-50"
-                />
-                {taxCollectionLabel}
-              </label>
+                  onClick={() => updateTaxCollection(!taxCollectionEnabled)}
+                  className={`relative inline-flex h-[26px] w-[46px] flex-shrink-0 rounded-full transition-all duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[var(--violet-500)] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 ${
+                    taxCollectionEnabled
+                      ? "bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-500)] shadow-[0_2px_8px_rgba(139,92,246,0.4)]"
+                      : "bg-[var(--gray-200)]"
+                  }`}
+                >
+                  <span
+                    className={`mt-[2px] inline-block h-[22px] w-[22px] transform rounded-full bg-white shadow-sm ring-0 transition-all duration-200 ease-in-out ${
+                      taxCollectionEnabled ? "translate-x-[22px]" : "translate-x-[2px]"
+                    }`}
+                  />
+                </button>
+              </div>
             </div>
           </div>
 
