@@ -18,8 +18,10 @@ export default function PaymentsPage() {
 function PaymentsInner() {
   const [user, setUser] = useState(null);
   const [accountStatus, setAccountStatus] = useState(null);
+  const [vendorProfile, setVendorProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [taxSaving, setTaxSaving] = useState(false);
 
   const fetchAccountStatus = useCallback(async (vendorId) => {
     try {
@@ -28,6 +30,16 @@ function PaymentsInner() {
     } catch (err) {
       console.error("Failed to fetch account status", err);
       setAccountStatus(null);
+    }
+  }, []);
+
+  const fetchVendorProfile = useCallback(async (vendorId) => {
+    try {
+      const response = await api(`/api/vendors/${vendorId}`);
+      setVendorProfile(response.vendor || response);
+    } catch (err) {
+      console.error("Failed to fetch vendor profile", err);
+      setVendorProfile(null);
     }
   }, []);
 
@@ -58,17 +70,45 @@ function PaymentsInner() {
     }
   };
 
+  const updateTaxCollection = async (enabled) => {
+    if (!user?.vendorId || taxSaving) return;
+
+    const previousProfile = vendorProfile;
+    setVendorProfile((prev) => ({ ...(prev || {}), collectTax: enabled }));
+    setTaxSaving(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("vendor[collect_tax]", enabled ? "true" : "false");
+
+      const response = await api(`/api/vendors/${user.vendorId}`, {
+        method: "PATCH",
+        body: formData
+      });
+      setVendorProfile(response.vendor || response);
+    } catch (err) {
+      console.error("Failed to update tax collection", err);
+      setVendorProfile(previousProfile);
+      alert("Failed to update tax collection. Please try again.");
+    } finally {
+      setTaxSaving(false);
+    }
+  };
+
   useEffect(() => {
     (async () => {
       const u = await getCurrentUser();
       setUser(u);
 
       if (u?.vendorId) {
-        await fetchAccountStatus(u.vendorId);
+        await Promise.all([
+          fetchAccountStatus(u.vendorId),
+          fetchVendorProfile(u.vendorId)
+        ]);
       }
       setLoading(false);
     })();
-  }, [fetchAccountStatus]);
+  }, [fetchAccountStatus, fetchVendorProfile]);
 
   if (loading) {
     return (
@@ -81,6 +121,13 @@ function PaymentsInner() {
   }
 
   const isConnected = accountStatus?.chargesEnabled;
+  const taxCollectionEnabled = vendorProfile?.collectTax !== false;
+  let taxCollectionLabel = 'Unavailable';
+  if (taxSaving) {
+    taxCollectionLabel = 'Saving...';
+  } else if (vendorProfile) {
+    taxCollectionLabel = taxCollectionEnabled ? 'Enabled' : 'Disabled';
+  }
 
   return (
     <div className="min-h-screen bg-[var(--background)] pb-24">
@@ -136,6 +183,28 @@ function PaymentsInner() {
             accountStatus={accountStatus}
             onStatusUpdate={() => fetchAccountStatus(user?.vendorId)}
           />
+
+          {/* Tax Collection */}
+          <div className="card bg-white p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-h4">Tax Collection</h3>
+                <p className="text-sm text-[var(--gray-500)] mt-1">
+                  Automatically collect tax during checkout
+                </p>
+              </div>
+              <label className="flex items-center gap-2 text-sm font-medium text-[var(--gray-700)] shrink-0">
+                <input
+                  type="checkbox"
+                  checked={taxCollectionEnabled}
+                  disabled={!vendorProfile || taxSaving}
+                  onChange={(e) => updateTaxCollection(e.target.checked)}
+                  className="w-5 h-5 rounded border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)] disabled:opacity-50"
+                />
+                {taxCollectionLabel}
+              </label>
+            </div>
+          </div>
 
           {/* Account Details */}
           {accountStatus && (
@@ -238,4 +307,3 @@ function Step({ number, title, description }) {
     </div>
   );
 }
-
