@@ -62,6 +62,16 @@ export function marketplaceBreakdown(baseCents, tipCents = 0) {
   };
 }
 
+// Vendor-pays booth fee breakdown: tax applies to (booth fee + VEHNDR fee)
+export function vendorBoothBreakdown(baseCents) {
+  const vehndrFeeCents = marketplacePayerFeeCents(baseCents);
+  const taxCents = Math.round((baseCents + vehndrFeeCents) * MARKETPLACE_TAX_RATE);
+  const totalCents = baseCents + vehndrFeeCents + taxCents;
+  const ecRecipientFeeCents = marketplaceRecipientFeeCents(baseCents);
+  const ecPayoutCents = Math.max(baseCents - ecRecipientFeeCents, 0);
+  return { baseCents, vehndrFeeCents, taxCents, totalCents, ecRecipientFeeCents, ecPayoutCents };
+}
+
 export function marketplaceTipBreakdown(tipCents) {
   const stripeFeeCents = marketplaceStripeFeeCents(tipCents);
   const recipientPayoutCents = Math.max(tipCents - stripeFeeCents, 0);
