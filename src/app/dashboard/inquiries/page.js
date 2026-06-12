@@ -18,6 +18,7 @@ const STATUS_META = {
   scheduled:      { label: "Booked",          color: "mint",   dot: "bg-[var(--mint-500)]"    },
   completed:      { label: "Completed",       color: "mint",   dot: "bg-[var(--mint-500)]"    },
   expired:        { label: "Expired",         color: "gray",   dot: "bg-[var(--gray-300)]"    },
+  cancelled:      { label: "Cancelled",       color: "coral",  dot: "bg-[var(--coral-500)]"   },
 };
 
 const BADGE_STYLES = {
@@ -30,25 +31,28 @@ const BADGE_STYLES = {
 };
 
 const TABS = [
-  { id: "all",     label: "All"      },
-  { id: "new",     label: "New"      },
-  { id: "pending", label: "Pending"  },
-  { id: "booked",  label: "Booked"   },
-  { id: "done",    label: "Done"     },
+  { id: "all",       label: "All"       },
+  { id: "new",       label: "New"       },
+  { id: "pending",   label: "Pending"   },
+  { id: "booked",    label: "Booked"    },
+  { id: "done",      label: "Done"      },
+  { id: "cancelled", label: "Cancelled" },
 ];
 
-const NEW_STATUSES     = new Set(["submitted", "viewed"]);
-const PENDING_STATUSES = new Set(["discussed", "actions_needed", "offer_updated"]);
-const BOOKED_STATUSES  = new Set(["scheduled"]);
-const DONE_STATUSES    = new Set(["completed", "expired"]);
+const NEW_STATUSES       = new Set(["submitted", "viewed"]);
+const PENDING_STATUSES   = new Set(["discussed", "actions_needed", "offer_updated"]);
+const BOOKED_STATUSES    = new Set(["scheduled"]);
+const DONE_STATUSES      = new Set(["completed", "expired"]);
+const CANCELLED_STATUSES = new Set(["cancelled"]);
 
 function matchTab(inq, tab) {
   const s = inq.status;
-  if (tab === "all")     return true;
-  if (tab === "new")     return NEW_STATUSES.has(s);
-  if (tab === "pending") return PENDING_STATUSES.has(s) || inq.activeOffer?.status === "pending" || inq.lastOffer?.status === "changes_requested";
-  if (tab === "booked")  return BOOKED_STATUSES.has(s);
-  if (tab === "done")    return DONE_STATUSES.has(s);
+  if (tab === "all")       return true;
+  if (tab === "new")       return NEW_STATUSES.has(s);
+  if (tab === "pending")   return PENDING_STATUSES.has(s) || inq.activeOffer?.status === "pending" || inq.lastOffer?.status === "changes_requested";
+  if (tab === "booked")    return BOOKED_STATUSES.has(s);
+  if (tab === "done")      return DONE_STATUSES.has(s);
+  if (tab === "cancelled") return CANCELLED_STATUSES.has(s);
   return true;
 }
 
@@ -111,14 +115,18 @@ function InquiryRow({ inquiry, index }) {
   const isNew         = status === "submitted";
   const initial       = customer?.name?.charAt(0)?.toUpperCase() ?? "?";
 
-  const badgeLabel = offerPending  ? "Offer sent"
-                   : offerAccepted ? "Accepted"
-                   : offerDeclined ? "Offer declined"
+  const isCancelled = status === "cancelled";
+
+  const badgeLabel = isCancelled          ? meta.label
+                   : offerPending         ? "Offer sent"
+                   : offerAccepted        ? "Accepted"
+                   : offerDeclined        ? "Offer declined"
                    : offerChangesRequested ? "Tip updated"
                    : meta.label;
-  const badgeColor = offerPending  ? "violet"
-                   : offerAccepted ? "mint"
-                   : offerDeclined ? "coral"
+  const badgeColor = isCancelled          ? meta.color
+                   : offerPending         ? "violet"
+                   : offerAccepted        ? "mint"
+                   : offerDeclined        ? "coral"
                    : offerChangesRequested ? "violet"
                    : meta.color;
 
@@ -214,11 +222,12 @@ function InquiryRow({ inquiry, index }) {
 
 function EmptyState({ tab }) {
   const copy = {
-    all:     { h: "No inquiries yet",       s: "When coordinators reach out to book you, they'll appear here." },
-    new:     { h: "No new requests",        s: "New inquiries from coordinators will show up here." },
-    pending: { h: "No pending offers",      s: "Inquiries where you've sent or are negotiating offers appear here." },
-    booked:  { h: "Nothing booked yet",     s: "Confirmed bookings will appear here." },
-    done:    { h: "No completed inquiries", s: "Past and expired inquiries will appear here." },
+    all:       { h: "No inquiries yet",         s: "When coordinators reach out to book you, they'll appear here." },
+    new:       { h: "No new requests",          s: "New inquiries from coordinators will show up here." },
+    pending:   { h: "No pending offers",        s: "Inquiries where you've sent or are negotiating offers appear here." },
+    booked:    { h: "Nothing booked yet",       s: "Confirmed bookings will appear here." },
+    done:      { h: "No completed inquiries",   s: "Past and expired inquiries will appear here." },
+    cancelled: { h: "No cancelled inquiries",   s: "Inquiries that were cancelled will appear here." },
   };
   const { h, s } = copy[tab] ?? copy.all;
   return (

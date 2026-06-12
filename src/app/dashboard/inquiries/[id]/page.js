@@ -7,7 +7,7 @@ import AuthGate from "../../../../components/AuthGate";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
 import { getInquiry, declineInquiry, requestFinalPayment } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
-import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
+import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -230,7 +230,7 @@ function HeroCard({
       {/* Budget / fee row */}
       {(budgetCents > 0 || vendingFeeCents > 0 || tipCents > 0 || coordinatorType === "no_fees") && (
         <div className="px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5">
-          {coordinatorType === "hiring_vendor" && budgetCents > 0 && (
+          {coordinatorType === "hiring_vendor" && budgetCents > 0 && !needsVendorPay && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You&apos;d receive</span>
               <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents).vendorPayoutCents)}</span>
@@ -689,7 +689,7 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
 
       <div className="px-5 py-4 space-y-3">
         <div className="flex items-baseline justify-between">
-          <span className="text-sm text-[var(--gray-500)]">{isCash ? "Your base" : offer.proposalType === "product" ? "You pay" : "Price"}</span>
+          <span className="text-sm text-[var(--gray-500)]">{isCash ? "Your base" : offer.proposalType === "product" ? "Booth fee" : "Price"}</span>
           <span className="text-[22px] font-bold text-[var(--gray-900)] tabular-nums">
             {fmt$(offer.totalPriceCents)}
           </span>
@@ -1058,7 +1058,7 @@ function VendorInquiryDetailInner() {
         />
 
         {/* 2a. Earnings confirmed card — after offer is accepted/booked */}
-        {(offerAccepted || isConfirmed) && displayOffer?.proposalType === "cash" && (
+        {(offerAccepted || isConfirmed) && displayOffer?.proposalType === "cash" && coordinatorType === "hiring_vendor" && (
           <EarningsCard
             offer={displayOffer}
             tipCents={bookingTipCents}
@@ -1092,7 +1092,7 @@ function VendorInquiryDetailInner() {
             ? activeOffer.totalPriceCents
             : (vendingFeeCents ?? 0);
           if (!baseCents) return null;
-          const pricing = marketplaceBreakdown(baseCents);
+          const boothPricing = vendorBoothBreakdown(baseCents);
           return (
             <Card>
               <div className="px-5 py-3.5 border-b border-[var(--gray-100)]">
@@ -1110,15 +1110,32 @@ function VendorInquiryDetailInner() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-                  <span className="font-medium text-[var(--gray-800)]">{fmt$(pricing.buyerFeeCents)}</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.vehndrFeeCents)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-                  <span className="font-medium text-[var(--gray-800)]">{fmt$(pricing.taxCents)}</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.taxCents)}</span>
                 </div>
                 <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
                   <span className="font-semibold text-[var(--gray-700)]">Total you pay</span>
-                  <span className="font-bold text-[var(--gray-900)]">{fmt$(pricing.totalChargeCents)}</span>
+                  <span className="font-bold text-[var(--gray-900)]">{fmt$(boothPricing.totalCents)}</span>
+                </div>
+
+                {/* EC payout breakdown */}
+                <div className="pt-3 mt-1 border-t border-[var(--gray-100)] space-y-2">
+                  <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Coordinator receives</p>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[var(--gray-500)]">Booth fee collected</span>
+                    <span className="font-medium text-[var(--gray-800)]">{fmt$(baseCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                    <span className="font-medium text-red-400">−{fmt$(boothPricing.ecRecipientFeeCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
+                    <span className="font-semibold text-[var(--gray-700)]">Coordinator payout</span>
+                    <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmt$(boothPricing.ecPayoutCents)}</span>
+                  </div>
                 </div>
               </div>
             </Card>

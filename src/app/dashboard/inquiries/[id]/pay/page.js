@@ -6,11 +6,7 @@ import Link from "next/link";
 import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../services/inquiries";
 import { createVendorPaymentIntent, confirmVendorPayment } from "../../../../../services/checkout";
-import {
-  marketplaceChargeTotalCents,
-  marketplacePayerFeeCents,
-  marketplaceTaxCents,
-} from "../../../../../utils/marketplacePricing";
+import { vendorBoothBreakdown } from "../../../../../utils/marketplacePricing";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -18,9 +14,6 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-function calcBuyerFee(base) { return marketplacePayerFeeCents(base); }
-function calcTax(base) { return marketplaceTaxCents(base); }
-function calcChargeTotal(base) { return marketplaceChargeTotalCents(base); }
 
 function formatPrice(cents) {
   if (!cents && cents !== 0) return "—";
@@ -170,7 +163,8 @@ function VendorPayInner() {
   const [intentLoading, setIntentLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const activeOffer = inquiry?.activeOffer;
-  const estimatedTotalCents = activeOffer ? calcChargeTotal(activeOffer.totalPriceCents) : null;
+  const boothPricing = activeOffer ? vendorBoothBreakdown(activeOffer.totalPriceCents) : null;
+  const estimatedTotalCents = boothPricing?.totalCents ?? null;
 
   useEffect(() => {
     if (!id) return;
@@ -273,11 +267,28 @@ function VendorPayInner() {
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(calcBuyerFee(activeOffer.totalPriceCents))}</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.vehndrFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(calcTax(activeOffer.totalPriceCents))}</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.taxCents)}</span>
+                  </div>
+                </div>
+
+                {/* Coordinator receives */}
+                <div className="mt-3 pt-3 border-t border-[var(--gray-100)] space-y-1.5">
+                  <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-wider mb-2">Coordinator receives</p>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--gray-500)]">Booth fee collected</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(activeOffer.totalPriceCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                    <span className="font-semibold text-red-400">−{formatPrice(boothPricing.ecRecipientFeeCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs pt-1.5 border-t border-[var(--gray-100)]">
+                    <span className="font-semibold text-[var(--gray-700)]">Coordinator payout</span>
+                    <span className="font-bold text-emerald-600">{formatPrice(boothPricing.ecPayoutCents)}</span>
                   </div>
                 </div>
                 {activeOffer.description && (

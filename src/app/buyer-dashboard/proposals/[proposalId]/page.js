@@ -6,10 +6,11 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { getInquiry, deleteInquiry } from "../../../../services/inquiries";
 import { getEvent } from "../../../../services/events";
+import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
 import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
 import TipSelector from "../../../../components/TipSelector";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
-import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
+import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -233,6 +234,50 @@ function PricingCard({ offer, tipCents, booking, coordinatorType }) {
           <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{offer.description}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── EC earnings card (charges_fees: vendor pays booth fee) ──────────────────
+
+function ECEarningsCard({ offer }) {
+  const pricing = vendorBoothBreakdown(offer.totalPriceCents);
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden animate-spring-up" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="h-1.5 w-full" style={{ background: "var(--gradient-organizer)" }} />
+      <div className="px-4 sm:px-6 py-4 border-b border-[var(--gray-100)]">
+        <h3 className="font-semibold text-[var(--gray-900)] text-[15px]">Your Earnings</h3>
+      </div>
+
+      <div className="px-4 sm:px-6 py-5">
+        <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">You receive</p>
+        <p className="text-[40px] font-bold leading-none tracking-tight" style={{ color: "var(--mint-700)" }}>
+          {fmtC(pricing.ecPayoutCents)}
+        </p>
+
+        <div className="mt-4 pt-4 border-t border-[var(--gray-100)] space-y-2.5">
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">Booth fee collected</span>
+            <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.baseCents)}</span>
+          </div>
+          <div className="flex justify-between text-sm">
+            <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+            <span className="font-medium text-red-400">−{fmtC(pricing.ecRecipientFeeCents)}</span>
+          </div>
+          <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
+            <span className="font-semibold text-[var(--gray-700)]">You receive</span>
+            <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmtC(pricing.ecPayoutCents)}</span>
+          </div>
+        </div>
+
+        {offer.description && (
+          <div className="mt-4 pt-4 border-t border-[var(--gray-100)]">
+            <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1.5">Note from vendor</p>
+            <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{offer.description}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -607,6 +652,7 @@ export default function ProposalDetailPage() {
   const [deleteError, setDeleteError] = useState(null);
   const [showTipModal, setShowTipModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [stripeReady, setStripeReady] = useState(null); // null=loading, true=ready, false=needs onboarding
 
   async function refreshInquiry() {
     try {
@@ -628,6 +674,12 @@ export default function ProposalDetailPage() {
             setEvent(evt);
           } catch { /* ignore */ }
         }
+        getCoordinatorStripeAccount()
+          .then((res) => {
+            const needsOnboarding = !res?.connected || !!res?.needsOnboarding;
+            setStripeReady(!needsOnboarding);
+          })
+          .catch(() => setStripeReady(false));
       })
       .catch(() => setError("Proposal not found."))
       .finally(() => setLoading(false));
@@ -931,9 +983,37 @@ export default function ProposalDetailPage() {
         </div>
       )}
 
+      {/* ── Stripe onboarding banner ── */}
+      {stripeReady === false && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 flex items-start gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Stripe payout account required</p>
+            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+              To collect vending fees from vendors, you need to complete Stripe onboarding. Fees won&apos;t be paid out until your account is connected.
+            </p>
+            <Link
+              href="/buyer-dashboard/payments"
+              className="mt-3 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+            >
+              Complete Stripe Setup
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ── Pricing summary ── */}
-      {isCash && activeOffer?.totalPriceCents > 0 ? (
-        <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} />
+      {activeOffer?.totalPriceCents > 0 ? (
+        activeOffer.proposalType === "product" ? (
+          <ECEarningsCard offer={activeOffer} />
+        ) : (
+          <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} />
+        )
       ) : (budgetCents > 0 || tipCents > 0 || coordinatorType || event?.vendorLoadIn || event?.vendorLoadOut) && (
         <ProposalDetailsCard
           budgetCents={budgetCents}
