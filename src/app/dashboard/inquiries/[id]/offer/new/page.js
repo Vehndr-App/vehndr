@@ -7,6 +7,13 @@ import AuthGate from "../../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../../services/inquiries";
 import { createOffer, updateOffer } from "../../../../../../services/offers";
 import { marketplaceBreakdown } from "../../../../../../utils/marketplacePricing";
+import {
+  OFFER_EXPIRY_ERROR,
+  minimumOfferExpiryValue,
+  offerExpiryToIso,
+  offerExpiryTooSoon,
+  toDatetimeLocalValue,
+} from "../../../../../../utils/offerExpiry";
 
 // ─── Fee helpers (mirrors MarketplacePricing) ─────────────────────────────────
 
@@ -177,8 +184,7 @@ function NewProposalInner() {
             setDepositType(offer.depositType ?? "refundable");
           }
           if (offer.expiresAt) {
-            // Format for datetime-local input
-            setExpiresAt(new Date(offer.expiresAt).toISOString().slice(0, 16));
+            setExpiresAt(toDatetimeLocalValue(offer.expiresAt));
           }
         }
       })
@@ -191,6 +197,10 @@ function NewProposalInner() {
     const isFree = proposalType === "both";
     if (!isFree && (!totalPrice || parseFloat(totalPrice) <= 0)) {
       setError("Please enter a valid total price.");
+      return;
+    }
+    if (offerExpiryTooSoon(expiresAt)) {
+      setError(OFFER_EXPIRY_ERROR);
       return;
     }
 
@@ -210,7 +220,7 @@ function NewProposalInner() {
         isPaid && hasDeposit && depositAmount && remaining !== null
           ? Math.round(remaining * 100)
           : null,
-      expires_at: expiresAt || null,
+      expires_at: offerExpiryToIso(expiresAt),
     };
 
     try {
@@ -227,6 +237,7 @@ function NewProposalInner() {
   }
 
   if (loading) return <LoadingSkeleton />;
+  const minimumExpiryValue = minimumOfferExpiryValue();
 
   return (
     <div className="min-h-screen bg-[var(--gray-50)] pb-24">
@@ -429,9 +440,11 @@ function NewProposalInner() {
           <input
             type="datetime-local"
             value={expiresAt}
+            min={minimumExpiryValue}
             onChange={(e) => setExpiresAt(e.target.value)}
             className="w-full px-3 py-2.5 text-sm border border-[var(--gray-200)] rounded-[var(--radius-md)] focus:outline-none focus:ring-2 focus:ring-[var(--violet-300)] focus:border-[var(--violet-400)]"
           />
+          <p className="mt-1.5 text-xs text-[var(--gray-400)]">Earliest expiry is 12 hours from now.</p>
         </div>
 
         {error && (

@@ -86,6 +86,7 @@ function EventEditInner() {
     desiredVendorCategories: [],
     attendees: "",
     status: "draft",
+    isPublic: false,
     image: "",
   });
 
@@ -113,6 +114,7 @@ function EventEditInner() {
           desiredVendorCategories: normalizeVendorCategories(event.desiredVendorCategories || []),
           attendees: event.attendees || "",
           status: event.status || "draft",
+          isPublic: !!event.isPublic,
           image: event.image || "",
         });
 
@@ -201,6 +203,7 @@ function EventEditInner() {
         desired_vendor_categories: normalizeVendorCategories(formData.desiredVendorCategories),
         attendees: formData.attendees ? Number(formData.attendees) : 0,
         status: formData.status,
+        is_public: formData.isPublic,
         image: formData.image || null,
         daily_schedule: cleanSchedule,
       };
@@ -554,16 +557,29 @@ function EventEditInner() {
                 ))}
               </select>
             </div>
-            <div>
-              <label className="text-sm font-semibold text-[var(--gray-700)]">Cover Image URL</label>
+            <label className="flex items-center justify-between gap-4 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 cursor-pointer hover:bg-white transition-colors">
+              <div>
+                <span className="text-sm font-semibold text-[var(--gray-700)]">Public Event</span>
+                <p className="text-xs text-[var(--gray-500)] mt-0.5">Visible in public event listings.</p>
+              </div>
               <input
-                type="url"
-                value={formData.image}
-                onChange={(e) => handleChange("image", e.target.value)}
-                className="input mt-2"
-                placeholder="https://..."
+                type="checkbox"
+                checked={formData.isPublic}
+                onChange={(e) => handleChange("isPublic", e.target.checked)}
+                className="w-5 h-5 rounded-md border-[var(--gray-300)] text-[var(--violet-600)] focus:ring-[var(--violet-500)]"
               />
-            </div>
+            </label>
+          </div>
+
+          <div>
+            <label className="text-sm font-semibold text-[var(--gray-700)]">Cover Image URL</label>
+            <input
+              type="url"
+              value={formData.image}
+              onChange={(e) => handleChange("image", e.target.value)}
+              className="input mt-2"
+              placeholder="https://..."
+            />
           </div>
 
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3">

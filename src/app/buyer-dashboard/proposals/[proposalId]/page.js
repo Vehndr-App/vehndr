@@ -11,6 +11,10 @@ import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/c
 import TipSelector from "../../../../components/TipSelector";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
 import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
+import {
+  WALLET_FIRST_PAYMENT_METHOD_ORDER,
+  WALLET_PAYMENT_ELEMENT_OPTIONS,
+} from "../../../../utils/stripePaymentOptions";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -487,7 +491,7 @@ function TipStripeForm({ amountCents, onSuccess, onError }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement onReady={() => setReady(true)} />
+      <PaymentElement onReady={() => setReady(true)} options={WALLET_PAYMENT_ELEMENT_OPTIONS} />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
@@ -588,6 +592,8 @@ function TipModal({ booking, inquiry, onClose, onTipPaid }) {
                   options={{
                     clientSecret: intentData.clientSecret,
                     appearance: { theme: "stripe", variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit" } },
+                    loader: "auto",
+                    paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER,
                   }}
                 >
                   <TipStripeForm

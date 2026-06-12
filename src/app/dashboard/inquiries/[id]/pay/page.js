@@ -7,6 +7,10 @@ import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../services/inquiries";
 import { createVendorPaymentIntent, confirmVendorPayment } from "../../../../../services/checkout";
 import { vendorBoothBreakdown } from "../../../../../utils/marketplacePricing";
+import {
+  WALLET_FIRST_PAYMENT_METHOD_ORDER,
+  WALLET_PAYMENT_ELEMENT_OPTIONS,
+} from "../../../../../utils/stripePaymentOptions";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -60,7 +64,7 @@ function StripePaymentForm({ amountCents, onSuccess, onError }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <PaymentElement onReady={() => setReady(true)} />
+      <PaymentElement onReady={() => setReady(true)} options={WALLET_PAYMENT_ELEMENT_OPTIONS} />
       {error && (
         <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">{error}</div>
       )}
@@ -321,7 +325,14 @@ function VendorPayInner() {
               ) : intent.devMode ? (
                 <DevPaymentForm amountCents={intent.amountCents} onSuccess={handleDevSuccess} />
               ) : (
-                <Elements stripe={stripePromise} options={{ clientSecret: intent.clientSecret }}>
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret: intent.clientSecret,
+                    loader: "auto",
+                    paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER,
+                  }}
+                >
                   <StripePaymentForm
                     amountCents={intent.amountCents}
                     onSuccess={handleSuccess}

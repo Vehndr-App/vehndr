@@ -13,6 +13,13 @@ import {
   marketplaceStripeFeeCents,
   marketplaceTaxCents,
 } from "../../../utils/marketplacePricing";
+import {
+  OFFER_EXPIRY_ERROR,
+  minimumOfferExpiryValue,
+  offerExpiryToIso,
+  offerExpiryTooSoon,
+  toDatetimeLocalValue,
+} from "../../../utils/offerExpiry";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -355,7 +362,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
     totalPrice:    existingOffer ? (existingOffer.totalPriceCents / 100).toString() : "",
     depositAmount: existingOffer?.depositCents ? (existingOffer.depositCents / 100).toString() : "",
     depositType:   existingOffer?.depositType ?? "non_refundable",
-    expiresAt:     existingOffer?.expiresAt ? existingOffer.expiresAt.split("T")[0] : "",
+    expiresAt:     existingOffer?.expiresAt ? toDatetimeLocalValue(existingOffer.expiresAt) : "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
@@ -373,6 +380,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
     e.preventDefault();
     if (!totalCents || totalCents <= 0)             { setError("Total price is required."); return; }
     if (depositCents && depositCents >= totalCents) { setError("Deposit must be less than total."); return; }
+    if (offerExpiryTooSoon(form.expiresAt))         { setError(OFFER_EXPIRY_ERROR); return; }
 
     setSaving(true);
     setError(null);
@@ -383,7 +391,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
       deposit_cents:           depositCents,
       deposit_type:            hasDeposit ? form.depositType : null,
       remaining_balance_cents: remainingCents,
-      expires_at:              form.expiresAt || null,
+      expires_at:              offerExpiryToIso(form.expiresAt),
     };
 
     try {
@@ -402,6 +410,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
 
   const inputClass = "w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-base sm:text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all";
   const labelClass = "block text-[10px] font-semibold uppercase tracking-widest text-[var(--gray-400)] mb-2";
+  const minimumExpiryValue = minimumOfferExpiryValue();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -486,12 +495,13 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
           Offer expires <span className="normal-case font-normal tracking-normal">(optional)</span>
         </label>
         <input
-          type="date"
+          type="datetime-local"
           value={form.expiresAt}
-          min={new Date().toISOString().split("T")[0]}
+          min={minimumExpiryValue}
           onChange={(e) => set("expiresAt", e.target.value)}
           className={inputClass}
         />
+        <p className="text-xs text-[var(--gray-400)] mt-1.5">Earliest expiry is 12 hours from now.</p>
       </div>
 
       {error && <p className="text-xs text-[var(--error)] font-medium">{error}</p>}

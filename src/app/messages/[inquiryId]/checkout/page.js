@@ -22,6 +22,10 @@ import {
   marketplaceStripeFeeCents,
   marketplaceTaxCents,
 } from "../../../../utils/marketplacePricing";
+import {
+  WALLET_FIRST_PAYMENT_METHOD_ORDER,
+  WALLET_PAYMENT_ELEMENT_OPTIONS,
+} from "../../../../utils/stripePaymentOptions";
 
 const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -86,7 +90,7 @@ function StripePaymentForm({ amountCents, label = "Pay", onSuccess, onError }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement onReady={() => setReady(true)} />
+      <PaymentElement onReady={() => setReady(true)} options={WALLET_PAYMENT_ELEMENT_OPTIONS} />
       {error && (
         <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">
           {error}
@@ -311,7 +315,15 @@ function PostPaymentTip({ booking, inquiry, onTipAdded }) {
           {intentData.devMode ? (
             <DevPaymentForm amountCents={intentData.tipCents} label="Send tip" onSuccess={() => handleTipSuccess(null)} />
           ) : intentData.clientSecret ? (
-            <Elements stripe={stripePromise} options={{ clientSecret: intentData.clientSecret, appearance: { theme: "stripe", variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit" } } }}>
+            <Elements
+              stripe={stripePromise}
+              options={{
+                clientSecret: intentData.clientSecret,
+                appearance: { theme: "stripe", variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit" } },
+                loader: "auto",
+                paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER,
+              }}
+            >
               <StripePaymentForm amountCents={intentData.tipCents} label="Send tip" onSuccess={(id) => handleTipSuccess(id)} onError={(err) => setError(err.message)} />
             </Elements>
           ) : null}
@@ -895,6 +907,8 @@ export default function MarketplaceCheckoutPage() {
                         theme: "stripe",
                         variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit", spacingUnit: "4px" },
                       },
+                      loader: "auto",
+                      paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER,
                     }}
                   >
                     <StripePaymentForm
