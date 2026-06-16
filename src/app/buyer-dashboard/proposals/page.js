@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../../services/inquiries";
 import CancelBookingModal from "../../../components/CancelBookingModal";
-import { marketplaceChargeTotalCents } from "../../../utils/marketplacePricing";
+import { marketplaceChargeTotalCents, marketplaceRecipientPayoutCents } from "../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -115,11 +115,15 @@ function ProposalCard({ inquiry, onDelete, onCancel }) {
 
   const tip   = inquiry.tipCents ?? 0;
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
+  // cash → what the EC pays (incl. fees + tax); product → what the EC nets after fees
+  // (V pays the EC); both/free → the bare amount.
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
     ? formatPrice(
         offer.proposalType === "cash"
           ? marketplaceChargeTotalCents(offer.totalPriceCents, tip)
-          : offer.totalPriceCents + tip
+          : offer.proposalType === "product"
+            ? marketplaceRecipientPayoutCents(offer.totalPriceCents)
+            : offer.totalPriceCents + tip
       )
     : null;
 

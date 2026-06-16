@@ -10,7 +10,8 @@ import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
 import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
 import TipSelector from "../../../../components/TipSelector";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
-import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
+import CancellationRequestBanner from "../../../../components/CancellationRequestBanner";
+import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
 import {
   WALLET_FIRST_PAYMENT_METHOD_ORDER,
   WALLET_PAYMENT_ELEMENT_OPTIONS,
@@ -245,7 +246,10 @@ function PricingCard({ offer, tipCents, booking, coordinatorType }) {
 // ─── EC earnings card (charges_fees: vendor pays booth fee) ──────────────────
 
 function ECEarningsCard({ offer }) {
-  const pricing = vendorBoothBreakdown(offer.totalPriceCents);
+  // Mirrors the backend `MarketplacePricing.breakdown` used by create_vendor_payment_intent:
+  // the vendor is charged base + service fee (10%) + tax; the EC receives base − VEHNDR
+  // fee (10%) − Stripe processing fee (deducted via the Connect application fee).
+  const pricing = marketplaceBreakdown(offer.totalPriceCents);
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden animate-spring-up" style={{ boxShadow: "var(--shadow-card)" }}>
@@ -257,21 +261,52 @@ function ECEarningsCard({ offer }) {
       <div className="px-4 sm:px-6 py-5">
         <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">You receive</p>
         <p className="text-[40px] font-bold leading-none tracking-tight" style={{ color: "var(--mint-700)" }}>
-          {fmtC(pricing.ecPayoutCents)}
+          {fmtC(pricing.recipientPayoutCents)}
         </p>
 
-        <div className="mt-4 pt-4 border-t border-[var(--gray-100)] space-y-2.5">
-          <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Booth fee collected</span>
-            <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.baseCents)}</span>
+        {/* What the vendor is charged */}
+        <div className="mt-5">
+          <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2.5">Vendor is charged</p>
+          <div className="space-y-2.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Vending fee</span>
+              <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.subtotalCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Service fee (10%)</span>
+              <span className="font-medium text-[var(--gray-800)]">+{fmtC(pricing.payerFeeCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+              <span className="font-medium text-[var(--gray-800)]">+{fmtC(pricing.taxCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
+              <span className="font-semibold text-[var(--gray-700)]">Vendor pays</span>
+              <span className="font-bold text-[var(--gray-900)]">{fmtC(pricing.totalChargeCents)}</span>
+            </div>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-            <span className="font-medium text-red-400">−{fmtC(pricing.ecRecipientFeeCents)}</span>
-          </div>
-          <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
-            <span className="font-semibold text-[var(--gray-700)]">You receive</span>
-            <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmtC(pricing.ecPayoutCents)}</span>
+        </div>
+
+        {/* What lands in the EC's account */}
+        <div className="mt-5 pt-4 border-t border-[var(--gray-100)]">
+          <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2.5">Your payout</p>
+          <div className="space-y-2.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Vending fee</span>
+              <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.subtotalCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+              <span className="font-medium text-red-400">−{fmtC(pricing.recipientFeeCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Processing fee</span>
+              <span className="font-medium text-red-400">−{fmtC(pricing.stripeFeeCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
+              <span className="font-semibold text-[var(--gray-700)]">You receive</span>
+              <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmtC(pricing.recipientPayoutCents)}</span>
+            </div>
           </div>
         </div>
 
@@ -729,8 +764,10 @@ export default function ProposalDetailPage() {
   // Deletable only until the vendor views it; cancellable once viewed (any non-terminal state).
   const TERMINAL_STATUSES = ["completed", "expired", "vendor_declined", "cancelled"];
   const canDelete = status === "submitted" && !isCancelled;
-  const canCancel = !canDelete && !isCancelled && !TERMINAL_STATUSES.includes(status);
-  const cancelLabel = booking ? "Cancel Booking" : "Cancel Proposal";
+  // A booked cancellation is a two-party request; hide the trigger while one is pending.
+  const cancelPending = booking?.cancellationState === "requested";
+  const canCancel = !canDelete && !isCancelled && !cancelPending && !TERMINAL_STATUSES.includes(status);
+  const cancelLabel = booking ? "Request Cancellation" : "Cancel Proposal";
 
   async function handleDelete() {
     setDeleting(true);
@@ -971,6 +1008,16 @@ export default function ProposalDetailPage() {
           role="coordinator"
           onClose={() => setShowCancelModal(false)}
           onCancelled={() => { setShowCancelModal(false); refreshInquiry(); }}
+        />
+      )}
+
+      {/* ── Cancellation request banner (pending / declined) ── */}
+      {!isCancelled && (
+        <CancellationRequestBanner
+          inquiry={inquiry}
+          booking={booking}
+          role="coordinator"
+          onChange={refreshInquiry}
         />
       )}
 

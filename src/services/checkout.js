@@ -56,8 +56,9 @@ export async function confirmVendorPayment({ paymentIntentId, bookingId }) {
   });
 }
 
-// Cancel a booked proposal and refund the payer. Either party may call this.
-// Pass amountCents to issue a partial refund (omit for the policy default/full).
+// Request to cancel a booked proposal. Either party may call this. No refund is issued
+// until the other party accepts (see respondMarketplaceCancellation). Pass amountCents to
+// propose a partial refund (omit for the policy default/full).
 export async function cancelMarketplaceBooking({ inquiryId, bookingId, amountCents, reason } = {}) {
   return api("/api/checkout/marketplace_cancel", {
     method: "POST",
@@ -67,5 +68,22 @@ export async function cancelMarketplaceBooking({ inquiryId, bookingId, amountCen
       ...(amountCents != null ? { amount_cents: amountCents } : {}),
       ...(reason ? { reason } : {}),
     },
+  });
+}
+
+// Respond to a pending cancellation request (the OTHER party from the requester).
+// decision: "accept" (cancels the booking + issues any refund) | "decline" (keeps it active).
+export async function respondMarketplaceCancellation({ inquiryId, bookingId, decision } = {}) {
+  return api("/api/checkout/marketplace_cancel_respond", {
+    method: "POST",
+    body: { inquiry_id: inquiryId, booking_id: bookingId, decision },
+  });
+}
+
+// Withdraw a pending cancellation request you made; the booking stays active.
+export async function withdrawMarketplaceCancellation({ inquiryId, bookingId } = {}) {
+  return api("/api/checkout/marketplace_cancel_withdraw", {
+    method: "POST",
+    body: { inquiry_id: inquiryId, booking_id: bookingId },
   });
 }
