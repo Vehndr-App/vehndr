@@ -67,9 +67,10 @@ export function vendorBoothBreakdown(baseCents) {
   const vehndrFeeCents = marketplacePayerFeeCents(baseCents);
   const taxCents = Math.round((baseCents + vehndrFeeCents) * MARKETPLACE_TAX_RATE);
   const totalCents = baseCents + vehndrFeeCents + taxCents;
+  const stripeFeeCents = marketplaceStripeFeeCents(totalCents);
   const ecRecipientFeeCents = marketplaceRecipientFeeCents(baseCents);
-  const ecPayoutCents = Math.max(baseCents - ecRecipientFeeCents, 0);
-  return { baseCents, vehndrFeeCents, taxCents, totalCents, ecRecipientFeeCents, ecPayoutCents };
+  const ecPayoutCents = Math.max(baseCents - ecRecipientFeeCents - stripeFeeCents, 0);
+  return { baseCents, vehndrFeeCents, taxCents, totalCents, stripeFeeCents, ecRecipientFeeCents, ecPayoutCents };
 }
 
 export function marketplaceTipBreakdown(tipCents) {
