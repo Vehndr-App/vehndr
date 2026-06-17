@@ -291,8 +291,8 @@ function VendorPayInner() {
                     <span className="font-semibold text-red-400">−{formatPrice(boothPricing.ecRecipientFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-[var(--gray-500)]">Stripe fee (2.9% + $0.30)</span>
-                    <span className="font-semibold text-red-400">−{formatPrice(boothPricing.stripeFeeCents)}</span>
+                    <span className="text-[var(--gray-500)]">Processing fee</span>
+                    <span className="font-semibold text-red-400">−{formatPrice(boothPricing.ecStripeFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-xs pt-1.5 border-t border-[var(--gray-100)]">
                     <span className="font-semibold text-[var(--gray-700)]">Coordinator payout</span>

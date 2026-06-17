@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { listOffers, acceptOffer, declineOffer } from "../../../../services/offers";
 import { getInquiry, sendMessage, updateInquiryTip } from "../../../../services/inquiries";
+import { marketplaceBreakdown, marketplaceChargeTotalCents } from "../../../../utils/marketplacePricing";
 
 function formatPrice(cents) {
   if (!cents) return "$0";
@@ -31,11 +32,15 @@ function displayTipCents(inquiry) {
 
 function CostBreakdown({ offer, tipCents = 0 }) {
   const [open, setOpen] = useState(false);
+  // Cash checkout: the coordinator pays base + VEHNDR fee (10%) + tax (8.25%) + tip,
+  // mirroring the backend MarketplacePricing.breakdown used by create_marketplace_payment_intent.
   const base       = offer.totalPriceCents;
   const tip        = tipCents ?? 0;
-  const total      = base + tip;
+  const pricing    = marketplaceBreakdown(base, tip);
+  const total      = pricing.totalChargeCents;
   const hasDeposit = offer.depositCents > 0;
-  const depTotal   = hasDeposit ? offer.depositCents : 0;
+  // The deposit is charged grossed-up the same way (no tip on the deposit payment).
+  const depTotal   = hasDeposit ? marketplaceChargeTotalCents(offer.depositCents, 0) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -71,6 +76,14 @@ function CostBreakdown({ offer, tipCents = 0 }) {
             <span className="text-[var(--violet-700)]">Base service</span>
             <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
           </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">VEHNDR fee (10%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.coordinatorFeeCents)}</span>
+          </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">Tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.taxCents)}</span>
+          </div>
           {tip > 0 ? (
             <div className="flex justify-between text-xs">
               <span className="text-[var(--violet-700)]">Tip</span>
@@ -96,7 +109,7 @@ function CostBreakdown({ offer, tipCents = 0 }) {
               </div>
             )}
           </div>
-          <p className="text-[10px] text-[var(--violet-400)] pt-1">Platform fee &amp; processing deducted from vendor payout</p>
+          <p className="text-[10px] text-[var(--violet-400)] pt-1">Includes platform fee and tax. Final total confirmed at checkout.</p>
         </div>
       )}
     </div>

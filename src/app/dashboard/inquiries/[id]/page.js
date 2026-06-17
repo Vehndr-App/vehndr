@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
+import CancellationRequestBanner from "../../../../components/CancellationRequestBanner";
 import { getInquiry, declineInquiry, requestFinalPayment } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
 import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
@@ -970,7 +971,9 @@ function VendorInquiryDetailInner() {
   const cashPending    = offerAccepted && activeOffer?.proposalType === "cash" && !isConfirmed && !isCancelled;
   const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both" && !isCancelled;
   const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined && !isCancelled;
-  const canCancel      = !!marketplaceBooking && !isCancelled && (isConfirmed || offerAccepted);
+  // A booked cancellation is a two-party request; hide the trigger while one is pending.
+  const cancelPending  = marketplaceBooking?.cancellationState === "requested";
+  const canCancel      = !!marketplaceBooking && !isCancelled && !cancelPending && (isConfirmed || offerAccepted);
   const canRequestFinalPayment = marketplaceBooking?.paymentStatus === "deposit_paid"
     && (activeOffer?.remainingBalanceCents ?? 0) > 0
     && !isCancelled;
@@ -1016,6 +1019,19 @@ function VendorInquiryDetailInner() {
               )}
             </div>
           </div>
+        )}
+
+        {/* Cancellation request banner (pending / declined) */}
+        {!isCancelled && (
+          <CancellationRequestBanner
+            inquiry={inquiry}
+            booking={marketplaceBooking}
+            role="vendor"
+            onChange={async () => {
+              const [inq, list] = await Promise.all([getInquiry(id), listOffers(id)]);
+              setInquiry(inq); setOffers(Array.isArray(list) ? list : []);
+            }}
+          />
         )}
 
         {/* Cancel booking modal */}
@@ -1133,8 +1149,8 @@ function VendorInquiryDetailInner() {
                     <span className="font-medium text-red-400">−{fmt$(boothPricing.ecRecipientFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-[var(--gray-500)]">Stripe fee (2.9% + $0.30)</span>
-                    <span className="font-medium text-red-400">−{fmt$(boothPricing.stripeFeeCents)}</span>
+                    <span className="text-[var(--gray-500)]">Processing fee</span>
+                    <span className="font-medium text-red-400">−{fmt$(boothPricing.ecStripeFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
                     <span className="font-semibold text-[var(--gray-700)]">Coordinator payout</span>

@@ -18,6 +18,9 @@ export default function CancelBookingModal({ inquiry, booking, role, onClose, on
 
   const hasBooking = !!booking;
   const noun = hasBooking ? "booking" : "proposal";
+  // A booked cancellation is a *request* the other party must accept before it (and any
+  // refund) takes effect; an unbooked proposal is cancelled outright.
+  const otherParty = role === "vendor" ? "the event coordinator" : "the vendor";
   const proposalType = inquiry?.activeOffer?.proposalType ?? inquiry?.lastOffer?.proposalType ?? "cash";
   const isPaid = booking?.paymentStatus === "deposit_paid" || booking?.paymentStatus === "fully_paid";
   const hasRefund = isPaid && proposalType !== "both";
@@ -70,17 +73,21 @@ export default function CancelBookingModal({ inquiry, booking, role, onClose, on
           </svg>
         </div>
 
-        <h2 className="text-base font-bold text-[var(--gray-900)] text-center mb-1">Cancel this {noun}?</h2>
+        <h2 className="text-base font-bold text-[var(--gray-900)] text-center mb-1">
+          {hasBooking ? "Request to cancel this booking?" : "Cancel this proposal?"}
+        </h2>
         <p className="text-sm text-[var(--gray-500)] text-center mb-4">
-          {hasRefund
-            ? <>This cancels the booking and refunds <strong>{refundTarget}</strong>.</>
+          {hasBooking
+            ? hasRefund
+              ? <>This sends a cancellation request to <strong>{otherParty}</strong>. If they accept, <strong>{refundTarget}</strong> will be refunded. The booking stays active until they respond.</>
+              : <>This sends a cancellation request to <strong>{otherParty}</strong>. The booking stays active until they accept. No payment was collected, so there is nothing to refund.</>
             : <>This cancels the {noun} and notifies the other party. No payment was collected, so there is nothing to refund.</>}
         </p>
 
         {hasRefund && (
           <div className="mb-4">
             <label className="block text-xs font-semibold text-[var(--gray-700)] mb-1">
-              Refund amount <span className="font-normal text-[var(--gray-400)]">(optional)</span>
+              Proposed refund <span className="font-normal text-[var(--gray-400)]">(optional)</span>
             </label>
             <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--gray-400)] text-sm">$</span>
@@ -129,7 +136,9 @@ export default function CancelBookingModal({ inquiry, booking, role, onClose, on
             disabled={submitting}
             className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-40"
           >
-            {submitting ? "Cancelling…" : `Cancel ${noun}`}
+            {hasBooking
+              ? (submitting ? "Sending…" : "Send request")
+              : (submitting ? "Cancelling…" : `Cancel ${noun}`)}
           </button>
         </div>
       </div>
