@@ -70,12 +70,12 @@ export function vendorBoothBreakdown(baseCents) {
   const b = marketplaceBreakdown(baseCents);
   return {
     baseCents:           b.subtotalCents,
-    vehndrFeeCents:      b.payerFeeCents,        // vendor's service fee (10%), added to charge
-    taxCents:            b.taxCents,             // tax on base
-    totalCents:          b.totalChargeCents,     // what the vendor pays
-    ecRecipientFeeCents: b.recipientFeeCents,    // EC's VEHNDR fee (10%), deducted from payout
-    ecStripeFeeCents:    b.stripeFeeCents,       // processing fee deducted from EC payout
-    ecPayoutCents:       b.recipientPayoutCents, // what the EC actually receives
+    vehndrFeeCents:      b.payerFeeCents,
+    taxCents:            b.taxCents,
+    totalCents:          b.totalChargeCents,
+    ecRecipientFeeCents: b.recipientFeeCents,
+    ecStripeFeeCents:    b.stripeFeeCents,
+    ecPayoutCents:       b.recipientPayoutCents,
   };
 }
 
