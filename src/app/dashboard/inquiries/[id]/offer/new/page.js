@@ -24,11 +24,11 @@ function mp$fmt(cents) {
   }).format(cents / 100);
 }
 
-function VendorFeePreview({ totalPrice }) {
+function VendorFeePreview({ totalPrice, collectTax = true }) {
   const base = Math.round(Number(totalPrice) * 100);
   if (!base || base <= 0) return null;
 
-  const pricing   = marketplaceBreakdown(base);
+  const pricing   = marketplaceBreakdown(base, 0, collectTax);
   const coord     = pricing.coordinatorFeeCents;
   const vendorFee = pricing.vendorFeeCents;
   const tax       = pricing.taxCents;
@@ -50,10 +50,12 @@ function VendorFeePreview({ totalPrice }) {
             <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
             <span className="text-[var(--gray-700)]">{mp$fmt(coord)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--gray-500)]">Sales tax (8.25%)</span>
-            <span className="text-[var(--gray-700)]">{mp$fmt(tax)}</span>
-          </div>
+          {tax > 0 && (
+            <div className="flex justify-between">
+              <span className="text-[var(--gray-500)]">Sales tax (8.25%)</span>
+              <span className="text-[var(--gray-700)]">{mp$fmt(tax)}</span>
+            </div>
+          )}
           <div className="flex justify-between font-bold pt-1 border-t border-[var(--gray-200)]">
             <span className="text-[var(--gray-800)]">Customer total</span>
             <span className="text-[var(--gray-900)]">{mp$fmt(custTotal)}</span>
@@ -82,7 +84,7 @@ function VendorFeePreview({ totalPrice }) {
           </div>
         </div>
         <p className="text-[10px] text-[var(--gray-400)] mt-2 leading-relaxed">
-          Tax is remitted by VEHNDR and is not included in payout. Tips are shown separately at checkout.
+          {tax > 0 ? "Tax is remitted by VEHNDR and is not included in payout. " : ""}Tips are shown separately at checkout.
         </p>
       </div>
     </div>
@@ -145,6 +147,7 @@ function NewProposalInner() {
   const [error, setError] = useState(null);
   const [activeOffer, setActiveOffer] = useState(null);
   const [prefillOffer, setPrefillOffer] = useState(null);
+  const [collectTax, setCollectTax] = useState(true);
   const isEditing = !!activeOffer;
   const isPrefilledFromChangeRequest = !isEditing && !!prefillOffer;
 
@@ -173,6 +176,7 @@ function NewProposalInner() {
 
         setActiveOffer(active);
         setPrefillOffer(requested);
+        setCollectTax(inquiry?.collectTax !== false);
 
         if (offer) {
           setProposalType(offer.proposalType ?? "cash");
@@ -332,7 +336,7 @@ function NewProposalInner() {
 
           {/* Fee breakdown — cash offers only */}
           {proposalType === "cash" && totalPrice && Number(totalPrice) > 0 && (
-            <VendorFeePreview totalPrice={totalPrice} />
+            <VendorFeePreview totalPrice={totalPrice} collectTax={collectTax} />
           )}
 
           {/* Deposit toggle — only for Paid (cash) */}

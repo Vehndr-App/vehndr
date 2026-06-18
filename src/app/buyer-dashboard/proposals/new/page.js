@@ -60,12 +60,12 @@ function formatFee(cents) {
   }).format(cents / 100);
 }
 
-function FeeEstimateCard({ budgetDollars, tipDollars }) {
+function FeeEstimateCard({ budgetDollars, tipDollars, collectTax = true }) {
   const [open, setOpen] = useState(false);
   const base = feeBase(budgetDollars);
   if (!base || base <= 0) return null;
   const tip    = feeBase(tipDollars) || 0;
-  const pricing = marketplaceBreakdown(base, tip);
+  const pricing = marketplaceBreakdown(base, tip, collectTax);
   const coordinatorFee = pricing.coordinatorFeeCents;
   const tax       = pricing.taxCents;
   const total     = pricing.totalChargeCents;
@@ -100,10 +100,12 @@ function FeeEstimateCard({ budgetDollars, tipDollars }) {
             <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
             <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(coordinatorFee)}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tax)}</span>
-          </div>
+          {tax > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
+              <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tax)}</span>
+            </div>
+          )}
           {tip > 0 && (
             <div className="flex justify-between text-xs">
               <span className="text-[var(--violet-700)]">Tip</span>
@@ -440,7 +442,7 @@ function NewProposalPageInner() {
                 <p className="text-xs text-[var(--gray-400)] mt-1.5">Helps the vendor tailor their offer to your budget.</p>
               </div>
               {fields.budget && Number(fields.budget) > 0 && (
-                <FeeEstimateCard budgetDollars={fields.budget} tipDollars={fields.tip} />
+                <FeeEstimateCard budgetDollars={fields.budget} tipDollars={fields.tip} collectTax={vendor?.collectTax !== false} />
               )}
               <div>
                 <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">

@@ -164,7 +164,7 @@ function HeroCard({
   withdrawing, handleWithdrawOffer,
   canCancel, onCancel,
   canRequestFinalPayment, finalPaymentRequested, requestingFinalPayment, onRequestFinalPayment,
-  id,
+  id, collectTax = true,
 }) {
   const statusLabel = isCancelled ? "Cancelled"
     : isVendorDeclined ? "Declined"
@@ -234,7 +234,7 @@ function HeroCard({
           {coordinatorType === "hiring_vendor" && budgetCents > 0 && !needsVendorPay && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You&apos;d receive</span>
-              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents).vendorPayoutCents)}</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents, collectTax).vendorPayoutCents)}</span>
             </div>
           )}
           {coordinatorType === "charges_fees" && vendingFeeCents > 0 && (
@@ -550,10 +550,10 @@ function MessageCard({ customer, initialMessage }) {
 
 // ─── Price breakdown (cash offers) ───────────────────────────────────────────
 
-function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
+function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, collectTax = true }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  const pricing   = marketplaceBreakdown(totalPriceCents, tipCents);
+  const pricing   = marketplaceBreakdown(totalPriceCents, tipCents, collectTax);
   const vehndrFee = pricing.vendorFeeCents;
   const totalVehndrFee = pricing.vehndrFeeCents;
   const stripeFee = pricing.stripeFeeCents;
@@ -566,7 +566,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
     { label: "Your payout", value: payout,    pct: payout    / barTotal, color: "bg-violet-500",  dot: "bg-violet-500",  text: "text-violet-700",  bg: "bg-violet-50"  },
     { label: "VEHNDR",      value: totalVehndrFee, pct: totalVehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
     { label: "Stripe",      value: stripeFee,  pct: stripeFee / barTotal, color: "bg-gray-400",    dot: "bg-gray-400",    text: "text-gray-600",    bg: "bg-gray-50"    },
-    { label: "Tax",         value: tax,        pct: tax       / barTotal, color: "bg-amber-400",   dot: "bg-amber-400",   text: "text-amber-700",   bg: "bg-amber-50"   },
+    ...(tax > 0 ? [{ label: "Tax", value: tax, pct: tax / barTotal, color: "bg-amber-400", dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" }] : []),
   ];
 
   return (
@@ -634,10 +634,12 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
               <span className="text-[var(--gray-400)]">Stripe processing (2.9% + $0.30)</span>
               <span className="font-medium text-red-400">−{fmt$(stripeFee)}</span>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-400)]">Tax collected</span>
-              <span className="font-medium text-[var(--gray-500)]">{fmt$(tax)}</span>
-            </div>
+            {tax > 0 && (
+              <div className="flex justify-between text-sm">
+                <span className="text-[var(--gray-400)]">Tax collected</span>
+                <span className="font-medium text-[var(--gray-500)]">{fmt$(tax)}</span>
+              </div>
+            )}
             {tipCents > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--gray-400)]">Committed tip</span>
@@ -651,7 +653,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
           </div>
 
           <p className="text-[10px] text-[var(--gray-400)] leading-relaxed">
-            Coordinator pays {fmt$(pricing.totalChargeCents)} at checkout. Tax is remitted by VEHNDR and is not part of payout.
+            Coordinator pays {fmt$(pricing.totalChargeCents)} at checkout.{tax > 0 ? " Tax is remitted by VEHNDR and is not part of payout." : ""}
           </p>
         </div>
       )}
@@ -803,9 +805,9 @@ function OfferHistory({ offers }) {
 
 // ─── Earnings card ────────────────────────────────────────────────────────────
 
-function EarningsCard({ offer, tipCents = 0 }) {
+function EarningsCard({ offer, tipCents = 0, collectTax = true }) {
   const total      = offer.totalPriceCents ?? 0;
-  const pricing    = marketplaceBreakdown(total, tipCents);
+  const pricing    = marketplaceBreakdown(total, tipCents, collectTax);
   const vehndrFee  = pricing.vendorFeeCents;
   const stripeFee  = pricing.stripeFeeCents;
   const tax        = pricing.taxCents;
@@ -842,10 +844,12 @@ function EarningsCard({ offer, tipCents = 0 }) {
             <span className="text-[var(--gray-500)]">Stripe processing</span>
             <span className="font-medium text-red-400 tabular-nums">−{fmt$(stripeFee)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Tax collected</span>
-            <span className="font-medium text-[var(--gray-500)] tabular-nums">{fmt$(tax)}</span>
-          </div>
+          {tax > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Tax collected</span>
+              <span className="font-medium text-[var(--gray-500)] tabular-nums">{fmt$(tax)}</span>
+            </div>
+          )}
           {tipCents > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-[var(--gray-500)]">Tip</span>
@@ -951,6 +955,7 @@ function VendorInquiryDetailInner() {
     tipCents: proposalTipCents,
     submittedAt, marketplaceBooking,
   } = inquiry;
+  const collectTax = inquiry.collectTax !== false;
 
   const bookingTipCents  = displayTipCents(inquiry);
   const offerAccepted    = activeOffer?.status === "accepted";
@@ -1070,7 +1075,7 @@ function VendorInquiryDetailInner() {
           finalPaymentRequested={finalPaymentRequested}
           requestingFinalPayment={requestingFinalPayment}
           onRequestFinalPayment={handleRequestFinalPayment}
-          id={id}
+          id={id} collectTax={collectTax}
         />
 
         {/* 2a. Earnings confirmed card — after offer is accepted/booked */}
@@ -1078,6 +1083,7 @@ function VendorInquiryDetailInner() {
           <EarningsCard
             offer={displayOffer}
             tipCents={bookingTipCents}
+            collectTax={collectTax}
           />
         )}
 
@@ -1097,7 +1103,7 @@ function VendorInquiryDetailInner() {
                     : `Based on the coordinator's proposed budget of ${fmt$(amountCents)}`}
                 </p>
               </div>
-              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} />
+              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} collectTax={collectTax} />
             </Card>
           );
         })()}

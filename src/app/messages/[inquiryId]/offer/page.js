@@ -30,17 +30,17 @@ function displayTipCents(inquiry) {
   return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
 }
 
-function CostBreakdown({ offer, tipCents = 0 }) {
+function CostBreakdown({ offer, tipCents = 0, collectTax = true }) {
   const [open, setOpen] = useState(false);
   // Cash checkout: the coordinator pays base + VEHNDR fee (10%) + tax (8.25%) + tip,
   // mirroring the backend MarketplacePricing.breakdown used by create_marketplace_payment_intent.
   const base       = offer.totalPriceCents;
   const tip        = tipCents ?? 0;
-  const pricing    = marketplaceBreakdown(base, tip);
+  const pricing    = marketplaceBreakdown(base, tip, collectTax);
   const total      = pricing.totalChargeCents;
   const hasDeposit = offer.depositCents > 0;
   // The deposit is charged grossed-up the same way (no tip on the deposit payment).
-  const depTotal   = hasDeposit ? marketplaceChargeTotalCents(offer.depositCents, 0) : 0;
+  const depTotal   = hasDeposit ? marketplaceChargeTotalCents(offer.depositCents, 0, collectTax) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -80,10 +80,12 @@ function CostBreakdown({ offer, tipCents = 0 }) {
             <span className="text-[var(--violet-700)]">VEHNDR fee (10%)</span>
             <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.coordinatorFeeCents)}</span>
           </div>
-          <div className="flex justify-between text-xs">
-            <span className="text-[var(--violet-700)]">Tax (8.25%)</span>
-            <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.taxCents)}</span>
-          </div>
+          {pricing.taxCents > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-[var(--violet-700)]">Tax (8.25%)</span>
+              <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.taxCents)}</span>
+            </div>
+          )}
           {tip > 0 ? (
             <div className="flex justify-between text-xs">
               <span className="text-[var(--violet-700)]">Tip</span>
@@ -245,7 +247,7 @@ function getExpiryInfo(expiresAt) {
 
 // ─── Active Offer Card ────────────────────────────────────────────────────────
 
-function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, onTipUpdate, accepting, declining, actionsInFooter }) {
+function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, onTipUpdate, accepting, declining, actionsInFooter, collectTax = true }) {
   const isExpired = offer.expiresAt && new Date(offer.expiresAt) < new Date();
   const isPending = offer.status === "pending" && !isExpired;
   const expiryInfo = getExpiryInfo(offer.expiresAt);
@@ -376,7 +378,7 @@ function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestC
       {/* Cost breakdown for pending cash offers */}
       {isPending && offer.proposalType === "cash" && (
         <div className="px-5 pb-4">
-          <CostBreakdown offer={offer} tipCents={tipCents} />
+          <CostBreakdown offer={offer} tipCents={tipCents} collectTax={collectTax} />
         </div>
       )}
 
@@ -763,6 +765,7 @@ export default function OfferPage() {
                 offer={activeOffer}
                 tipCents={inquiry?.tipCents ?? 0}
                 inquiryId={inquiryId}
+                collectTax={inquiry?.vendor?.collectTax !== false}
                 onAccept={handleAccept}
                 onDecline={handleDecline}
                 onRequestChanges={() => setShowRequestChanges(true)}

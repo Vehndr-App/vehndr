@@ -156,7 +156,7 @@ function ProposalDetailsCard({ budgetCents, tipCents, coordinatorType, vendorLoa
 
 // ─── Pricing card (post-offer) ────────────────────────────────────────────────
 
-function PricingCard({ offer, tipCents, booking, coordinatorType }) {
+function PricingCard({ offer, tipCents, booking, coordinatorType, collectTax = true }) {
   const [youPayOpen, setYouPayOpen] = useState(false);
 
   const base         = offer.totalPriceCents;
@@ -164,7 +164,7 @@ function PricingCard({ offer, tipCents, booking, coordinatorType }) {
   const extraTip     = Math.max(0, (booking?.tipCents ?? 0) - committedTip);
   const totalTip     = committedTip + extraTip;
   const isCash       = isCoordinatorPaysOffer(offer, coordinatorType);
-  const pricing      = marketplaceBreakdown(base, totalTip);
+  const pricing      = marketplaceBreakdown(base, totalTip, collectTax);
   const total        = isCash ? pricing.totalChargeCents : base + totalTip;
 
   const ChevronIcon = ({ open }) => (
@@ -207,10 +207,12 @@ function PricingCard({ offer, tipCents, booking, coordinatorType }) {
                   <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
                   <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.coordinatorFeeCents)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-                  <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.taxCents)}</span>
-                </div>
+                {pricing.taxCents > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                    <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.taxCents)}</span>
+                  </div>
+                )}
               </>
             )}
             {committedTip > 0 && (
@@ -1065,7 +1067,7 @@ export default function ProposalDetailPage() {
         activeOffer.proposalType === "product" ? (
           <ECEarningsCard offer={activeOffer} />
         ) : (
-          <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} />
+          <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} collectTax={vendor?.collectTax !== false} />
         )
       ) : (budgetCents > 0 || tipCents > 0 || coordinatorType || event?.vendorLoadIn || event?.vendorLoadOut) && (
         <ProposalDetailsCard

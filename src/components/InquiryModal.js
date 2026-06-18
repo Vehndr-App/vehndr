@@ -89,11 +89,11 @@ function _fmt(cents) {
   }).format(cents / 100);
 }
 
-function BudgetFeeEstimate({ budgetDollars, tipDollars }) {
+function BudgetFeeEstimate({ budgetDollars, tipDollars, collectTax = true }) {
   const base = _feeBase(budgetDollars);
   if (!base || base <= 0) return null;
   const tip = _feeBase(tipDollars) || 0;
-  const pricing = marketplaceBreakdown(base, tip);
+  const pricing = marketplaceBreakdown(base, tip, collectTax);
 
   return (
     <div className="rounded-[var(--radius-lg)] bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
@@ -112,10 +112,12 @@ function BudgetFeeEstimate({ budgetDollars, tipDollars }) {
           <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
           <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(pricing.coordinatorFeeCents)}</span>
         </div>
-        <div className="flex justify-between text-[11px]">
-          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(pricing.taxCents)}</span>
-        </div>
+        {pricing.taxCents > 0 && (
+          <div className="flex justify-between text-[11px]">
+            <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(pricing.taxCents)}</span>
+          </div>
+        )}
         {tip > 0 && (
           <div className="flex justify-between text-[11px]">
             <span className="text-[var(--violet-600)]">Tip</span>
@@ -593,7 +595,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                       </p>
                     </div>
                     {fields.budget && Number(fields.budget) > 0 && (
-                      <BudgetFeeEstimate budgetDollars={fields.budget} tipDollars={fields.tip} />
+                      <BudgetFeeEstimate budgetDollars={fields.budget} tipDollars={fields.tip} collectTax={vendor?.collectTax !== false} />
                     )}
                   </div>
 

@@ -120,7 +120,7 @@ function ProposalCard({ inquiry, onDelete, onCancel }) {
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
     ? formatPrice(
         offer.proposalType === "cash"
-          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip)
+          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip, inquiry.vendor?.collectTax !== false)
           : offer.proposalType === "product"
             ? marketplaceRecipientPayoutCents(offer.totalPriceCents)
             : offer.totalPriceCents + tip

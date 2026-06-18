@@ -4,7 +4,8 @@ export const MARKETPLACE_RECIPIENT_FEE_RATE = 0.10;
 export const STRIPE_FEE_RATE = 0.029;
 export const STRIPE_FEE_FIXED_CENTS = 30;
 
-export function marketplaceTaxCents(baseCents) {
+export function marketplaceTaxCents(baseCents, collectTax = true) {
+  if (!collectTax) return 0;
   return Math.round(baseCents * MARKETPLACE_TAX_RATE);
 }
 
@@ -16,32 +17,32 @@ export function marketplaceRecipientFeeCents(baseCents) {
   return Math.round(baseCents * MARKETPLACE_RECIPIENT_FEE_RATE);
 }
 
-export function marketplaceChargeTotalCents(baseCents, tipCents = 0) {
-  return baseCents + marketplaceTaxCents(baseCents) + marketplacePayerFeeCents(baseCents) + tipCents;
+export function marketplaceChargeTotalCents(baseCents, tipCents = 0, collectTax = true) {
+  return baseCents + marketplaceTaxCents(baseCents, collectTax) + marketplacePayerFeeCents(baseCents) + tipCents;
 }
 
 export function marketplaceStripeFeeCents(totalChargeCents) {
   return Math.round(totalChargeCents * STRIPE_FEE_RATE + STRIPE_FEE_FIXED_CENTS);
 }
 
-export function marketplaceRecipientPayoutCents(baseCents, tipCents = 0) {
+export function marketplaceRecipientPayoutCents(baseCents, tipCents = 0, collectTax = true) {
   const payoutBeforeTip = Math.max(
     baseCents -
       marketplaceRecipientFeeCents(baseCents) -
-      marketplaceStripeFeeCents(marketplaceChargeTotalCents(baseCents, tipCents)),
+      marketplaceStripeFeeCents(marketplaceChargeTotalCents(baseCents, tipCents, collectTax)),
     0
   );
 
   return payoutBeforeTip + tipCents;
 }
 
-export function marketplaceBreakdown(baseCents, tipCents = 0) {
-  const taxCents = marketplaceTaxCents(baseCents);
+export function marketplaceBreakdown(baseCents, tipCents = 0, collectTax = true) {
+  const taxCents = marketplaceTaxCents(baseCents, collectTax);
   const payerFeeCents = marketplacePayerFeeCents(baseCents);
   const recipientFeeCents = marketplaceRecipientFeeCents(baseCents);
-  const totalChargeCents = marketplaceChargeTotalCents(baseCents, tipCents);
+  const totalChargeCents = marketplaceChargeTotalCents(baseCents, tipCents, collectTax);
   const stripeFeeCents = marketplaceStripeFeeCents(totalChargeCents);
-  const recipientPayoutCents = marketplaceRecipientPayoutCents(baseCents, tipCents);
+  const recipientPayoutCents = marketplaceRecipientPayoutCents(baseCents, tipCents, collectTax);
 
   return {
     subtotalCents: baseCents,

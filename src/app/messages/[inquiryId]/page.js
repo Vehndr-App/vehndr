@@ -89,12 +89,15 @@ function dollarsToC(val) {
 }
 
 // ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
-function mpTax(base)          { return marketplaceTaxCents(base); }
+function mpTax(base, collectTax = true)          { return marketplaceTaxCents(base, collectTax); }
 function mpCoordFee(base)     { return marketplacePayerFeeCents(base); }
-function mpChargeTotal(base, tipCents = 0) { return marketplaceChargeTotalCents(base, tipCents); }
+function mpChargeTotal(base, tipCents = 0, collectTax = true) { return marketplaceChargeTotalCents(base, tipCents, collectTax); }
 function mpStripeFee(total)   { return marketplaceStripeFeeCents(total); }
-function mpVendorPayout(base, tipCents = 0) { return marketplaceRecipientPayoutCents(base, tipCents); }
-function mpVendorPayoutWithTip(base, tipCents) { return mpVendorPayout(base, tipCents); }
+function mpVendorPayout(base, tipCents = 0, collectTax = true) { return marketplaceRecipientPayoutCents(base, tipCents, collectTax); }
+function mpVendorPayoutWithTip(base, tipCents, collectTax = true) { return mpVendorPayout(base, tipCents, collectTax); }
+
+// Buyer payloads carry vendor.collectTax; the vendor-inbox payload carries it top-level.
+function inquiryCollectTax(inquiry) { return (inquiry?.vendor?.collectTax ?? inquiry?.collectTax) !== false; }
 
 function fmtExact(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -116,14 +119,14 @@ function fmtEventDate(startRaw, endRaw) {
 
 // ─── Cost Preview Card — shown before buyer accepts a cash offer ───────────────
 
-function CostPreviewCard({ offer, tipCents = 0 }) {
+function CostPreviewCard({ offer, tipCents = 0, collectTax = true }) {
   const base      = offer.totalPriceCents;
   const coordFee  = mpCoordFee(base);
-  const tax       = mpTax(base);
-  const estTotal  = mpChargeTotal(base, tipCents);
+  const tax       = mpTax(base, collectTax);
+  const estTotal  = mpChargeTotal(base, tipCents, collectTax);
 
   const hasDeposit = offer.depositCents > 0;
-  const depositTotal = hasDeposit ? mpChargeTotal(offer.depositCents ?? 0) : 0;
+  const depositTotal = hasDeposit ? mpChargeTotal(offer.depositCents ?? 0, 0, collectTax) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -145,10 +148,12 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
           <span className="text-[var(--violet-600)]">VEHNDR platform fee (10%)</span>
           <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coordFee)}</span>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
-        </div>
+        {tax > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-xs">
           <span className="text-[var(--violet-500)]">Tip</span>
           {tipCents > 0
@@ -937,7 +942,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
 
       {/* Cost preview — cash pending */}
       {isPending && activeOffer?.proposalType === "cash" && (
-        <CostPreviewCard offer={activeOffer} tipCents={tipCents} />
+        <CostPreviewCard offer={activeOffer} tipCents={tipCents} collectTax={inquiryCollectTax(inquiry)} />
       )}
 
       {/* Accepted → pay */}
@@ -1431,7 +1436,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
 
         {/* Cost preview */}
         {isPending && activeOffer?.proposalType === "cash" && (
-          <CostPreviewCard offer={activeOffer} tipCents={tipCents} />
+          <CostPreviewCard offer={activeOffer} tipCents={tipCents} collectTax={inquiryCollectTax(inquiry)} />
         )}
 
         {/* Pending offer actions */}
@@ -1535,10 +1540,12 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                         <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
                         <span className="text-[var(--gray-700)]">{formatPrice(mpCoordFee(inquiry.budgetCents))}</span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-                        <span className="text-[var(--gray-700)]">{formatPrice(mpTax(inquiry.budgetCents))}</span>
-                      </div>
+                      {mpTax(inquiry.budgetCents, inquiryCollectTax(inquiry)) > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+                          <span className="text-[var(--gray-700)]">{formatPrice(mpTax(inquiry.budgetCents, inquiryCollectTax(inquiry)))}</span>
+                        </div>
+                      )}
                       {(inquiry.tipCents ?? 0) > 0 && (
                         <div className="flex justify-between text-[10px]">
                           <span className="text-[var(--violet-600)]">Tip</span>
@@ -1548,7 +1555,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     </div>
                     <div className="flex justify-between text-[10px] font-bold pt-1 border-t border-[var(--violet-200)]">
                       <span className="text-[var(--violet-800)]">Est. total</span>
-                      <span className="text-[var(--violet-900)]">~{formatPrice(mpChargeTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
+                      <span className="text-[var(--violet-900)]">~{formatPrice(mpChargeTotal(inquiry.budgetCents, inquiry.tipCents ?? 0, inquiryCollectTax(inquiry)))}</span>
                     </div>
                   </div>
                 </div>
