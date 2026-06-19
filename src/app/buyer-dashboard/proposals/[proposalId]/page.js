@@ -266,29 +266,6 @@ function ECEarningsCard({ offer }) {
           {fmtC(pricing.recipientPayoutCents)}
         </p>
 
-        {/* What the vendor is charged */}
-        <div className="mt-5">
-          <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2.5">Vendor is charged</p>
-          <div className="space-y-2.5">
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-500)]">Vending fee</span>
-              <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.subtotalCents)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-500)]">Service fee (10%)</span>
-              <span className="font-medium text-[var(--gray-800)]">+{fmtC(pricing.payerFeeCents)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-              <span className="font-medium text-[var(--gray-800)]">+{fmtC(pricing.taxCents)}</span>
-            </div>
-            <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
-              <span className="font-semibold text-[var(--gray-700)]">Vendor pays</span>
-              <span className="font-bold text-[var(--gray-900)]">{fmtC(pricing.totalChargeCents)}</span>
-            </div>
-          </div>
-        </div>
-
         {/* What lands in the EC's account */}
         <div className="mt-5 pt-4 border-t border-[var(--gray-100)]">
           <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2.5">Your payout</p>

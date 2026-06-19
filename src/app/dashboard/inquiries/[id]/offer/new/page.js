@@ -29,39 +29,12 @@ function VendorFeePreview({ totalPrice, collectTax = true }) {
   if (!base || base <= 0) return null;
 
   const pricing   = marketplaceBreakdown(base, 0, collectTax);
-  const coord     = pricing.coordinatorFeeCents;
   const vendorFee = pricing.vendorFeeCents;
-  const tax       = pricing.taxCents;
   const stripe    = pricing.stripeFeeCents;
-  const custTotal = pricing.totalChargeCents;
   const payout    = pricing.vendorPayoutCents;
 
   return (
     <div className="rounded-xl border border-[var(--gray-200)] overflow-hidden text-xs">
-      {/* Customer's view */}
-      <div className="px-3.5 py-2.5 bg-[var(--gray-50)] border-b border-[var(--gray-200)]">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--gray-500)] mb-2">Customer pays</p>
-        <div className="space-y-1">
-          <div className="flex justify-between">
-            <span className="text-[var(--gray-600)]">Your service price</span>
-            <span className="font-semibold text-[var(--gray-800)]">{mp$fmt(base)}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-            <span className="text-[var(--gray-700)]">{mp$fmt(coord)}</span>
-          </div>
-          {tax > 0 && (
-            <div className="flex justify-between">
-              <span className="text-[var(--gray-500)]">Sales tax (8.25%)</span>
-              <span className="text-[var(--gray-700)]">{mp$fmt(tax)}</span>
-            </div>
-          )}
-          <div className="flex justify-between font-bold pt-1 border-t border-[var(--gray-200)]">
-            <span className="text-[var(--gray-800)]">Customer total</span>
-            <span className="text-[var(--gray-900)]">{mp$fmt(custTotal)}</span>
-          </div>
-        </div>
-      </div>
       {/* Vendor's payout */}
       <div className="px-3.5 py-2.5">
         <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--gray-500)] mb-2">Your payout</p>

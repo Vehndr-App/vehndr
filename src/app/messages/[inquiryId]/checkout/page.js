@@ -18,8 +18,6 @@ import {
   marketplaceBreakdown,
   marketplaceChargeTotalCents,
   marketplacePayerFeeCents,
-  marketplaceRecipientPayoutCents,
-  marketplaceStripeFeeCents,
   marketplaceTaxCents,
 } from "../../../../utils/marketplacePricing";
 import {
@@ -31,13 +29,10 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-// ── Fee helpers — payer pays one 10% fee; recipient absorbs 10% + Stripe ─────
+// ── Fee helpers — payer-facing only (coordinator never sees vendor payout) ────
 function calcBuyerFee(base)          { return marketplacePayerFeeCents(base); }
-function calcVehndrFee(base)         { return marketplaceBreakdown(base).vehndrFeeCents; }
-function calcStripeProcessing(total) { return marketplaceStripeFeeCents(total); }
 function calcTax(base, collectTax = true) { return marketplaceTaxCents(base, collectTax); }
 function calcChargeTotal(base, tip = 0, collectTax = true) { return marketplaceChargeTotalCents(base, tip, collectTax); }
-function calcVendorPayout(base, tip = 0, collectTax = true) { return marketplaceRecipientPayoutCents(base, tip, collectTax); }
 
 function fmt(cents) {
   if (cents == null) return "—";
@@ -159,48 +154,6 @@ function DevPaymentForm({ amountCents, label = "Pay", onSuccess }) {
           `Simulate ${label} · ${fmtExact(amountCents)}`
         )}
       </button>
-    </div>
-  );
-}
-
-// ── Money Flow Bar ────────────────────────────────────────────────────────────
-
-function MoneyFlowBar({ baseCents, tipCents = 0, collectTax = true }) {
-  const total       = calcChargeTotal(baseCents, tipCents, collectTax);
-  const vehndrFee   = calcVehndrFee(baseCents);
-  const stripeProc  = calcStripeProcessing(total);
-  const tax         = calcTax(baseCents, collectTax);
-  const vendor      = calcVendorPayout(baseCents, tipCents, collectTax);
-
-  const segments = [
-    { label: "Vendor",  value: vendor,       color: "bg-violet-500",  textColor: "text-violet-700",  bg: "bg-violet-50"  },
-    { label: "VEHNDR",  value: vehndrFee,    color: "bg-emerald-500", textColor: "text-emerald-700", bg: "bg-emerald-50" },
-    { label: "Stripe",  value: stripeProc,   color: "bg-gray-400",    textColor: "text-gray-600",    bg: "bg-gray-50"    },
-    ...(tax > 0 ? [{ label: "Tax", value: tax, color: "bg-amber-400", textColor: "text-amber-700", bg: "bg-amber-50" }] : []),
-  ];
-
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Where your money goes</p>
-      <div className="flex rounded-full overflow-hidden h-2.5 mb-3 gap-px">
-        {segments.map(({ label, value, color }) => (
-          <div key={label} className={`${color} transition-all`} style={{ width: `${(value / total) * 100}%`, minWidth: "4%" }} />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {segments.map(({ label, value, color, textColor, bg }) => (
-          <div key={label} className={`flex items-center justify-between px-3 py-2 rounded-xl ${bg}`}>
-            <div className="flex items-center gap-1.5">
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
-              <span className="text-[11px] text-gray-500 font-medium">{label}</span>
-            </div>
-            <span className={`text-xs font-bold ${textColor}`}>{fmtExact(value)}</span>
-          </div>
-        ))}
-      </div>
-      <p className="text-[10px] text-gray-400 mt-2.5 text-center leading-relaxed">
-        Vendor payout reflects their VEHNDR fee and Stripe processing. Tip is included in vendor payout.
-      </p>
     </div>
   );
 }
@@ -393,10 +346,6 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
           </div>
         </div>
       </div>
-
-      {isCash && baseCents > 0 && (
-        <MoneyFlowBar baseCents={baseCents} tipCents={totalTip} collectTax={collectTax} />
-      )}
 
       {!fullyPaid && offer?.remainingBalanceCents > 0 && (
         <p className="text-xs text-gray-400 text-center leading-relaxed px-4">
@@ -785,16 +734,6 @@ export default function MarketplaceCheckoutPage() {
                   <span className="text-gray-800">Total due today</span>
                   <span className="text-gray-900">{fmtExact(chargeTotal)}</span>
                 </div>
-                {isCash && (
-                  <p className="text-[10px] text-gray-400 pt-1">Stripe processing is deducted from vendor payout.</p>
-                )}
-
-                {/* Money flow — collapsible sub-section */}
-                {isCash && baseCents > 0 && (
-                  <div className="pt-2">
-                    <MoneyFlowBar baseCents={baseCents} tipCents={effectiveTipCents} collectTax={collectTax} />
-                  </div>
-                )}
               </div>
             )}
           </div>

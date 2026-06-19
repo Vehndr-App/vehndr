@@ -555,18 +555,16 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, col
 
   const pricing   = marketplaceBreakdown(totalPriceCents, tipCents, collectTax);
   const vehndrFee = pricing.vendorFeeCents;
-  const totalVehndrFee = pricing.vehndrFeeCents;
   const stripeFee = pricing.stripeFeeCents;
-  const tax       = pricing.taxCents;
   const payout    = pricing.vendorPayoutCents;
 
-  // The bar shows the full customer-facing charge split into payout, fees, Stripe, and tax.
-  const barTotal = pricing.totalChargeCents;
+  // Vendor-only view: payout derived from the agreed price + tip. Coordinator-side
+  // figures (their fee, tax, total charge) are intentionally not shown.
+  const barTotal = payout + vehndrFee + stripeFee;
   const segments = [
     { label: "Your payout", value: payout,    pct: payout    / barTotal, color: "bg-violet-500",  dot: "bg-violet-500",  text: "text-violet-700",  bg: "bg-violet-50"  },
-    { label: "VEHNDR",      value: totalVehndrFee, pct: totalVehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "VEHNDR",      value: vehndrFee,  pct: vehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
     { label: "Stripe",      value: stripeFee,  pct: stripeFee / barTotal, color: "bg-gray-400",    dot: "bg-gray-400",    text: "text-gray-600",    bg: "bg-gray-50"    },
-    ...(tax > 0 ? [{ label: "Tax", value: tax, pct: tax / barTotal, color: "bg-amber-400", dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50" }] : []),
   ];
 
   return (
@@ -634,12 +632,6 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, col
               <span className="text-[var(--gray-400)]">Stripe processing (2.9% + $0.30)</span>
               <span className="font-medium text-red-400">−{fmt$(stripeFee)}</span>
             </div>
-            {tax > 0 && (
-              <div className="flex justify-between text-sm">
-                <span className="text-[var(--gray-400)]">Tax collected</span>
-                <span className="font-medium text-[var(--gray-500)]">{fmt$(tax)}</span>
-              </div>
-            )}
             {tipCents > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--gray-400)]">Committed tip</span>
@@ -653,7 +645,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, col
           </div>
 
           <p className="text-[10px] text-[var(--gray-400)] leading-relaxed">
-            Coordinator pays {fmt$(pricing.totalChargeCents)} at checkout.{tax > 0 ? " Tax is remitted by VEHNDR and is not part of payout." : ""}
+            Fees are deducted from your payout. Transfers within 2–7 business days after payment clears.
           </p>
         </div>
       )}
@@ -1141,27 +1133,6 @@ function VendorInquiryDetailInner() {
                 <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
                   <span className="font-semibold text-[var(--gray-700)]">Total you pay</span>
                   <span className="font-bold text-[var(--gray-900)]">{fmt$(boothPricing.totalCents)}</span>
-                </div>
-
-                {/* EC payout breakdown */}
-                <div className="pt-3 mt-1 border-t border-[var(--gray-100)] space-y-2">
-                  <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">Coordinator receives</p>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[var(--gray-500)]">Booth fee collected</span>
-                    <span className="font-medium text-[var(--gray-800)]">{fmt$(baseCents)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-                    <span className="font-medium text-red-400">−{fmt$(boothPricing.ecRecipientFeeCents)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-[var(--gray-500)]">Processing fee</span>
-                    <span className="font-medium text-red-400">−{fmt$(boothPricing.ecStripeFeeCents)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
-                    <span className="font-semibold text-[var(--gray-700)]">Coordinator payout</span>
-                    <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmt$(boothPricing.ecPayoutCents)}</span>
-                  </div>
                 </div>
               </div>
             </Card>
