@@ -64,19 +64,23 @@ export function marketplaceBreakdown(baseCents, tipCents = 0, collectTax = true)
 }
 
 // Vendor-pays booth fee breakdown (proposal_type "product"): the vendor pays the EC.
-// Mirrors the backend `MarketplacePricing.breakdown` (see create_vendor_payment_intent) so
-// the figures match the real Stripe charge: the vendor is charged base + service fee (10%)
-// + tax (on base); the EC receives base − VEHNDR fee (10%) − Stripe processing fee.
+// Mirrors the backend `MarketplacePricing.vendor_breakdown` (see create_vendor_payment_intent)
+// so the figures match the real Stripe charge: the vendor is charged booth fee + VEHNDR fee
+// (10%) + tax (on booth + VEHNDR fee) + Stripe processing fee (on booth + VEHNDR fee + tax);
+// the EC receives the booth fee less the VEHNDR recipient cut (10%).
 export function vendorBoothBreakdown(baseCents) {
-  const b = marketplaceBreakdown(baseCents);
+  const vehndrFeeCents = marketplacePayerFeeCents(baseCents);
+  const taxCents = Math.round((baseCents + vehndrFeeCents) * MARKETPLACE_TAX_RATE);
+  const stripeFeeCents = marketplaceStripeFeeCents(baseCents + vehndrFeeCents + taxCents);
+  const recipientFeeCents = marketplaceRecipientFeeCents(baseCents);
   return {
-    baseCents:           b.subtotalCents,
-    vehndrFeeCents:      b.payerFeeCents,
-    taxCents:            b.taxCents,
-    totalCents:          b.totalChargeCents,
-    ecRecipientFeeCents: b.recipientFeeCents,
-    ecStripeFeeCents:    b.stripeFeeCents,
-    ecPayoutCents:       b.recipientPayoutCents,
+    baseCents,
+    vehndrFeeCents,
+    taxCents,
+    stripeFeeCents,
+    totalCents:          baseCents + vehndrFeeCents + taxCents + stripeFeeCents,
+    ecRecipientFeeCents: recipientFeeCents,
+    ecPayoutCents:       Math.max(baseCents - recipientFeeCents, 0),
   };
 }
 

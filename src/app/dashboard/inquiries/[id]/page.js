@@ -1130,6 +1130,10 @@ function VendorInquiryDetailInner() {
                   <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
                   <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.taxCents)}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Processing fee</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.stripeFeeCents)}</span>
+                </div>
                 <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
                   <span className="font-semibold text-[var(--gray-700)]">Total you pay</span>
                   <span className="font-bold text-[var(--gray-900)]">{fmt$(boothPricing.totalCents)}</span>

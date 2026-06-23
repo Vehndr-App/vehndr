@@ -277,28 +277,12 @@ function VendorPayInner() {
                     <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
                     <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.taxCents)}</span>
                   </div>
-                </div>
-
-                {/* Coordinator receives */}
-                <div className="mt-3 pt-3 border-t border-[var(--gray-100)] space-y-1.5">
-                  <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-wider mb-2">Coordinator receives</p>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[var(--gray-500)]">Booth fee collected</span>
-                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(activeOffer.totalPriceCents)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-                    <span className="font-semibold text-red-400">−{formatPrice(boothPricing.ecRecipientFeeCents)}</span>
-                  </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[var(--gray-500)]">Processing fee</span>
-                    <span className="font-semibold text-red-400">−{formatPrice(boothPricing.ecStripeFeeCents)}</span>
-                  </div>
-                  <div className="flex justify-between text-xs pt-1.5 border-t border-[var(--gray-100)]">
-                    <span className="font-semibold text-[var(--gray-700)]">Coordinator payout</span>
-                    <span className="font-bold text-emerald-600">{formatPrice(boothPricing.ecPayoutCents)}</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.stripeFeeCents)}</span>
                   </div>
                 </div>
+
                 {activeOffer.description && (
                   <p className="text-sm text-[var(--gray-600)] mt-3 pt-3 border-t border-[var(--gray-100)] leading-relaxed">
                     {activeOffer.description}
