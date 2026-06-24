@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../services/api';
+import { WALLET_PAYMENT_ELEMENT_OPTIONS } from '../utils/stripePaymentOptions';
 
 export default function PaymentForm({
   vendorName,
@@ -268,12 +269,7 @@ export default function PaymentForm({
       {/* Payment Element */}
       <PaymentElement
         onReady={() => setPaymentElementReady(true)}
-        options={{
-          wallets: {
-            applePay: 'auto',
-            googlePay: 'auto'
-          }
-        }}
+        options={WALLET_PAYMENT_ELEMENT_OPTIONS}
       />
 
       {errorMessage && (

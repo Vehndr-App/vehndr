@@ -5,8 +5,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
-import { getInquiry, declineInquiry } from "../../../../services/inquiries";
+import CancellationRequestBanner from "../../../../components/CancellationRequestBanner";
+import { getInquiry, declineInquiry, requestFinalPayment } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
+import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -161,7 +163,8 @@ function HeroCard({
   declining, handleDecline, accepting, handleQuickAccept,
   withdrawing, handleWithdrawOffer,
   canCancel, onCancel,
-  id,
+  canRequestFinalPayment, finalPaymentRequested, requestingFinalPayment, onRequestFinalPayment,
+  id, collectTax = true,
 }) {
   const statusLabel = isCancelled ? "Cancelled"
     : isVendorDeclined ? "Declined"
@@ -228,10 +231,10 @@ function HeroCard({
       {/* Budget / fee row */}
       {(budgetCents > 0 || vendingFeeCents > 0 || tipCents > 0 || coordinatorType === "no_fees") && (
         <div className="px-6 py-3 flex flex-wrap items-center gap-x-6 gap-y-1.5">
-          {coordinatorType === "hiring_vendor" && budgetCents > 0 && (
+          {coordinatorType === "hiring_vendor" && budgetCents > 0 && !needsVendorPay && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You&apos;d receive</span>
-              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(calcVendorBase(budgetCents))}</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents, collectTax).vendorPayoutCents)}</span>
             </div>
           )}
           {coordinatorType === "charges_fees" && vendingFeeCents > 0 && (
@@ -342,6 +345,26 @@ function HeroCard({
             Awaiting payment
           </span>
         )}
+
+        {canRequestFinalPayment && (
+          finalPaymentRequested ? (
+            <span className="h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)]">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+              Payment request sent
+            </span>
+          ) : (
+            <button type="button" onClick={onRequestFinalPayment} disabled={requestingFinalPayment}
+              className="h-9 px-4 rounded-xl text-[13px] font-semibold text-white flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+              style={{ background: "linear-gradient(to right, var(--violet-600), var(--magenta-600))" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+              </svg>
+              {requestingFinalPayment ? "Sending…" : "Request Final Payment"}
+            </button>
+          )
+        )}
         {(vendorPaid || freeConfirmed) && (
           <span className="h-9 px-3 rounded-xl text-xs font-semibold flex items-center gap-1.5 bg-[var(--mint-50)] border border-[var(--mint-200)] text-[var(--mint-700)]">
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -370,11 +393,18 @@ function HeroCard({
 function EventBrief({ event }) {
   if (!event) return null;
 
-  const startDt = event.startDate ? new Date(event.startDate) : null;
   const address = event.streetAddress || event.location;
-  const dateStr = startDt
-    ? startDt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })
-    : null;
+  const dateStr = (() => {
+    if (!event.startDate) return null;
+    const parse = (r) => new Date(r.includes("T") ? r : r + "T00:00:00");
+    const fmtFull = (d) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+    const fmtShort = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const start = parse(event.startDate);
+    if (!event.endDate) return fmtFull(start);
+    const end = parse(event.endDate);
+    if (start.toDateString() === end.toDateString()) return fmtFull(start);
+    return `${fmtShort(start)} – ${fmtShort(end)}, ${start.getFullYear()}`;
+  })();
 
   // Show top-level load times only for single-day events (multi-day shows per-day in DailyScheduleCard)
   const hasPerDaySchedule = event.dailySchedule?.some(d => d.vendorLoadIn || d.vendorLoadOut);
@@ -520,22 +550,21 @@ function MessageCard({ customer, initialMessage }) {
 
 // ─── Price breakdown (cash offers) ───────────────────────────────────────────
 
-function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
+function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, collectTax = true }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  const vehndrFee = Math.round(totalPriceCents * VENDOR_FEE_RATE);
-  const stripeFee = Math.round(totalPriceCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  const tax       = Math.round(totalPriceCents * TAX_RATE);
-  const base      = Math.max(totalPriceCents - vehndrFee - stripeFee - tax, 0);
-  const payout    = base + tipCents;
+  const pricing   = marketplaceBreakdown(totalPriceCents, tipCents, collectTax);
+  const vehndrFee = pricing.vendorFeeCents;
+  const stripeFee = pricing.stripeFeeCents;
+  const payout    = pricing.vendorPayoutCents;
 
-  // Bar total includes the tip so the "Your payout" slice reflects what you actually receive
-  const barTotal = totalPriceCents + tipCents;
+  // Vendor-only view: payout derived from the agreed price + tip. Coordinator-side
+  // figures (their fee, tax, total charge) are intentionally not shown.
+  const barTotal = payout + vehndrFee + stripeFee;
   const segments = [
     { label: "Your payout", value: payout,    pct: payout    / barTotal, color: "bg-violet-500",  dot: "bg-violet-500",  text: "text-violet-700",  bg: "bg-violet-50"  },
-    { label: "VEHNDR fee",  value: vehndrFee,  pct: vehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
+    { label: "VEHNDR",      value: vehndrFee,  pct: vehndrFee / barTotal, color: "bg-emerald-500", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50" },
     { label: "Stripe",      value: stripeFee,  pct: stripeFee / barTotal, color: "bg-gray-400",    dot: "bg-gray-400",    text: "text-gray-600",    bg: "bg-gray-50"    },
-    { label: "Tax",         value: tax,        pct: tax       / barTotal, color: "bg-amber-400",   dot: "bg-amber-400",   text: "text-amber-700",   bg: "bg-amber-50"   },
   ];
 
   return (
@@ -592,7 +621,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
           {/* Line-item detail */}
           <div className="space-y-2 pt-1 border-t border-[var(--gray-100)]">
             <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-400)]">Coordinator pays</span>
+              <span className="text-[var(--gray-400)]">Agreed price</span>
               <span className="font-medium text-[var(--gray-700)]">{fmt$(totalPriceCents)}</span>
             </div>
             <div className="flex justify-between text-sm">
@@ -602,10 +631,6 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
             <div className="flex justify-between text-sm">
               <span className="text-[var(--gray-400)]">Stripe processing (2.9% + $0.30)</span>
               <span className="font-medium text-red-400">−{fmt$(stripeFee)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-[var(--gray-400)]">Tax (8.25%)</span>
-              <span className="font-medium text-red-400">−{fmt$(tax)}</span>
             </div>
             {tipCents > 0 && (
               <div className="flex justify-between text-sm">
@@ -620,8 +645,7 @@ function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false }) {
           </div>
 
           <p className="text-[10px] text-[var(--gray-400)] leading-relaxed">
-            Fees are deducted from your payout — the coordinator is charged exactly {fmt$(totalPriceCents)}.
-            Transfers within 2–7 business days after payment clears.
+            Fees are deducted from your payout. Transfers within 2–7 business days after payment clears.
           </p>
         </div>
       )}
@@ -660,9 +684,9 @@ function OfferCard({ offer, tipCents = 0, offerAccepted, offerDeclined, canRevis
 
       <div className="px-5 py-4 space-y-3">
         <div className="flex items-baseline justify-between">
-          <span className="text-sm text-[var(--gray-500)]">{isCash ? "Your base" : offer.proposalType === "product" ? "You pay" : "Price"}</span>
+          <span className="text-sm text-[var(--gray-500)]">{isCash ? "Your base" : offer.proposalType === "product" ? "Booth fee" : "Price"}</span>
           <span className="text-[22px] font-bold text-[var(--gray-900)] tabular-nums">
-            {isCash ? fmt$(calcVendorBase(offer.totalPriceCents)) : fmt$(offer.totalPriceCents)}
+            {fmt$(offer.totalPriceCents)}
           </span>
         </div>
         {offer.depositCents > 0 && (
@@ -773,26 +797,13 @@ function OfferHistory({ offers }) {
 
 // ─── Earnings card ────────────────────────────────────────────────────────────
 
-const VENDOR_FEE_RATE  = 0.10;
-const STRIPE_FEE_RATE  = 0.029;
-const STRIPE_FEE_FIXED = 30; // cents
-const TAX_RATE         = 0.0825;
-
-// Layer 1: coordinator budget → vendor base (deducts VEHNDR fee, Stripe, and VAT)
-function calcVendorBase(coordinatorBudgetCents) {
-  const vehndrFee = Math.round(coordinatorBudgetCents * VENDOR_FEE_RATE);
-  const stripeFee = Math.round(coordinatorBudgetCents * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  const tax       = Math.round(coordinatorBudgetCents * TAX_RATE);
-  return Math.max(coordinatorBudgetCents - vehndrFee - stripeFee - tax, 0);
-}
-
-function EarningsCard({ offer, tipCents = 0 }) {
+function EarningsCard({ offer, tipCents = 0, collectTax = true }) {
   const total      = offer.totalPriceCents ?? 0;
-  const vehndrFee  = Math.round(total * VENDOR_FEE_RATE);
-  const stripeFee  = Math.round(total * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED;
-  const tax        = Math.round(total * TAX_RATE);
-  const base       = Math.max(total - vehndrFee - stripeFee - tax, 0);
-  const payout     = base + tipCents;
+  const pricing    = marketplaceBreakdown(total, tipCents, collectTax);
+  const vehndrFee  = pricing.vendorFeeCents;
+  const stripeFee  = pricing.stripeFeeCents;
+  const tax        = pricing.taxCents;
+  const payout     = pricing.vendorPayoutCents;
 
   return (
     <Card style={{ border: "1px solid var(--mint-200)" }}>
@@ -814,7 +825,7 @@ function EarningsCard({ offer, tipCents = 0 }) {
 
         <div className="space-y-2 pt-1">
           <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Coordinator paid</span>
+            <span className="text-[var(--gray-500)]">Agreed price</span>
             <span className="font-medium text-[var(--gray-800)] tabular-nums">{fmt$(total)}</span>
           </div>
           <div className="flex justify-between text-sm">
@@ -825,10 +836,12 @@ function EarningsCard({ offer, tipCents = 0 }) {
             <span className="text-[var(--gray-500)]">Stripe processing</span>
             <span className="font-medium text-red-400 tabular-nums">−{fmt$(stripeFee)}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-            <span className="font-medium text-red-400 tabular-nums">−{fmt$(tax)}</span>
-          </div>
+          {tax > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Tax collected</span>
+              <span className="font-medium text-[var(--gray-500)] tabular-nums">{fmt$(tax)}</span>
+            </div>
+          )}
           {tipCents > 0 && (
             <div className="flex justify-between text-sm">
               <span className="text-[var(--gray-500)]">Tip</span>
@@ -868,6 +881,8 @@ function VendorInquiryDetailInner() {
   const [accepting,      setAccepting]      = useState(false);
   const [withdrawing,    setWithdrawing]    = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [requestingFinalPayment, setRequestingFinalPayment] = useState(false);
+  const [finalPaymentRequested,  setFinalPaymentRequested]  = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -898,6 +913,15 @@ function VendorInquiryDetailInner() {
     finally { setWithdrawing(false); }
   }
 
+  async function handleRequestFinalPayment() {
+    setRequestingFinalPayment(true);
+    try {
+      await requestFinalPayment(id);
+      setFinalPaymentRequested(true);
+    } catch (e) { alert(e.message || "Failed to send payment request."); }
+    finally { setRequestingFinalPayment(false); }
+  }
+
   async function handleQuickAccept() {
     setAccepting(true);
     try {
@@ -923,6 +947,7 @@ function VendorInquiryDetailInner() {
     tipCents: proposalTipCents,
     submittedAt, marketplaceBooking,
   } = inquiry;
+  const collectTax = inquiry.collectTax !== false;
 
   const bookingTipCents  = displayTipCents(inquiry);
   const offerAccepted    = activeOffer?.status === "accepted";
@@ -943,7 +968,12 @@ function VendorInquiryDetailInner() {
   const cashPending    = offerAccepted && activeOffer?.proposalType === "cash" && !isConfirmed && !isCancelled;
   const freeConfirmed  = offerAccepted && activeOffer?.proposalType === "both" && !isCancelled;
   const canWithdraw    = hasOffer && !offerAccepted && !offerDeclined && !isExpired && !isVendorDeclined && !isCancelled;
-  const canCancel      = !!marketplaceBooking && !isCancelled && (isConfirmed || offerAccepted);
+  // A booked cancellation is a two-party request; hide the trigger while one is pending.
+  const cancelPending  = marketplaceBooking?.cancellationState === "requested";
+  const canCancel      = !!marketplaceBooking && !isCancelled && !cancelPending && (isConfirmed || offerAccepted);
+  const canRequestFinalPayment = marketplaceBooking?.paymentStatus === "deposit_paid"
+    && (activeOffer?.remainingBalanceCents ?? 0) > 0
+    && !isCancelled;
 
   const primaryHref = (offerDeclined || canRevise || (needsProposal && !offerDeclined && !isExpired && !isVendorDeclined))
     ? `/dashboard/inquiries/${id}/offer/new` : null;
@@ -988,6 +1018,19 @@ function VendorInquiryDetailInner() {
           </div>
         )}
 
+        {/* Cancellation request banner (pending / declined) */}
+        {!isCancelled && (
+          <CancellationRequestBanner
+            inquiry={inquiry}
+            booking={marketplaceBooking}
+            role="vendor"
+            onChange={async () => {
+              const [inq, list] = await Promise.all([getInquiry(id), listOffers(id)]);
+              setInquiry(inq); setOffers(Array.isArray(list) ? list : []);
+            }}
+          />
+        )}
+
         {/* Cancel booking modal */}
         {showCancelModal && (
           <CancelBookingModal
@@ -1020,14 +1063,19 @@ function VendorInquiryDetailInner() {
           accepting={accepting} handleQuickAccept={handleQuickAccept}
           canWithdraw={canWithdraw} withdrawing={withdrawing} handleWithdrawOffer={handleWithdrawOffer}
           canCancel={canCancel} onCancel={() => setShowCancelModal(true)}
-          id={id}
+          canRequestFinalPayment={canRequestFinalPayment}
+          finalPaymentRequested={finalPaymentRequested}
+          requestingFinalPayment={requestingFinalPayment}
+          onRequestFinalPayment={handleRequestFinalPayment}
+          id={id} collectTax={collectTax}
         />
 
         {/* 2a. Earnings confirmed card — after offer is accepted/booked */}
-        {(offerAccepted || isConfirmed) && displayOffer?.proposalType === "cash" && (
+        {(offerAccepted || isConfirmed) && displayOffer?.proposalType === "cash" && coordinatorType === "hiring_vendor" && (
           <EarningsCard
             offer={displayOffer}
             tipCents={bookingTipCents}
+            collectTax={collectTax}
           />
         )}
 
@@ -1047,7 +1095,50 @@ function VendorInquiryDetailInner() {
                     : `Based on the coordinator's proposed budget of ${fmt$(amountCents)}`}
                 </p>
               </div>
-              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} />
+              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} collectTax={collectTax} />
+            </Card>
+          );
+        })()}
+
+        {/* 2c. Fee breakdown — shown for product (vendor-pays) engagements */}
+        {coordinatorType === "charges_fees" && !isCancelled && (() => {
+          const baseCents = (activeOffer?.proposalType === "product" && activeOffer.totalPriceCents > 0)
+            ? activeOffer.totalPriceCents
+            : (vendingFeeCents ?? 0);
+          if (!baseCents) return null;
+          const boothPricing = vendorBoothBreakdown(baseCents);
+          return (
+            <Card>
+              <div className="px-5 py-3.5 border-b border-[var(--gray-100)]">
+                <p className="text-[10px] font-bold text-[var(--gray-400)] uppercase tracking-widest">What You&apos;ll Pay</p>
+                <p className="text-[11px] text-[var(--gray-400)] mt-0.5">
+                  {activeOffer
+                    ? `Based on the agreed booth fee of ${fmt$(baseCents)}`
+                    : `Based on the event vending fee of ${fmt$(baseCents)}`}
+                </p>
+              </div>
+              <div className="px-5 py-4 space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Booth fee</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(baseCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.vehndrFeeCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.taxCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">Processing fee</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.stripeFeeCents)}</span>
+                </div>
+                <div className="flex justify-between text-sm pt-2 border-t border-[var(--gray-100)]">
+                  <span className="font-semibold text-[var(--gray-700)]">Total you pay</span>
+                  <span className="font-bold text-[var(--gray-900)]">{fmt$(boothPricing.totalCents)}</span>
+                </div>
+              </div>
             </Card>
           );
         })()}

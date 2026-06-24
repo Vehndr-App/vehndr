@@ -6,6 +6,11 @@ import Link from "next/link";
 import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../services/inquiries";
 import { createVendorPaymentIntent, confirmVendorPayment } from "../../../../../services/checkout";
+import { vendorBoothBreakdown } from "../../../../../utils/marketplacePricing";
+import {
+  WALLET_FIRST_PAYMENT_METHOD_ORDER,
+  WALLET_PAYMENT_ELEMENT_OPTIONS,
+} from "../../../../../utils/stripePaymentOptions";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -13,18 +18,12 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
   : null;
 
-const BUYER_FEE_PERCENT = 0.10;
-const TAX_RATE = 0.0825;
-
-function calcBuyerFee(base) { return Math.round(base * BUYER_FEE_PERCENT); }
-function calcTax(base) { return Math.round(base * TAX_RATE); }
-function calcChargeTotal(base) { return base + calcBuyerFee(base) + calcTax(base); }
 
 function formatPrice(cents) {
   if (!cents && cents !== 0) return "—";
   return new Intl.NumberFormat("en-US", {
     style: "currency", currency: "USD",
-    minimumFractionDigits: 0, maximumFractionDigits: 0,
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
   }).format(cents / 100);
 }
 
@@ -65,7 +64,7 @@ function StripePaymentForm({ amountCents, onSuccess, onError }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      <PaymentElement onReady={() => setReady(true)} />
+      <PaymentElement onReady={() => setReady(true)} options={WALLET_PAYMENT_ELEMENT_OPTIONS} />
       {error && (
         <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-600">{error}</div>
       )}
@@ -168,7 +167,8 @@ function VendorPayInner() {
   const [intentLoading, setIntentLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const activeOffer = inquiry?.activeOffer;
-  const estimatedTotalCents = activeOffer ? calcChargeTotal(activeOffer.totalPriceCents) : null;
+  const boothPricing = activeOffer ? vendorBoothBreakdown(activeOffer.totalPriceCents) : null;
+  const estimatedTotalCents = boothPricing?.totalCents ?? null;
 
   useEffect(() => {
     if (!id) return;
@@ -271,13 +271,18 @@ function VendorPayInner() {
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(calcBuyerFee(activeOffer.totalPriceCents))}</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.vehndrFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(calcTax(activeOffer.totalPriceCents))}</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.taxCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--gray-500)]">Processing fee</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.stripeFeeCents)}</span>
                   </div>
                 </div>
+
                 {activeOffer.description && (
                   <p className="text-sm text-[var(--gray-600)] mt-3 pt-3 border-t border-[var(--gray-100)] leading-relaxed">
                     {activeOffer.description}
@@ -308,7 +313,14 @@ function VendorPayInner() {
               ) : intent.devMode ? (
                 <DevPaymentForm amountCents={intent.amountCents} onSuccess={handleDevSuccess} />
               ) : (
-                <Elements stripe={stripePromise} options={{ clientSecret: intent.clientSecret }}>
+                <Elements
+                  stripe={stripePromise}
+                  options={{
+                    clientSecret: intent.clientSecret,
+                    loader: "auto",
+                    paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER,
+                  }}
+                >
                   <StripePaymentForm
                     amountCents={intent.amountCents}
                     onSuccess={handleSuccess}

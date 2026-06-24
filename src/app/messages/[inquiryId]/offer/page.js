@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { listOffers, acceptOffer, declineOffer } from "../../../../services/offers";
 import { getInquiry, sendMessage, updateInquiryTip } from "../../../../services/inquiries";
+import { marketplaceBreakdown, marketplaceChargeTotalCents } from "../../../../utils/marketplacePricing";
 
 function formatPrice(cents) {
   if (!cents) return "$0";
@@ -29,13 +30,17 @@ function displayTipCents(inquiry) {
   return booking.paymentStatus === "fully_paid" ? (booking.tipCents ?? 0) : (inquiry?.tipCents ?? 0);
 }
 
-function CostBreakdown({ offer, tipCents = 0 }) {
+function CostBreakdown({ offer, tipCents = 0, collectTax = true }) {
   const [open, setOpen] = useState(false);
+  // Cash checkout: the coordinator pays base + VEHNDR fee (10%) + tax (8.25%) + tip,
+  // mirroring the backend MarketplacePricing.breakdown used by create_marketplace_payment_intent.
   const base       = offer.totalPriceCents;
   const tip        = tipCents ?? 0;
-  const total      = base + tip;
+  const pricing    = marketplaceBreakdown(base, tip, collectTax);
+  const total      = pricing.totalChargeCents;
   const hasDeposit = offer.depositCents > 0;
-  const depTotal   = hasDeposit ? offer.depositCents : 0;
+  // The deposit is charged grossed-up the same way (no tip on the deposit payment).
+  const depTotal   = hasDeposit ? marketplaceChargeTotalCents(offer.depositCents, 0, collectTax) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -71,6 +76,16 @@ function CostBreakdown({ offer, tipCents = 0 }) {
             <span className="text-[var(--violet-700)]">Base service</span>
             <span className="font-semibold text-[var(--gray-800)]">{formatPrice(base)}</span>
           </div>
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-700)]">VEHNDR fee (10%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.coordinatorFeeCents)}</span>
+          </div>
+          {pricing.taxCents > 0 && (
+            <div className="flex justify-between text-xs">
+              <span className="text-[var(--violet-700)]">Tax (8.25%)</span>
+              <span className="font-semibold text-[var(--gray-800)]">+{formatPrice(pricing.taxCents)}</span>
+            </div>
+          )}
           {tip > 0 ? (
             <div className="flex justify-between text-xs">
               <span className="text-[var(--violet-700)]">Tip</span>
@@ -96,7 +111,7 @@ function CostBreakdown({ offer, tipCents = 0 }) {
               </div>
             )}
           </div>
-          <p className="text-[10px] text-[var(--violet-400)] pt-1">Platform fee &amp; processing deducted from vendor payout</p>
+          <p className="text-[10px] text-[var(--violet-400)] pt-1">Includes platform fee and tax. Final total confirmed at checkout.</p>
         </div>
       )}
     </div>
@@ -112,14 +127,26 @@ function TipEditor({ tipCents = 0, onTipUpdate }) {
     if (!editing) setInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
   }, [editing, tipCents]);
 
+  const draftCents = Math.round(parseFloat(input || 0) * 100);
+  const canSend = editing && !saving && !isNaN(draftCents) && draftCents >= 0 && draftCents !== tipCents;
+
+  function handleCancel() {
+    setInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditing(false);
+  }
+
   async function handleSave() {
     const newCents = Math.round(parseFloat(input || 0) * 100);
-    setEditing(false);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditing(false);
+      return;
+    }
 
     setSaving(true);
     try {
       await onTipUpdate?.(newCents);
+      setEditing(false);
     } finally {
       setSaving(false);
     }
@@ -130,26 +157,44 @@ function TipEditor({ tipCents = 0, onTipUpdate }) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-[var(--gray-700)]">Tip</p>
-          <p className="text-xs text-[var(--gray-400)] mt-0.5">Changing this sends the offer back to vendor review.</p>
+          <p className="text-xs text-[var(--gray-400)] mt-0.5">Send a revised tip for vendor review when you&apos;re ready.</p>
         </div>
         {editing ? (
-          <div className="flex items-center gap-1">
-            <span className="text-sm text-[var(--gray-400)]">$</span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onBlur={handleSave}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave();
-                if (e.key === "Escape") setEditing(false);
-              }}
-              autoFocus
-              disabled={saving}
-              className="w-24 text-right px-3 py-2 rounded-[var(--radius-md)] border border-[var(--violet-300)] bg-white text-base sm:text-sm outline-none focus:ring-2 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-1">
+              <span className="text-sm text-[var(--gray-400)]">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") handleCancel();
+                }}
+                autoFocus
+                disabled={saving}
+                className="w-24 text-right px-3 py-2 rounded-[var(--radius-md)] border border-[var(--violet-300)] bg-white text-base sm:text-sm outline-none focus:ring-2 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCancel}
+                disabled={saving}
+                className="px-3 py-2 rounded-[var(--radius-md)] border border-[var(--gray-200)] text-xs font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!canSend}
+                className="px-3 py-2 rounded-[var(--radius-md)] bg-[var(--violet-600)] text-xs font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+              >
+                {saving ? "Sending..." : "Send Revised Tip"}
+              </button>
+            </div>
           </div>
         ) : (
           <button
@@ -202,7 +247,7 @@ function getExpiryInfo(expiresAt) {
 
 // ─── Active Offer Card ────────────────────────────────────────────────────────
 
-function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, onTipUpdate, accepting, declining, actionsInFooter }) {
+function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestChanges, onTipUpdate, accepting, declining, actionsInFooter, collectTax = true }) {
   const isExpired = offer.expiresAt && new Date(offer.expiresAt) < new Date();
   const isPending = offer.status === "pending" && !isExpired;
   const expiryInfo = getExpiryInfo(offer.expiresAt);
@@ -333,7 +378,7 @@ function OfferCard({ offer, tipCents, inquiryId, onAccept, onDecline, onRequestC
       {/* Cost breakdown for pending cash offers */}
       {isPending && offer.proposalType === "cash" && (
         <div className="px-5 pb-4">
-          <CostBreakdown offer={offer} tipCents={tipCents} />
+          <CostBreakdown offer={offer} tipCents={tipCents} collectTax={collectTax} />
         </div>
       )}
 
@@ -720,6 +765,7 @@ export default function OfferPage() {
                 offer={activeOffer}
                 tipCents={inquiry?.tipCents ?? 0}
                 inquiryId={inquiryId}
+                collectTax={inquiry?.vendor?.collectTax !== false}
                 onAccept={handleAccept}
                 onDecline={handleDecline}
                 onRequestChanges={() => setShowRequestChanges(true)}

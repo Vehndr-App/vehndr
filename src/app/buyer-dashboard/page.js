@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../services/inquiries";
+import { marketplaceChargeTotalCents } from "../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,13 +55,6 @@ function matchTab(inq, tab) {
   if (tab === "sent")   return SENT_STATUSES.has(s);
   if (tab === "booked") return BOOKED_STATUSES.has(s);
   return true;
-}
-
-// ─── Fee helpers ──────────────────────────────────────────────────────────────
-
-function feeGrossTotal(base, tip = 0) {
-  const pre = base + Math.round(base * 0.0825) + Math.round(base * 0.10) + tip;
-  return Math.ceil((pre + 30) / (1 - 0.029));
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -126,7 +120,11 @@ function ProposalCard({ inquiry, onDelete }) {
   const tip   = displayTipCents(inquiry);
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
-    ? formatPrice(offer.totalPriceCents + tip)
+    ? formatPrice(
+        offer.proposalType === "cash"
+          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip, inquiry.vendor?.collectTax !== false)
+          : offer.totalPriceCents + tip
+      )
     : null;
 
   return (
@@ -238,6 +236,7 @@ export default function BuyerDashboardHome() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]     = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const cardListRef = useRef(null);
 
   useEffect(() => {
     if (authLoading) return;
@@ -267,6 +266,11 @@ export default function BuyerDashboardHome() {
   function handleTabChange(tab) {
     setActiveTab(tab);
     setPage(1);
+  }
+
+  function changePage(next) {
+    setPage(next);
+    cardListRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function handleDelete() {
@@ -344,7 +348,7 @@ export default function BuyerDashboardHome() {
       </div>
 
       {/* ── Card list ── */}
-      <div className="px-4 pt-4 space-y-3">
+      <div ref={cardListRef} className="px-4 pt-4 space-y-3">
         {loading ? (
           <>
             <SkeletonCard /><SkeletonCard /><SkeletonCard />
@@ -362,9 +366,9 @@ export default function BuyerDashboardHome() {
       {!loading && totalPages > 1 && (
         <div className="px-4 mt-5 flex items-center justify-between gap-3">
           <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            onClick={() => changePage(Math.max(1, page - 1))}
             disabled={page === 1}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-[var(--gray-200)] bg-white text-sm font-semibold text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 h-11 px-5 rounded-xl border border-[var(--gray-200)] bg-white text-sm font-semibold text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6"/>
@@ -377,9 +381,9 @@ export default function BuyerDashboardHome() {
           </span>
 
           <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            onClick={() => changePage(Math.min(totalPages, page + 1))}
             disabled={page === totalPages}
-            className="flex items-center gap-1.5 h-9 px-4 rounded-xl border border-[var(--gray-200)] bg-white text-sm font-semibold text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 h-11 px-5 rounded-xl border border-[var(--gray-200)] bg-white text-sm font-semibold text-[var(--gray-600)] disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Next
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

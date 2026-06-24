@@ -6,6 +6,20 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { listMessages, sendMessage, updateInquiryTip } from "../../../services/inquiries";
 import { listOffers, createOffer, updateOffer, acceptOffer, declineOffer } from "../../../services/offers";
 import Link from "next/link";
+import {
+  marketplaceChargeTotalCents,
+  marketplacePayerFeeCents,
+  marketplaceRecipientPayoutCents,
+  marketplaceStripeFeeCents,
+  marketplaceTaxCents,
+} from "../../../utils/marketplacePricing";
+import {
+  OFFER_EXPIRY_ERROR,
+  minimumOfferExpiryValue,
+  offerExpiryToIso,
+  offerExpiryTooSoon,
+  toDatetimeLocalValue,
+} from "../../../utils/offerExpiry";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -65,8 +79,8 @@ function shouldShowTimestamp(messages, index) {
 }
 
 function formatPrice(cents) {
-  if (!cents && cents !== 0) return "$0";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+  if (!cents && cents !== 0) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 function dollarsToC(val) {
@@ -75,22 +89,15 @@ function dollarsToC(val) {
 }
 
 // ─── Fee preview helpers (mirrors MarketplacePricing in the API) ──────────────
-const MP_TAX_RATE        = 0.0825;
-const MP_COORD_FEE       = 0.10;
-const MP_STRIPE_RATE     = 0.029;
-const MP_STRIPE_FIXED    = 30;   // cents
+function mpTax(base, collectTax = true)          { return marketplaceTaxCents(base, collectTax); }
+function mpCoordFee(base)     { return marketplacePayerFeeCents(base); }
+function mpChargeTotal(base, tipCents = 0, collectTax = true) { return marketplaceChargeTotalCents(base, tipCents, collectTax); }
+function mpStripeFee(total)   { return marketplaceStripeFeeCents(total); }
+function mpVendorPayout(base, tipCents = 0, collectTax = true) { return marketplaceRecipientPayoutCents(base, tipCents, collectTax); }
+function mpVendorPayoutWithTip(base, tipCents, collectTax = true) { return mpVendorPayout(base, tipCents, collectTax); }
 
-function mpTax(base)          { return Math.round(base * MP_TAX_RATE); }
-function mpCoordFee(base)     { return Math.round(base * MP_COORD_FEE); }
-function mpPreStripeTotal(base, tipCents = 0) { return base + mpTax(base) + mpCoordFee(base) + tipCents; }
-function mpGrossTotal(base, tipCents = 0) {
-  return mpPreStripeTotal(base, tipCents);
-}
-function mpStripeFee(total) { return Math.round(total * MP_STRIPE_RATE + MP_STRIPE_FIXED); }
-function mpVendorPayout(base, tipCents = 0) {
-  return Math.max(base - Math.round(base * 0.10) - mpStripeFee(mpGrossTotal(base, tipCents)), 0) + tipCents;
-}
-function mpVendorPayoutWithTip(base, tipCents) { return mpVendorPayout(base, tipCents); }
+// Buyer payloads carry vendor.collectTax; the vendor-inbox payload carries it top-level.
+function inquiryCollectTax(inquiry) { return (inquiry?.vendor?.collectTax ?? inquiry?.collectTax) !== false; }
 
 function fmtExact(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -99,16 +106,27 @@ function fmtExact(cents) {
   }).format(cents / 100);
 }
 
+function fmtEventDate(startRaw, endRaw) {
+  if (!startRaw) return null;
+  const parse = (r) => new Date(r.includes("T") ? r : r + "T00:00:00");
+  const fmt = (d) => d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const start = parse(startRaw);
+  if (!endRaw) return fmt(start);
+  const end = parse(endRaw);
+  if (start.toDateString() === end.toDateString()) return fmt(start);
+  return `${fmt(start)} – ${fmt(end)}`;
+}
+
 // ─── Cost Preview Card — shown before buyer accepts a cash offer ───────────────
 
-function CostPreviewCard({ offer, tipCents = 0 }) {
+function CostPreviewCard({ offer, tipCents = 0, collectTax = true }) {
   const base      = offer.totalPriceCents;
   const coordFee  = mpCoordFee(base);
-  const tax       = mpTax(base);
-  const estTotal  = mpGrossTotal(base, tipCents);
+  const tax       = mpTax(base, collectTax);
+  const estTotal  = mpChargeTotal(base, tipCents, collectTax);
 
   const hasDeposit = offer.depositCents > 0;
-  const depGross   = hasDeposit ? mpGrossTotal(offer.depositCents ?? 0) : 0;
+  const depositTotal = hasDeposit ? mpChargeTotal(offer.depositCents ?? 0, 0, collectTax) : 0;
 
   return (
     <div className="rounded-2xl border border-[var(--violet-100)] bg-[var(--violet-50)] overflow-hidden">
@@ -130,10 +148,12 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
           <span className="text-[var(--violet-600)]">VEHNDR platform fee (10%)</span>
           <span className="font-semibold text-[var(--gray-800)]">{formatPrice(coordFee)}</span>
         </div>
-        <div className="flex justify-between text-xs">
-          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
-        </div>
+        {tax > 0 && (
+          <div className="flex justify-between text-xs">
+            <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">{formatPrice(tax)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-xs">
           <span className="text-[var(--violet-500)]">Tip</span>
           {tipCents > 0
@@ -152,7 +172,7 @@ function CostPreviewCard({ offer, tipCents = 0 }) {
           {hasDeposit && (
             <div className="flex justify-between mt-1">
               <span className="text-xs font-semibold text-[var(--violet-700)]">Est. deposit today</span>
-              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depGross)}</span>
+              <span className="text-xs font-bold text-[var(--violet-800)]">{fmtExact(depositTotal)}</span>
             </div>
           )}
         </div>
@@ -347,7 +367,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
     totalPrice:    existingOffer ? (existingOffer.totalPriceCents / 100).toString() : "",
     depositAmount: existingOffer?.depositCents ? (existingOffer.depositCents / 100).toString() : "",
     depositType:   existingOffer?.depositType ?? "non_refundable",
-    expiresAt:     existingOffer?.expiresAt ? existingOffer.expiresAt.split("T")[0] : "",
+    expiresAt:     existingOffer?.expiresAt ? toDatetimeLocalValue(existingOffer.expiresAt) : "",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState(null);
@@ -365,6 +385,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
     e.preventDefault();
     if (!totalCents || totalCents <= 0)             { setError("Total price is required."); return; }
     if (depositCents && depositCents >= totalCents) { setError("Deposit must be less than total."); return; }
+    if (offerExpiryTooSoon(form.expiresAt))         { setError(OFFER_EXPIRY_ERROR); return; }
 
     setSaving(true);
     setError(null);
@@ -375,7 +396,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
       deposit_cents:           depositCents,
       deposit_type:            hasDeposit ? form.depositType : null,
       remaining_balance_cents: remainingCents,
-      expires_at:              form.expiresAt || null,
+      expires_at:              offerExpiryToIso(form.expiresAt),
     };
 
     try {
@@ -394,6 +415,7 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
 
   const inputClass = "w-full px-4 py-3 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] text-base sm:text-sm text-[var(--gray-800)] outline-none focus:border-[var(--violet-400)] focus:bg-white focus:ring-2 focus:ring-[var(--violet-100)] transition-all";
   const labelClass = "block text-[10px] font-semibold uppercase tracking-widest text-[var(--gray-400)] mb-2";
+  const minimumExpiryValue = minimumOfferExpiryValue();
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -478,12 +500,13 @@ function OfferForm({ inquiryId, existingOffer, onSaved }) {
           Offer expires <span className="normal-case font-normal tracking-normal">(optional)</span>
         </label>
         <input
-          type="date"
+          type="datetime-local"
           value={form.expiresAt}
-          min={new Date().toISOString().split("T")[0]}
+          min={minimumExpiryValue}
           onChange={(e) => set("expiresAt", e.target.value)}
           className={inputClass}
         />
+        <p className="text-xs text-[var(--gray-400)] mt-1.5">Earliest expiry is 12 hours from now.</p>
       </div>
 
       {error && <p className="text-xs text-[var(--error)] font-medium">{error}</p>}
@@ -569,7 +592,7 @@ function VendorOfferPanel({ inquiryId, offers, onOfferSaved, tipCents = 0 }) {
                 </span>
               </div>
               <p className="text-[10px] text-[var(--gray-400)] mt-0.5">
-                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpGrossTotal(activeOffer.totalPriceCents, tipCents)))})
+                Base minus vendor fee and Stripe, plus tip (~{fmtExact(mpStripeFee(mpChargeTotal(activeOffer.totalPriceCents, tipCents)))})
               </p>
             </div>
             {activeOffer.status === "pending" && (
@@ -715,9 +738,12 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   }
 
   async function handleSaveTip() {
-    setEditingTip(false);
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditingTip(false);
+      return;
+    }
     setSavingTip(true);
     setActionError(null);
     try {
@@ -725,11 +751,17 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
       if (result?.requiresVendorReview) {
         setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
       }
+      setEditingTip(false);
     } catch (err) {
       setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
+  }
+
+  function handleCancelTip() {
+    setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditingTip(false);
   }
 
   async function handleSendRequest() {
@@ -750,6 +782,8 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
   }
 
   const previousOffers = offers.filter((o) => !o.isActive);
+  const draftTipCents = Math.round(parseFloat(tipInput || 0) * 100);
+  const canSendTip = editingTip && !savingTip && !isNaN(draftTipCents) && draftTipCents >= 0 && draftTipCents !== tipCents;
 
   return (
     <div className="p-4 pb-28 space-y-4">
@@ -848,21 +882,40 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
                 </div>
               )}
               {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
-                <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                <div className="flex justify-between items-start gap-3 pt-2 border-t border-[var(--gray-100)]">
                   <span className="text-xs text-[var(--gray-500)]">Tip</span>
                   {editingTip ? (
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-[var(--gray-400)]">$</span>
-                      <input
-                        type="number" min="0" step="0.01"
-                        value={tipInput}
-                        onChange={(e) => setTipInput(e.target.value)}
-                        onBlur={handleSaveTip}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
-                        autoFocus
-                        disabled={savingTip}
-                        className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                      />
+                    <div className="flex flex-col items-end gap-2">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-[var(--gray-400)]">$</span>
+                        <input
+                          type="number" min="0" step="0.01"
+                          value={tipInput}
+                          onChange={(e) => setTipInput(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Escape") handleCancelTip(); }}
+                          autoFocus
+                          disabled={savingTip}
+                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleCancelTip}
+                          disabled={savingTip}
+                          className="px-2.5 py-1.5 rounded-lg border border-[var(--gray-200)] text-[11px] font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveTip}
+                          disabled={!canSendTip}
+                          className="px-2.5 py-1.5 rounded-lg bg-[var(--violet-600)] text-[11px] font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+                        >
+                          {savingTip ? "Sending..." : "Send Revised Tip"}
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <button
@@ -889,7 +942,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
 
       {/* Cost preview — cash pending */}
       {isPending && activeOffer?.proposalType === "cash" && (
-        <CostPreviewCard offer={activeOffer} tipCents={tipCents} />
+        <CostPreviewCard offer={activeOffer} tipCents={tipCents} collectTax={inquiryCollectTax(inquiry)} />
       )}
 
       {/* Accepted → pay */}
@@ -1004,6 +1057,9 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
               <div>
                 <p className="text-[10px] text-[var(--gray-400)]">Event</p>
                 <p className="text-xs font-semibold text-[var(--gray-700)]">{inquiry.event.name}</p>
+                {(inquiry.event.startDate || inquiry.event.start_date) && (
+                  <p className="text-[10px] text-[var(--gray-500)] mt-0.5">{fmtEventDate(inquiry.event.startDate || inquiry.event.start_date, inquiry.event.endDate || inquiry.event.end_date)}</p>
+                )}
               </div>
             </div>
           )}
@@ -1118,9 +1174,12 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   }
 
   async function handleSaveTip() {
-    setEditingTip(false);
     const newCents = Math.round(parseFloat(tipInput || 0) * 100);
-    if (isNaN(newCents) || newCents < 0 || newCents === tipCents) return;
+    if (isNaN(newCents) || newCents < 0) return;
+    if (newCents === tipCents) {
+      setEditingTip(false);
+      return;
+    }
     setSavingTip(true);
     setActionError(null);
     try {
@@ -1128,11 +1187,17 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
       if (result?.requiresVendorReview) {
         setActionError("Tip updated. The vendor needs to review it and send a new offer before you can accept.");
       }
+      setEditingTip(false);
     } catch (err) {
       setActionError(err.message ?? "Failed to update tip.");
     } finally {
       setSavingTip(false);
     }
+  }
+
+  function handleCancelTip() {
+    setTipInput(tipCents > 0 ? (tipCents / 100).toFixed(2) : "");
+    setEditingTip(false);
   }
 
   async function handleSendRequest() {
@@ -1153,6 +1218,8 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
   }
 
   const previousOffers = offers.filter((o) => !o.isActive);
+  const draftTipCents = Math.round(parseFloat(tipInput || 0) * 100);
+  const canSendTip = editingTip && !savingTip && !isNaN(draftTipCents) && draftTipCents >= 0 && draftTipCents !== tipCents;
 
   return (
     <div className="hidden lg:flex flex-col w-80 xl:w-96 flex-shrink-0 border-l border-[var(--gray-100)] overflow-y-auto bg-white">
@@ -1273,21 +1340,40 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                   </div>
                 )}
                 {activeOffer.proposalType === "cash" && (!inquiry?.marketplaceBooking || inquiry?.marketplaceBooking?.paymentStatus === "pending") && (
-                  <div className="flex justify-between items-center pt-2 border-t border-[var(--gray-100)]">
+                  <div className="flex justify-between items-start gap-3 pt-2 border-t border-[var(--gray-100)]">
                     <span className="text-xs text-[var(--gray-500)]">Tip</span>
                     {editingTip ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-xs text-[var(--gray-400)]">$</span>
-                        <input
-                          type="number" min="0" step="0.01"
-                          value={tipInput}
-                          onChange={(e) => setTipInput(e.target.value)}
-                          onBlur={handleSaveTip}
-                          onKeyDown={(e) => { if (e.key === "Enter") handleSaveTip(); if (e.key === "Escape") setEditingTip(false); }}
-                          autoFocus
-                          disabled={savingTip}
-                          className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="flex items-center gap-1">
+                          <span className="text-xs text-[var(--gray-400)]">$</span>
+                          <input
+                            type="number" min="0" step="0.01"
+                            value={tipInput}
+                            onChange={(e) => setTipInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Escape") handleCancelTip(); }}
+                            autoFocus
+                            disabled={savingTip}
+                            className="w-20 text-base sm:text-xs text-right px-2 py-1 rounded-lg border border-[var(--violet-300)] bg-white outline-none focus:ring-1 focus:ring-[var(--violet-100)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleCancelTip}
+                            disabled={savingTip}
+                            className="px-2.5 py-1.5 rounded-lg border border-[var(--gray-200)] text-[11px] font-semibold text-[var(--gray-500)] hover:bg-[var(--gray-50)] transition-colors disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleSaveTip}
+                            disabled={!canSendTip}
+                            className="px-2.5 py-1.5 rounded-lg bg-[var(--violet-600)] text-[11px] font-semibold text-white hover:bg-[var(--violet-700)] transition-colors disabled:opacity-40"
+                          >
+                            {savingTip ? "Sending..." : "Send Revised Tip"}
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
@@ -1350,7 +1436,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
 
         {/* Cost preview */}
         {isPending && activeOffer?.proposalType === "cash" && (
-          <CostPreviewCard offer={activeOffer} tipCents={tipCents} />
+          <CostPreviewCard offer={activeOffer} tipCents={tipCents} collectTax={inquiryCollectTax(inquiry)} />
         )}
 
         {/* Pending offer actions */}
@@ -1429,6 +1515,9 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                 <div>
                   <p className="text-[10px] text-[var(--gray-400)]">Event</p>
                   <p className="text-xs font-semibold text-[var(--gray-700)]">{inquiry.event.name}</p>
+                  {(inquiry.event.startDate || inquiry.event.start_date) && (
+                    <p className="text-[10px] text-[var(--gray-500)] mt-0.5">{fmtEventDate(inquiry.event.startDate || inquiry.event.start_date, inquiry.event.endDate || inquiry.event.end_date)}</p>
+                  )}
                 </div>
               </div>
             )}
@@ -1451,10 +1540,12 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                         <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
                         <span className="text-[var(--gray-700)]">{formatPrice(mpCoordFee(inquiry.budgetCents))}</span>
                       </div>
-                      <div className="flex justify-between text-[10px]">
-                        <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-                        <span className="text-[var(--gray-700)]">{formatPrice(mpTax(inquiry.budgetCents))}</span>
-                      </div>
+                      {mpTax(inquiry.budgetCents, inquiryCollectTax(inquiry)) > 0 && (
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+                          <span className="text-[var(--gray-700)]">{formatPrice(mpTax(inquiry.budgetCents, inquiryCollectTax(inquiry)))}</span>
+                        </div>
+                      )}
                       {(inquiry.tipCents ?? 0) > 0 && (
                         <div className="flex justify-between text-[10px]">
                           <span className="text-[var(--violet-600)]">Tip</span>
@@ -1464,7 +1555,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
                     </div>
                     <div className="flex justify-between text-[10px] font-bold pt-1 border-t border-[var(--violet-200)]">
                       <span className="text-[var(--violet-800)]">Est. total</span>
-                      <span className="text-[var(--violet-900)]">~{formatPrice(mpGrossTotal(inquiry.budgetCents, inquiry.tipCents ?? 0))}</span>
+                      <span className="text-[var(--violet-900)]">~{formatPrice(mpChargeTotal(inquiry.budgetCents, inquiry.tipCents ?? 0, inquiryCollectTax(inquiry)))}</span>
                     </div>
                   </div>
                 </div>

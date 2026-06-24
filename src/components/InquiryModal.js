@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createInquiry } from "../services/inquiries";
+import { marketplaceBreakdown } from "../utils/marketplacePricing";
 
 
 
@@ -79,20 +80,7 @@ const INDOOR_OUTDOOR = [{ value: "indoor", label: "Indoor" }, { value: "outdoor"
 
 // ─── Fee estimate helpers (mirrors MarketplacePricing) ───────────────────────
 
-const FEE_TAX_RATE     = 0.0825;
-const FEE_COORD_RATE   = 0.10;
-const FEE_STRIPE_RATE  = 0.029;
-const FEE_STRIPE_FIXED = 30; // cents
-
 function _feeBase(dollars)   { return Math.round(Number(dollars) * 100); }
-function _feeTax(base)        { return Math.round(base * FEE_TAX_RATE); }
-function _feeCoord(base)      { return Math.round(base * FEE_COORD_RATE); }
-function _feePreStripe(base)  { return base + _feeTax(base) + _feeCoord(base); }
-function _feeGrossTotal(base) {
-  const pre = _feePreStripe(base);
-  return Math.ceil((pre + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE));
-}
-function _feeStripe(base) { return _feeGrossTotal(base) - _feePreStripe(base); }
 
 function _fmt(cents) {
   return new Intl.NumberFormat("en-US", {
@@ -101,16 +89,19 @@ function _fmt(cents) {
   }).format(cents / 100);
 }
 
-function BudgetFeeEstimate({ budgetDollars }) {
+function BudgetFeeEstimate({ budgetDollars, tipDollars, collectTax = true }) {
   const base = _feeBase(budgetDollars);
   if (!base || base <= 0) return null;
+  const tip = _feeBase(tipDollars) || 0;
+  const pricing = marketplaceBreakdown(base, tip, collectTax);
+
   return (
     <div className="rounded-[var(--radius-lg)] bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
       <div className="px-3.5 py-2 border-b border-[var(--violet-100)] flex items-center gap-1.5">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated vendor payout if vendor matches your budget</p>
+        <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">Estimated amount you pay if vendor matches your budget</p>
       </div>
       <div className="px-3.5 py-2.5 space-y-1">
         <div className="flex justify-between text-[11px]">
@@ -119,19 +110,23 @@ function BudgetFeeEstimate({ budgetDollars }) {
         </div>
         <div className="flex justify-between text-[11px]">
           <span className="text-[var(--violet-600)]">VEHNDR fee (10%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">− {_fmt(_feeCoord(base))}</span>
+          <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(pricing.coordinatorFeeCents)}</span>
         </div>
-        <div className="flex justify-between text-[11px]">
-          <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
-          <span className="font-semibold text-[var(--gray-800)]">− {_fmt(_feeTax(base))}</span>
-        </div>
-        <div className="flex justify-between text-[11px]">
-          <span className="text-[var(--violet-600)]">Processing fee (Stripe)</span>
-          <span className="font-semibold text-[var(--gray-800)]">− {_fmt(_feeStripe(base))}</span>
-        </div>
+        {pricing.taxCents > 0 && (
+          <div className="flex justify-between text-[11px]">
+            <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+            <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(pricing.taxCents)}</span>
+          </div>
+        )}
+        {tip > 0 && (
+          <div className="flex justify-between text-[11px]">
+            <span className="text-[var(--violet-600)]">Tip</span>
+            <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(tip)}</span>
+          </div>
+        )}
         <div className="flex justify-between text-[11px] font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
-          <span className="text-[var(--violet-900)]">Vendor receives</span>
-          <span className="text-[var(--violet-900)]">~{_fmt(base - _feeCoord(base) - _feeTax(base) - _feeStripe(base))}</span>
+          <span className="text-[var(--violet-900)]">You pay</span>
+          <span className="text-[var(--violet-900)]">~{_fmt(pricing.totalChargeCents)}</span>
         </div>
       </div>
     </div>
@@ -600,7 +595,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                       </p>
                     </div>
                     {fields.budget && Number(fields.budget) > 0 && (
-                      <BudgetFeeEstimate budgetDollars={fields.budget} />
+                      <BudgetFeeEstimate budgetDollars={fields.budget} tipDollars={fields.tip} collectTax={vendor?.collectTax !== false} />
                     )}
                   </div>
 

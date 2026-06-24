@@ -6,9 +6,16 @@ import Link from "next/link";
 import { useAuth } from "../../../../contexts/AuthContext";
 import { getInquiry, deleteInquiry } from "../../../../services/inquiries";
 import { getEvent } from "../../../../services/events";
+import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
 import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
 import TipSelector from "../../../../components/TipSelector";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
+import CancellationRequestBanner from "../../../../components/CancellationRequestBanner";
+import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
+import {
+  WALLET_FIRST_PAYMENT_METHOD_ORDER,
+  WALLET_PAYMENT_ELEMENT_OPTIONS,
+} from "../../../../utils/stripePaymentOptions";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
 
@@ -60,20 +67,6 @@ const BADGE = {
   gray:   "bg-[var(--gray-100)]  text-[var(--gray-500)]   ring-1 ring-[var(--gray-200)]",
 };
 
-// ─── Fee helpers (matches MarketplacePricing) ────────────────────────────────
-
-const VEHNDR_FEE_RATE   = 0.10;
-const STRIPE_FEE_RATE   = 0.029;
-const STRIPE_FEE_FIXED  = 30; // cents
-const TAX_RATE          = 0.0825;
-
-function calcVehndrFee(base)       { return Math.round(base * VEHNDR_FEE_RATE); }
-function calcStripeFee(total)      { return Math.round(total * STRIPE_FEE_RATE) + STRIPE_FEE_FIXED; }
-function calcTaxFee(base)          { return Math.round(base * TAX_RATE); }
-function calcVendorPayout(base, tip = 0) {
-  return base + tip - calcVehndrFee(base) - calcStripeFee(base + tip) - calcTaxFee(base);
-}
-
 const fmtC = (c) => new Intl.NumberFormat("en-US", {
   style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(c / 100);
@@ -90,6 +83,11 @@ function formatLoadTime(stored) {
   if (!m) return stored;
   const d = new Date(m[1] + "T00:00:00");
   return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} at ${m[2]}`;
+}
+
+function isCoordinatorPaysOffer(offer, coordinatorType) {
+  return offer?.proposalType === "cash" ||
+    (coordinatorType === "hiring_vendor" && offer?.proposalType !== "product" && offer?.proposalType !== "both");
 }
 
 // ─── Proposal details card (pre-offer) ────────────────────────────────────────
@@ -158,14 +156,16 @@ function ProposalDetailsCard({ budgetCents, tipCents, coordinatorType, vendorLoa
 
 // ─── Pricing card (post-offer) ────────────────────────────────────────────────
 
-function PricingCard({ offer, tipCents, booking }) {
+function PricingCard({ offer, tipCents, booking, coordinatorType, collectTax = true }) {
   const [youPayOpen, setYouPayOpen] = useState(false);
 
   const base         = offer.totalPriceCents;
   const committedTip = tipCents ?? 0;
   const extraTip     = Math.max(0, (booking?.tipCents ?? 0) - committedTip);
   const totalTip     = committedTip + extraTip;
-  const total        = base + totalTip;
+  const isCash       = isCoordinatorPaysOffer(offer, coordinatorType);
+  const pricing      = marketplaceBreakdown(base, totalTip, collectTax);
+  const total        = isCash ? pricing.totalChargeCents : base + totalTip;
 
   const ChevronIcon = ({ open }) => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -201,6 +201,20 @@ function PricingCard({ offer, tipCents, booking }) {
               <span className="text-[var(--gray-500)]">Base service</span>
               <span className="font-medium text-[var(--gray-800)]">{fmtC(base)}</span>
             </div>
+            {isCash && (
+              <>
+                <div className="flex justify-between text-sm">
+                  <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.coordinatorFeeCents)}</span>
+                </div>
+                {pricing.taxCents > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                    <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.taxCents)}</span>
+                  </div>
+                )}
+              </>
+            )}
             {committedTip > 0 && (
               <div className="flex justify-between text-sm">
                 <span className="text-[var(--gray-500)]">Tip</span>
@@ -231,6 +245,61 @@ function PricingCard({ offer, tipCents, booking }) {
   );
 }
 
+// ─── EC earnings card (charges_fees: vendor pays booth fee) ──────────────────
+
+function ECEarningsCard({ offer }) {
+  // Mirrors the backend `MarketplacePricing.breakdown` used by create_vendor_payment_intent:
+  // the vendor is charged base + service fee (10%) + tax; the EC receives base − VEHNDR
+  // fee (10%) − Stripe processing fee (deducted via the Connect application fee).
+  const pricing = marketplaceBreakdown(offer.totalPriceCents);
+
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden animate-spring-up" style={{ boxShadow: "var(--shadow-card)" }}>
+      <div className="h-1.5 w-full" style={{ background: "var(--gradient-organizer)" }} />
+      <div className="px-4 sm:px-6 py-4 border-b border-[var(--gray-100)]">
+        <h3 className="font-semibold text-[var(--gray-900)] text-[15px]">Your Earnings</h3>
+      </div>
+
+      <div className="px-4 sm:px-6 py-5">
+        <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1">You receive</p>
+        <p className="text-[40px] font-bold leading-none tracking-tight" style={{ color: "var(--mint-700)" }}>
+          {fmtC(pricing.recipientPayoutCents)}
+        </p>
+
+        {/* What lands in the EC's account */}
+        <div className="mt-5 pt-4 border-t border-[var(--gray-100)]">
+          <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-2.5">Your payout</p>
+          <div className="space-y-2.5">
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Vending fee</span>
+              <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.subtotalCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
+              <span className="font-medium text-red-400">−{fmtC(pricing.recipientFeeCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-[var(--gray-500)]">Processing fee</span>
+              <span className="font-medium text-red-400">−{fmtC(pricing.stripeFeeCents)}</span>
+            </div>
+            <div className="flex justify-between text-sm pt-2.5 border-t border-[var(--gray-100)]">
+              <span className="font-semibold text-[var(--gray-700)]">You receive</span>
+              <span className="font-bold" style={{ color: "var(--mint-700)" }}>{fmtC(pricing.recipientPayoutCents)}</span>
+            </div>
+          </div>
+        </div>
+
+        {offer.description && (
+          <div className="mt-4 pt-4 border-t border-[var(--gray-100)]">
+            <p className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-widest mb-1.5">Note from vendor</p>
+            <p className="text-sm text-[var(--gray-600)] leading-relaxed whitespace-pre-wrap">{offer.description}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function fmt(raw, opts = { month: "long", day: "numeric", year: "numeric" }) {
@@ -247,8 +316,8 @@ function fmtDateTime(raw) {
 }
 
 function formatPrice(cents) {
-  if (!cents) return "$0";
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+  if (!cents) return "$0.00";
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 function YesNo({ value }) {
@@ -436,7 +505,7 @@ function TipStripeForm({ amountCents, onSuccess, onError }) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <PaymentElement onReady={() => setReady(true)} />
+      <PaymentElement onReady={() => setReady(true)} options={WALLET_PAYMENT_ELEMENT_OPTIONS} />
       {error && <p className="text-sm text-red-600">{error}</p>}
       <button
         type="submit"
@@ -537,6 +606,8 @@ function TipModal({ booking, inquiry, onClose, onTipPaid }) {
                   options={{
                     clientSecret: intentData.clientSecret,
                     appearance: { theme: "stripe", variables: { colorPrimary: "#7c3aed", borderRadius: "12px", fontFamily: "inherit" } },
+                    loader: "auto",
+                    paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER,
                   }}
                 >
                   <TipStripeForm
@@ -601,6 +672,7 @@ export default function ProposalDetailPage() {
   const [deleteError, setDeleteError] = useState(null);
   const [showTipModal, setShowTipModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [stripeReady, setStripeReady] = useState(null); // null=loading, true=ready, false=needs onboarding
 
   async function refreshInquiry() {
     try {
@@ -622,6 +694,12 @@ export default function ProposalDetailPage() {
             setEvent(evt);
           } catch { /* ignore */ }
         }
+        getCoordinatorStripeAccount()
+          .then((res) => {
+            const needsOnboarding = !res?.connected || !!res?.needsOnboarding;
+            setStripeReady(!needsOnboarding);
+          })
+          .catch(() => setStripeReady(false));
       })
       .catch(() => setError("Proposal not found."))
       .finally(() => setLoading(false));
@@ -656,15 +734,19 @@ export default function ProposalDetailPage() {
   const isPaid    = activeOffer?.paymentStatus === "deposit_paid" || activeOffer?.paymentStatus === "fully_paid" || status === "scheduled";
   const canEdit   = !activeOffer && !isPaid && status !== "scheduled" && status !== "completed" && status !== "expired";
   const booking          = inquiry.marketplaceBooking;
-  const isCash           = activeOffer?.proposalType === "cash";
+  const depositPaid       = booking?.paymentStatus === "deposit_paid";
+  const remainingBalanceDue = depositPaid && (activeOffer?.remainingBalanceCents ?? 0) > 0 && !isCancelled;
+  const isCash           = isCoordinatorPaysOffer(activeOffer, coordinatorType);
   const displayTip       = displayTipCents(inquiry);
   const hasPostPaymentTip = (booking?.tipCents ?? 0) > (tipCents ?? 0);
   const canTip           = isPaid && isCash && !!booking && !hasPostPaymentTip && !isCancelled;
   // Deletable only until the vendor views it; cancellable once viewed (any non-terminal state).
   const TERMINAL_STATUSES = ["completed", "expired", "vendor_declined", "cancelled"];
   const canDelete = status === "submitted" && !isCancelled;
-  const canCancel = !canDelete && !isCancelled && !TERMINAL_STATUSES.includes(status);
-  const cancelLabel = booking ? "Cancel Booking" : "Cancel Proposal";
+  // A booked cancellation is a two-party request; hide the trigger while one is pending.
+  const cancelPending = booking?.cancellationState === "requested";
+  const canCancel = !canDelete && !isCancelled && !cancelPending && !TERMINAL_STATUSES.includes(status);
+  const cancelLabel = booking ? "Request Cancellation" : "Cancel Proposal";
 
   async function handleDelete() {
     setDeleting(true);
@@ -773,6 +855,18 @@ export default function ProposalDetailPage() {
                   <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
                 </svg>
                 Complete Payment
+              </Link>
+            )}
+
+            {remainingBalanceDue && (
+              <Link
+                href={`/messages/${inquiry.id}/checkout`}
+                className="flex items-center justify-center gap-2 h-10 px-4 rounded-xl bg-gradient-to-r from-[var(--mint-500)] to-[var(--mint-600)] text-white text-sm font-semibold hover:shadow-md transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>
+                </svg>
+                Pay Remaining Balance — {formatPrice(activeOffer.remainingBalanceCents)}
               </Link>
             )}
 
@@ -896,6 +990,16 @@ export default function ProposalDetailPage() {
         />
       )}
 
+      {/* ── Cancellation request banner (pending / declined) ── */}
+      {!isCancelled && (
+        <CancellationRequestBanner
+          inquiry={inquiry}
+          booking={booking}
+          role="coordinator"
+          onChange={refreshInquiry}
+        />
+      )}
+
       {/* ── Cancelled banner ── */}
       {isCancelled && (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3.5 flex items-start gap-3">
@@ -911,9 +1015,37 @@ export default function ProposalDetailPage() {
         </div>
       )}
 
+      {/* ── Stripe onboarding banner ── */}
+      {stripeReady === false && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 flex items-start gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">Stripe payout account required</p>
+            <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+              To collect vending fees from vendors, you need to complete Stripe onboarding. Fees won&apos;t be paid out until your account is connected.
+            </p>
+            <Link
+              href="/buyer-dashboard/payments"
+              className="mt-3 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg bg-amber-600 text-white text-xs font-semibold hover:bg-amber-700 transition-colors"
+            >
+              Complete Stripe Setup
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* ── Pricing summary ── */}
-      {activeOffer?.proposalType === "cash" && activeOffer?.totalPriceCents > 0 ? (
-        <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} />
+      {activeOffer?.totalPriceCents > 0 ? (
+        activeOffer.proposalType === "product" ? (
+          <ECEarningsCard offer={activeOffer} />
+        ) : (
+          <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} collectTax={vendor?.collectTax !== false} />
+        )
       ) : (budgetCents > 0 || tipCents > 0 || coordinatorType || event?.vendorLoadIn || event?.vendorLoadOut) && (
         <ProposalDetailsCard
           budgetCents={budgetCents}

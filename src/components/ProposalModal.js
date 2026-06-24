@@ -293,14 +293,17 @@ function ChooseStep({ myEvents, loadingEvents, selectedEvent, onSelect, onCreate
   const fmt = (raw) => {
     if (!raw) return null;
     try {
-      return new Date(raw).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      const d = new Date(raw.includes("T") ? raw : raw + "T00:00:00");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     } catch { return null; }
   };
 
   const fmtDateRange = (start, end) => {
     const s = fmt(start);
     if (!s || !end) return s;
-    if (new Date(start).toDateString() === new Date(end).toDateString()) return s;
+    const sd = new Date(start.includes("T") ? start : start + "T00:00:00");
+    const ed = new Date(end.includes("T") ? end : end + "T00:00:00");
+    if (sd.toDateString() === ed.toDateString()) return s;
     return `${s} – ${fmt(end)}`;
   };
 

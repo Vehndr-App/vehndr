@@ -7,6 +7,7 @@ import { loadStripe } from '@stripe/stripe-js';
 import { Elements } from '@stripe/react-stripe-js';
 import PaymentForm from '../../../components/PaymentForm';
 import TipSelector from '../../../components/TipSelector';
+import { WALLET_FIRST_PAYMENT_METHOD_ORDER } from '../../../utils/stripePaymentOptions';
 
 const stripePublishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 const stripePromise = stripePublishableKey ? loadStripe(stripePublishableKey) : null;
@@ -309,7 +310,7 @@ function POSCheckoutContent() {
                   }
                 },
                 loader: 'auto',
-                paymentMethodOrder: ['apple_pay', 'google_pay', 'card']
+                paymentMethodOrder: WALLET_FIRST_PAYMENT_METHOD_ORDER
               }}
             >
               <PaymentForm

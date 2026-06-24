@@ -60,3 +60,7 @@ export async function updateInquiryTip(id, tipCents) {
     body: { tip_cents: tipCents },
   });
 }
+
+export async function requestFinalPayment(id) {
+  return api(`/api/inquiries/${id}/request_final_payment`, { method: "POST" });
+}

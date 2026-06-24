@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../../services/inquiries";
 import CancelBookingModal from "../../../components/CancelBookingModal";
+import { marketplaceChargeTotalCents, marketplaceRecipientPayoutCents } from "../../../utils/marketplacePricing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -63,16 +64,6 @@ function matchTab(inq, tab) {
   return true;
 }
 
-// ─── Fee helpers ──────────────────────────────────────────────────────────────
-
-const FEE_TAX_RATE     = 0.0825;
-const FEE_COORD_RATE   = 0.10;
-const FEE_STRIPE_RATE  = 0.029;
-const FEE_STRIPE_FIXED = 30;
-
-function feePreStripe(base, tip = 0)  { return base + Math.round(base * FEE_TAX_RATE) + Math.round(base * FEE_COORD_RATE) + tip; }
-function feeGrossTotal(base, tip = 0) { return Math.ceil((feePreStripe(base, tip) + FEE_STRIPE_FIXED) / (1 - FEE_STRIPE_RATE)); }
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(raw) {
@@ -82,7 +73,7 @@ function formatDate(raw) {
 
 function formatPrice(cents) {
   if (!cents) return null;
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 0 }).format(cents / 100);
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -124,8 +115,16 @@ function ProposalCard({ inquiry, onDelete, onCancel }) {
 
   const tip   = inquiry.tipCents ?? 0;
   const color = hasOffer ? "coral" : isBooked ? "mint" : meta.color;
+  // cash → what the EC pays (incl. fees + tax); product → what the EC nets after fees
+  // (V pays the EC); both/free → the bare amount.
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
-    ? formatPrice(offer.totalPriceCents + tip)
+    ? formatPrice(
+        offer.proposalType === "cash"
+          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip, inquiry.vendor?.collectTax !== false)
+          : offer.proposalType === "product"
+            ? marketplaceRecipientPayoutCents(offer.totalPriceCents)
+            : offer.totalPriceCents + tip
+      )
     : null;
 
   return (
