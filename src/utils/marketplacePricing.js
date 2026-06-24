@@ -17,8 +17,13 @@ export function marketplaceRecipientFeeCents(baseCents) {
   return Math.round(baseCents * MARKETPLACE_RECIPIENT_FEE_RATE);
 }
 
+// Tax is charged on the budget plus the payer (VEHNDR platform) fee.
+export function marketplaceTaxableBaseCents(baseCents) {
+  return baseCents + marketplacePayerFeeCents(baseCents);
+}
+
 export function marketplaceChargeTotalCents(baseCents, tipCents = 0, collectTax = true) {
-  return baseCents + marketplaceTaxCents(baseCents, collectTax) + marketplacePayerFeeCents(baseCents) + tipCents;
+  return baseCents + marketplaceTaxCents(marketplaceTaxableBaseCents(baseCents), collectTax) + marketplacePayerFeeCents(baseCents) + tipCents;
 }
 
 export function marketplaceStripeFeeCents(totalChargeCents) {
@@ -37,7 +42,7 @@ export function marketplaceRecipientPayoutCents(baseCents, tipCents = 0, collect
 }
 
 export function marketplaceBreakdown(baseCents, tipCents = 0, collectTax = true) {
-  const taxCents = marketplaceTaxCents(baseCents, collectTax);
+  const taxCents = marketplaceTaxCents(marketplaceTaxableBaseCents(baseCents), collectTax);
   const payerFeeCents = marketplacePayerFeeCents(baseCents);
   const recipientFeeCents = marketplaceRecipientFeeCents(baseCents);
   const totalChargeCents = marketplaceChargeTotalCents(baseCents, tipCents, collectTax);
