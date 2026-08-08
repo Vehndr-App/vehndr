@@ -165,6 +165,7 @@ function getLaunchPalette(darkMode) {
 
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null);
+  const [paymentVolumeData, setPaymentVolumeData] = useState([]);
   const [revenueData, setRevenueData] = useState([]);
   const [userGrowthData, setUserGrowthData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -199,12 +200,14 @@ export default function AdminDashboardPage() {
       isFetchingRef.current = true;
       if (!silent) setLoading(true);
 
-      const [statsRes, revenueRes, userGrowthRes] = await Promise.all([
+      const [statsRes, paymentVolumeRes, revenueRes, userGrowthRes] = await Promise.all([
         api("/api/admin/stats"),
+        api(`/api/admin/payment_volume_over_time?period=${period}`),
         api(`/api/admin/revenue_over_time?period=${period}`),
         api(`/api/admin/user_growth?period=${period}`),
       ]);
       setStats(statsRes);
+      setPaymentVolumeData(paymentVolumeRes.data || []);
       setRevenueData(revenueRes.data || []);
       setUserGrowthData(userGrowthRes.data || []);
       setError(null);
@@ -306,6 +309,7 @@ export default function AdminDashboardPage() {
           period={period}
           setPeriod={setPeriod}
           stats={stats}
+          paymentVolumeData={paymentVolumeData}
           revenueData={revenueData}
           userGrowthData={userGrowthData}
           roleData={roleData}
@@ -353,6 +357,7 @@ function OverviewDashboard({
   period,
   setPeriod,
   stats,
+  paymentVolumeData,
   revenueData,
   userGrowthData,
   roleData,
@@ -377,23 +382,26 @@ function OverviewDashboard({
         ))}
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="@container grid grid-cols-3 @[1164px]:grid-cols-5 gap-4 mb-6">
         <StatCard
-          title="Total Revenue"
-          value={`$${stats?.revenue?.total?.toLocaleString(undefined, {
+          title="Payment Volume"
+          value={`$${stats?.revenue?.paymentVolume?.total?.toLocaleString(undefined, {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           }) || "0.00"}`}
-          subtitle={`$${stats?.revenue?.thisMonth?.toFixed(2) || "0.00"} this month`}
+          subtitle={`$${stats?.revenue?.paymentVolume?.thisMonth?.toFixed(2) || "0.00"} this month`}
           icon={<DollarIcon />}
           color="violet"
         />
         <StatCard
-          title="Total Users"
-          value={stats?.users?.total?.toLocaleString() || "0"}
-          subtitle={`${stats?.users?.newThisMonth || 0} new this month`}
-          icon={<UsersIcon />}
-          color="cyan"
+          title="Revenue"
+          value={`$${stats?.revenue?.revenue?.total?.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }) || "0.00"}`}
+          subtitle={`$${stats?.revenue?.revenue?.thisMonth?.toFixed(2) || "0.00"} this month`}
+          icon={<DollarIcon />}
+          color="emerald"
         />
         <StatCard
           title="Total Orders"
@@ -401,6 +409,13 @@ function OverviewDashboard({
           subtitle={`${stats?.orders?.thisMonth || 0} this month`}
           icon={<OrdersIcon />}
           color="amber"
+        />
+        <StatCard
+          title="Total Users"
+          value={stats?.users?.total?.toLocaleString() || "0"}
+          subtitle={`${stats?.users?.newThisMonth || 0} new this month`}
+          icon={<UsersIcon />}
+          color="cyan"
         />
         <StatCard
           title="Active Vendors"
@@ -414,13 +429,13 @@ function OverviewDashboard({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
           <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
-            Revenue Over Time
+            Payment Volume Over Time
           </h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
+              <AreaChart data={paymentVolumeData}>
                 <defs>
-                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id="colorPaymentVolume" x1="0" y1="0" x2="0" y2="1">
                     <stop
                       offset="5%"
                       stopColor="var(--violet-500)"
@@ -444,7 +459,7 @@ function OverviewDashboard({
                 />
                 <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
                 <Tooltip
-                  formatter={(value) => [`$${value.toFixed(2)}`, "Revenue"]}
+                  formatter={(value) => [`$${value.toFixed(2)}`, "Payment Volume"]}
                   labelFormatter={(label) =>
                     new Date(label).toLocaleDateString()
                   }
@@ -455,13 +470,65 @@ function OverviewDashboard({
                   stroke="var(--violet-500)"
                   strokeWidth={2}
                   fillOpacity={1}
-                  fill="url(#colorRevenue)"
+                  fill="url(#colorPaymentVolume)"
                 />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
+        <div className="bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
+          <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
+            Revenue Over Time
+          </h3>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={revenueData}>
+                <defs>
+                  <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor="var(--emerald-500)"
+                      stopOpacity={0.3}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="var(--emerald-500)"
+                      stopOpacity={0}
+                    />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--gray-200)" />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(v) => {
+                    const d = new Date(v);
+                    return `${d.getMonth() + 1}/${d.getDate()}`;
+                  }}
+                />
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `$${v}`} />
+                <Tooltip
+                  formatter={(value) => [`$${value.toFixed(2)}`, "Revenue"]}
+                  labelFormatter={(label) =>
+                    new Date(label).toLocaleDateString()
+                  }
+                />
+                <Area
+                  type="monotone"
+                  dataKey="revenue"
+                  stroke="var(--emerald-500)"
+                  strokeWidth={2}
+                  fillOpacity={1}
+                  fill="url(#colorRevenue)"
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
           <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
             User Growth
@@ -505,9 +572,7 @@ function OverviewDashboard({
             </ResponsiveContainer>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <div className="bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
           <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
             Users by Role
@@ -565,16 +630,16 @@ function OverviewDashboard({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
           <h3 className="text-lg font-semibold text-[var(--foreground)] mb-4">
-            Revenue Breakdown
+            Payment Volume & Revenue
           </h3>
           <div className="space-y-4">
             <StatRow
-              label="Total Revenue"
-              value={`$${stats?.revenue?.total?.toFixed(2) || "0.00"}`}
+              label="Total Payment Volume"
+              value={`$${stats?.revenue?.paymentVolume?.total?.toFixed(2) || "0.00"}`}
             />
             <StatRow
-              label="Platform Fees"
-              value={`$${stats?.revenue?.platformFees?.toFixed(2) || "0.00"}`}
+              label="Revenue (platform fees)"
+              value={`$${stats?.revenue?.revenue?.total?.toFixed(2) || "0.00"}`}
             />
             <StatRow
               label="Total Refunds"
@@ -583,7 +648,7 @@ function OverviewDashboard({
             />
             <StatRow
               label="Avg Order Value"
-              value={`$${stats?.revenue?.averageOrder?.toFixed(2) || "0.00"}`}
+              value={`$${stats?.revenue?.paymentVolume?.averageOrder?.toFixed(2) || "0.00"}`}
             />
           </div>
         </div>
@@ -1043,7 +1108,7 @@ function StatCard({ title, value, subtitle, icon, color }) {
   };
 
   return (
-    <div className="bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
+    <div className="min-w-0 bg-white rounded-xl border border-[var(--gray-200)] p-4 md:p-6">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-[var(--gray-500)]">{title}</p>
