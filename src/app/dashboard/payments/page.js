@@ -6,6 +6,7 @@ import { api } from "../../../services/api";
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import StripeConnectButton from "../../../components/StripeConnectButton";
+import TaxJurisdictionSettings from "../../../components/TaxJurisdictionSettings";
 
 export default function PaymentsPage() {
   return (
@@ -70,16 +71,24 @@ function PaymentsInner() {
     }
   };
 
-  const updateTaxCollection = async (enabled) => {
+  const patchVendorTaxSettings = async (updates) => {
     if (!user?.vendorId || taxSaving) return;
 
     const previousProfile = vendorProfile;
-    setVendorProfile((prev) => ({ ...(prev || {}), collectTax: enabled }));
+    setVendorProfile((prev) => ({ ...(prev || {}), ...updates }));
     setTaxSaving(true);
 
     try {
       const formData = new FormData();
-      formData.append("vendor[collect_tax]", enabled ? "true" : "false");
+      if (updates.collectTax !== undefined) {
+        formData.append("vendor[collect_tax]", updates.collectTax ? "true" : "false");
+      }
+      if (updates.salesTaxState !== undefined) {
+        formData.append("vendor[sales_tax_state]", updates.salesTaxState || "tx");
+      }
+      if (updates.salesTaxCity !== undefined) {
+        formData.append("vendor[sales_tax_city]", updates.salesTaxCity || "phoenix");
+      }
 
       const response = await api(`/api/vendors/${user.vendorId}`, {
         method: "PATCH",
@@ -87,12 +96,16 @@ function PaymentsInner() {
       });
       setVendorProfile(response.vendor || response);
     } catch (err) {
-      console.error("Failed to update tax collection", err);
+      console.error("Failed to update tax settings", err);
       setVendorProfile(previousProfile);
-      alert("Failed to update tax collection. Please try again.");
+      alert("Failed to update tax settings. Please try again.");
     } finally {
       setTaxSaving(false);
     }
+  };
+
+  const updateTaxCollection = async (enabled) => {
+    await patchVendorTaxSettings({ collectTax: enabled });
   };
 
   useEffect(() => {
@@ -216,6 +229,20 @@ function PaymentsInner() {
                   />
                 </button>
               </div>
+            </div>
+            <div className="mt-5 pt-5 border-t border-[var(--gray-100)]">
+              <TaxJurisdictionSettings
+                salesTaxState={vendorProfile?.salesTaxState || "tx"}
+                salesTaxCity={vendorProfile?.salesTaxCity || "phoenix"}
+                disabled={!vendorProfile || taxSaving}
+                onSalesTaxStateChange={(value) =>
+                  patchVendorTaxSettings({
+                    salesTaxState: value,
+                    salesTaxCity: value === "az" ? (vendorProfile?.salesTaxCity || "phoenix") : undefined,
+                  })
+                }
+                onSalesTaxCityChange={(value) => patchVendorTaxSettings({ salesTaxCity: value })}
+              />
             </div>
           </div>
 

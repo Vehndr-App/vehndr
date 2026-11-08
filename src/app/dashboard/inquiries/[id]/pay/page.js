@@ -7,6 +7,7 @@ import AuthGate from "../../../../../components/AuthGate";
 import { getInquiry } from "../../../../../services/inquiries";
 import { createVendorPaymentIntent, confirmVendorPayment } from "../../../../../services/checkout";
 import { vendorBoothBreakdown } from "../../../../../utils/marketplacePricing";
+import { formatSalesTaxLabel, taxVendorFromInquiry, vendorTaxOptions } from "../../../../../utils/salesTaxRates";
 import {
   WALLET_FIRST_PAYMENT_METHOD_ORDER,
   WALLET_PAYMENT_ELEMENT_OPTIONS,
@@ -167,7 +168,9 @@ function VendorPayInner() {
   const [intentLoading, setIntentLoading] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const activeOffer = inquiry?.activeOffer;
-  const boothPricing = activeOffer ? vendorBoothBreakdown(activeOffer.totalPriceCents) : null;
+  const taxVendor = taxVendorFromInquiry(inquiry);
+  const { collectTax, taxRate } = vendorTaxOptions(taxVendor);
+  const boothPricing = activeOffer ? vendorBoothBreakdown(activeOffer.totalPriceCents, collectTax, taxRate) : null;
   const estimatedTotalCents = boothPricing?.totalCents ?? null;
 
   useEffect(() => {
@@ -274,7 +277,7 @@ function VendorPayInner() {
                     <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.vehndrFeeCents)}</span>
                   </div>
                   <div className="flex justify-between text-xs">
-                    <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                    <span className="text-[var(--gray-500)]">{formatSalesTaxLabel(taxVendor)}</span>
                     <span className="font-semibold text-[var(--gray-800)]">{formatPrice(boothPricing.taxCents)}</span>
                   </div>
                   <div className="flex justify-between text-xs">

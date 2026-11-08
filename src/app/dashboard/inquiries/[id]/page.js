@@ -9,6 +9,7 @@ import CancellationRequestBanner from "../../../../components/CancellationReques
 import { getInquiry, declineInquiry, requestFinalPayment } from "../../../../services/inquiries";
 import { listOffers, createOffer, withdrawOffer } from "../../../../services/offers";
 import { marketplaceBreakdown, vendorBoothBreakdown } from "../../../../utils/marketplacePricing";
+import { formatSalesTaxLabel, taxVendorFromInquiry, vendorTaxOptions } from "../../../../utils/salesTaxRates";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -164,7 +165,7 @@ function HeroCard({
   withdrawing, handleWithdrawOffer,
   canCancel, onCancel,
   canRequestFinalPayment, finalPaymentRequested, requestingFinalPayment, onRequestFinalPayment,
-  id, collectTax = true,
+  id, collectTax = true, taxRate,
 }) {
   const statusLabel = isCancelled ? "Cancelled"
     : isVendorDeclined ? "Declined"
@@ -234,7 +235,7 @@ function HeroCard({
           {coordinatorType === "hiring_vendor" && budgetCents > 0 && !needsVendorPay && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-[var(--gray-400)] uppercase tracking-wider">You&apos;d receive</span>
-              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents, collectTax).vendorPayoutCents)}</span>
+              <span className="text-[15px] font-bold text-[var(--gray-900)]">{fmt$(marketplaceBreakdown(budgetCents, tipCents, collectTax, taxRate).vendorPayoutCents)}</span>
             </div>
           )}
           {coordinatorType === "charges_fees" && vendingFeeCents > 0 && (
@@ -550,10 +551,10 @@ function MessageCard({ customer, initialMessage }) {
 
 // ─── Price breakdown (cash offers) ───────────────────────────────────────────
 
-function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, collectTax = true }) {
+function CashBreakdown({ totalPriceCents, tipCents = 0, defaultOpen = false, collectTax = true, taxRate }) {
   const [open, setOpen] = useState(defaultOpen);
 
-  const pricing   = marketplaceBreakdown(totalPriceCents, tipCents, collectTax);
+  const pricing   = marketplaceBreakdown(totalPriceCents, tipCents, collectTax, taxRate);
   const vehndrFee = pricing.vendorFeeCents;
   const stripeFee = pricing.stripeFeeCents;
   const payout    = pricing.vendorPayoutCents;
@@ -797,9 +798,9 @@ function OfferHistory({ offers }) {
 
 // ─── Earnings card ────────────────────────────────────────────────────────────
 
-function EarningsCard({ offer, tipCents = 0, collectTax = true }) {
+function EarningsCard({ offer, tipCents = 0, collectTax = true, taxRate }) {
   const total      = offer.totalPriceCents ?? 0;
-  const pricing    = marketplaceBreakdown(total, tipCents, collectTax);
+  const pricing    = marketplaceBreakdown(total, tipCents, collectTax, taxRate);
   const vehndrFee  = pricing.vendorFeeCents;
   const stripeFee  = pricing.stripeFeeCents;
   const tax        = pricing.taxCents;
@@ -947,7 +948,8 @@ function VendorInquiryDetailInner() {
     tipCents: proposalTipCents,
     submittedAt, marketplaceBooking,
   } = inquiry;
-  const collectTax = inquiry.collectTax !== false;
+  const taxVendor = taxVendorFromInquiry(inquiry);
+  const { collectTax, taxRate } = vendorTaxOptions(taxVendor);
 
   const bookingTipCents  = displayTipCents(inquiry);
   const offerAccepted    = activeOffer?.status === "accepted";
@@ -1067,7 +1069,7 @@ function VendorInquiryDetailInner() {
           finalPaymentRequested={finalPaymentRequested}
           requestingFinalPayment={requestingFinalPayment}
           onRequestFinalPayment={handleRequestFinalPayment}
-          id={id} collectTax={collectTax}
+          id={id} collectTax={collectTax} taxRate={taxRate}
         />
 
         {/* 2a. Earnings confirmed card — after offer is accepted/booked */}
@@ -1076,6 +1078,7 @@ function VendorInquiryDetailInner() {
             offer={displayOffer}
             tipCents={bookingTipCents}
             collectTax={collectTax}
+            taxRate={taxRate}
           />
         )}
 
@@ -1095,7 +1098,7 @@ function VendorInquiryDetailInner() {
                     : `Based on the coordinator's proposed budget of ${fmt$(amountCents)}`}
                 </p>
               </div>
-              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} collectTax={collectTax} />
+              <CashBreakdown totalPriceCents={amountCents} tipCents={proposalTipCents ?? 0} defaultOpen={true} collectTax={collectTax} taxRate={taxRate} />
             </Card>
           );
         })()}
@@ -1106,7 +1109,7 @@ function VendorInquiryDetailInner() {
             ? activeOffer.totalPriceCents
             : (vendingFeeCents ?? 0);
           if (!baseCents) return null;
-          const boothPricing = vendorBoothBreakdown(baseCents);
+          const boothPricing = vendorBoothBreakdown(baseCents, collectTax, taxRate);
           return (
             <Card>
               <div className="px-5 py-3.5 border-b border-[var(--gray-100)]">
@@ -1127,7 +1130,7 @@ function VendorInquiryDetailInner() {
                   <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.vehndrFeeCents)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
+                  <span className="text-[var(--gray-500)]">{formatSalesTaxLabel(taxVendor)}</span>
                   <span className="font-medium text-[var(--gray-800)]">{fmt$(boothPricing.taxCents)}</span>
                 </div>
                 <div className="flex justify-between text-sm">

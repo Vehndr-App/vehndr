@@ -13,6 +13,8 @@ import {
 } from "../../constants/categories";
 import { getStorefrontPath } from "../../utils/storefrontLinks";
 import EventStickyBanner from "../../components/EventStickyBanner";
+import MarketplaceComingSoonBadge from "../../components/MarketplaceComingSoonBadge";
+import { isVendorMarketplaceBookable } from "../../utils/vendorMarketplace";
 
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
@@ -269,6 +271,7 @@ function CategorySection({ category, vendors, isFiltered, eventId }) {
 function VendorCard({ vendor, index, eventId }) {
   const hasImage = vendor.heroImage && vendor.heroImage.length > 0;
   const placeholderImage = getVendorPlaceholderImage(vendor.categories, vendor.id);
+  const bookable = isVendorMarketplaceBookable(vendor);
   const storefrontHref = eventId
     ? `${getStorefrontPath(vendor)}?event_id=${eventId}`
     : getStorefrontPath(vendor);
@@ -290,6 +293,12 @@ function VendorCard({ vendor, index, eventId }) {
         
         {/* Favorite button */}
         <FavoriteButton vendorId={vendor.id} className="absolute top-3 left-3 z-10" />
+
+        {!bookable && (
+          <div className="absolute top-3 right-3 z-10">
+            <MarketplaceComingSoonBadge className="bg-white/95 shadow-sm" />
+          </div>
+        )}
 
         {/* Rating Badge */}
         {vendor.rating && (

@@ -10,6 +10,17 @@ export async function createCheckoutSession({ lineItems, vendorId }) {
   });
 }
 
+export async function fetchMarketplaceTaxQuote({ inquiryId, subtotalCents, tipCents = 0 }) {
+  return api("/api/checkout/marketplace_tax_quote", {
+    method: "POST",
+    body: {
+      inquiry_id: inquiryId,
+      subtotal_cents: subtotalCents,
+      tip_cents: tipCents,
+    },
+  });
+}
+
 export async function createMarketplacePaymentIntent({ bookingId, payDeposit, tipCents = 0 }) {
   return api("/api/checkout/marketplace_payment_intent", {
     method: "POST",

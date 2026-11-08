@@ -4,7 +4,15 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
+import { useAuth } from "../../../../contexts/AuthContext";
 import { api } from "../../../../services/api";
+import { US_STATE_OPTIONS } from "../../../../utils/salesTaxRates";
+import {
+  formatEventTaxLocation,
+  parseEventTaxLocation,
+  validateEventTaxAddress,
+} from "../../../../utils/eventTaxAddress";
+import AddressAutocomplete from "../../../../components/AddressAutocomplete";
 import { EVENT_TYPES, VENDOR_CATEGORY_TREE, normalizeEventType, normalizeVendorCategory, normalizeVendorCategories } from "../../../../constants/categories";
 
 const STATUS_OPTIONS = ["draft", "upcoming", "active", "past"];
@@ -58,7 +66,7 @@ function fmtDayLabel(dateStr) {
 
 export default function EventEditPage() {
   return (
-    <AuthGate allowedRoles={["coordinator"]}>
+    <AuthGate allowedRoles={["coordinator", "customer"]}>
       <EventEditInner />
     </AuthGate>
   );
@@ -67,6 +75,7 @@ export default function EventEditPage() {
 function EventEditInner() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -77,6 +86,10 @@ function EventEditInner() {
     name: "",
     description: "",
     location: "",
+    streetAddress: "",
+    eventCity: "",
+    eventState: "tx",
+    eventPostalCode: "",
     startDate: "",
     startTime: "",
     endDate: "",
@@ -101,10 +114,19 @@ function EventEditInner() {
         const startDate = formatDateInput(event.startDate);
         const endDate   = formatDateInput(event.endDate);
 
+        const addr = parseEventTaxLocation({
+          streetAddress: event.streetAddress,
+          location: event.location,
+        });
+
         setFormData({
           name: event.name || "",
           description: event.description || "",
           location: event.location || "",
+          streetAddress: addr.streetAddress || addr.eventCity ? addr.streetAddress : (event.location || ""),
+          eventCity: addr.eventCity,
+          eventState: addr.eventState,
+          eventPostalCode: addr.eventPostalCode,
           startDate,
           startTime: formatTimeInput(event.startDate),
           endDate,
@@ -177,6 +199,13 @@ function EventEditInner() {
     setSaving(true);
     setError(null);
 
+    const addressError = validateEventTaxAddress(formData);
+    if (addressError) {
+      setError(addressError);
+      setSaving(false);
+      return;
+    }
+
     try {
       const isMultiDay = formData.startDate && formData.endDate && formData.startDate !== formData.endDate;
 
@@ -192,10 +221,13 @@ function EventEditInner() {
         vendorLoadOut: d.vendorLoadOut || "",
       }));
 
+      const taxLocation = formatEventTaxLocation(formData);
+
       const payload = {
         name: formData.name,
         description: formData.description,
-        location: formData.location,
+        street_address: formData.streetAddress.trim(),
+        location: taxLocation,
         start_date: buildDateTime(formData.startDate, isMultiDay ? (dailySchedule[0]?.startTime || formData.startTime) : formData.startTime),
         end_date: buildDateTime(formData.endDate, isMultiDay ? (dailySchedule[dailySchedule.length - 1]?.endTime || formData.endTime) : formData.endTime),
         category: formData.category,
@@ -224,7 +256,11 @@ function EventEditInner() {
         body: payload,
       });
 
-      router.push(`/events/${eventId}/dashboard`);
+      const returnPath =
+        user?.role === "customer"
+          ? `/buyer-dashboard/events/${eventId}`
+          : `/events/${eventId}/dashboard`;
+      router.push(returnPath);
     } catch (err) {
       console.error("Failed to update event", err);
       setError(err?.details?.error || err?.details?.errors?.join(", ") || "Failed to update event.");
@@ -258,7 +294,7 @@ function EventEditInner() {
       <div className="bg-white border-b border-[var(--gray-100)]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
           <Link
-            href={`/events/${eventId}/dashboard`}
+            href={user?.role === "customer" ? `/buyer-dashboard/events/${eventId}` : `/events/${eventId}/dashboard`}
             className="inline-flex items-center gap-2 text-sm text-[var(--gray-500)] hover:text-[var(--gray-700)] mb-4"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -300,14 +336,66 @@ function EventEditInner() {
             />
           </div>
 
-          <div>
-            <label className="text-sm font-semibold text-[var(--gray-700)]">Location</label>
-            <input
-              type="text"
-              value={formData.location}
-              onChange={(e) => handleChange("location", e.target.value)}
-              className="input mt-2"
-            />
+          <div className="space-y-4 rounded-xl border border-[var(--violet-100)] bg-[var(--violet-50)]/40 p-4">
+            <div>
+              <p className="text-sm font-semibold text-[var(--gray-800)]">Venue address (for sales tax)</p>
+              <p className="text-xs text-[var(--gray-500)] mt-1">
+                Street, city, state, and ZIP are required for marketplace checkout.
+              </p>
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-[var(--gray-700)]">Street address</label>
+              <AddressAutocomplete
+                value={formData.streetAddress}
+                onChange={(v) => handleChange("streetAddress", v)}
+                onStructuredSelect={(parts) => {
+                  if (parts.streetAddress) handleChange("streetAddress", parts.streetAddress);
+                  if (parts.eventCity) handleChange("eventCity", parts.eventCity);
+                  if (parts.eventState) handleChange("eventState", parts.eventState);
+                  if (parts.eventPostalCode) handleChange("eventPostalCode", parts.eventPostalCode);
+                }}
+                className="mt-2"
+                placeholder="Start typing your street address..."
+              />
+            </div>
+            <div>
+              <label className="text-sm font-semibold text-[var(--gray-700)]">City</label>
+              <input
+                type="text"
+                value={formData.eventCity}
+                onChange={(e) => handleChange("eventCity", e.target.value)}
+                className="input mt-2"
+                required
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-semibold text-[var(--gray-700)]">State</label>
+                <select
+                  value={formData.eventState}
+                  onChange={(e) => handleChange("eventState", e.target.value)}
+                  className="input mt-2"
+                >
+                  {US_STATE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-semibold text-[var(--gray-700)]">ZIP code</label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formData.eventPostalCode}
+                  onChange={(e) => handleChange("eventPostalCode", e.target.value)}
+                  className="input mt-2"
+                  placeholder="78701"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           {/* Event dates */}
@@ -584,7 +672,7 @@ function EventEditInner() {
 
           <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
             <Link
-              href={`/events/${eventId}/dashboard`}
+              href={user?.role === "customer" ? `/buyer-dashboard/events/${eventId}` : `/events/${eventId}/dashboard`}
               className="btn btn-outline px-4"
             >
               Cancel

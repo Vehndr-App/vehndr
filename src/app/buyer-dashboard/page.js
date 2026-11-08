@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../services/inquiries";
 import { marketplaceChargeTotalCents } from "../../utils/marketplacePricing";
+import { vendorTaxOptions } from "../../utils/salesTaxRates";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -122,7 +123,10 @@ function ProposalCard({ inquiry, onDelete }) {
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
     ? formatPrice(
         offer.proposalType === "cash"
-          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip, inquiry.vendor?.collectTax !== false)
+          ? (() => {
+              const { collectTax, taxRate } = vendorTaxOptions(inquiry.vendor);
+              return marketplaceChargeTotalCents(offer.totalPriceCents, tip, collectTax, taxRate);
+            })()
           : offer.totalPriceCents + tip
       )
     : null;

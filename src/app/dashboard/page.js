@@ -8,6 +8,7 @@ import { useVendorOrders } from "../../hooks/useVendorOrders";
 import Link from "next/link";
 import OnboardingResumeCard from "../../components/onboarding/OnboardingResumeCard";
 import { ONBOARDING_SKIP_STORAGE_KEY } from "../../constants/vendorOnboardingSteps";
+import { isVendorMarketplaceBookable, MARKETPLACE_LIVE_REGIONS_LABEL, stateLabelForCode } from "../../utils/vendorMarketplace";
 
 export default function DashboardPage() {
   return (
@@ -73,27 +74,32 @@ function DashboardInner() {
 
   useEffect(() => {
     (async () => {
-      const u = await getCurrentUser();
-      setUser(u);
+      try {
+        const u = await getCurrentUser();
+        setUser(u);
 
-      if (u?.vendorId) {
-        const [, , , onboardingData] = await Promise.all([
-          fetchVendor(u.vendorId),
-          fetchOrders(u.vendorId),
-          fetchAccountStatus(u.vendorId),
-          fetchOnboarding(u.vendorId),
-        ]);
-        if (onboardingData && !onboardingData.isComplete) {
-          const skippedAt =
-            typeof window !== "undefined"
-              ? parseInt(window.localStorage.getItem(ONBOARDING_SKIP_STORAGE_KEY) || "", 10)
-              : NaN;
-          const skippedRecently =
-            Number.isFinite(skippedAt) && Date.now() - skippedAt < 24 * 60 * 60 * 1000;
-          setShowSetupBanner(!skippedRecently);
+        if (u?.vendorId) {
+          const [, , , onboardingData] = await Promise.all([
+            fetchVendor(u.vendorId),
+            fetchOrders(u.vendorId),
+            fetchAccountStatus(u.vendorId),
+            fetchOnboarding(u.vendorId),
+          ]);
+          if (onboardingData && !onboardingData.isComplete) {
+            const skippedAt =
+              typeof window !== "undefined"
+                ? parseInt(window.localStorage.getItem(ONBOARDING_SKIP_STORAGE_KEY) || "", 10)
+                : NaN;
+            const skippedRecently =
+              Number.isFinite(skippedAt) && Date.now() - skippedAt < 24 * 60 * 60 * 1000;
+            setShowSetupBanner(!skippedRecently);
+          }
         }
+      } catch (err) {
+        console.error("Failed to load dashboard", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     })();
   }, [fetchVendor, fetchOrders, fetchAccountStatus, fetchOnboarding]);
 
@@ -381,6 +387,13 @@ function DashboardInner() {
 
       <div className={`px-4 ${isNewVendor ? 'mt-4' : '-mt-6'}`}>
         <div className="max-w-lg mx-auto">
+          {vendor && !isVendorMarketplaceBookable(vendor) && (
+            <div className="mb-4 p-4 rounded-[var(--radius-xl)] border border-amber-200 bg-amber-50 text-sm text-amber-900 leading-relaxed">
+              <strong>{stateLabelForCode(vendor.salesTaxState) ?? "Your state"}</strong> isn&apos;t open for bookings or
+              messages yet (live in {MARKETPLACE_LIVE_REGIONS_LABEL}). Search shows &quot;Coming soon.&quot; We&apos;ll notify
+              you when Vehndr is available there.
+            </div>
+          )}
           <OnboardingResumeCard onboarding={onboarding} className="mb-4" />
         </div>
       </div>

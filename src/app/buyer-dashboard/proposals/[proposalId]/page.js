@@ -7,11 +7,12 @@ import { useAuth } from "../../../../contexts/AuthContext";
 import { getInquiry, deleteInquiry } from "../../../../services/inquiries";
 import { getEvent } from "../../../../services/events";
 import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
-import { addMarketplaceTip, confirmMarketplaceTip } from "../../../../services/checkout";
+import { addMarketplaceTip, confirmMarketplaceTip, fetchMarketplaceTaxQuote } from "../../../../services/checkout";
 import TipSelector from "../../../../components/TipSelector";
 import CancelBookingModal from "../../../../components/CancelBookingModal";
 import CancellationRequestBanner from "../../../../components/CancellationRequestBanner";
 import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
+import { formatSalesTaxLabel, vendorTaxOptions } from "../../../../utils/salesTaxRates";
 import {
   WALLET_FIRST_PAYMENT_METHOD_ORDER,
   WALLET_PAYMENT_ELEMENT_OPTIONS,
@@ -156,16 +157,35 @@ function ProposalDetailsCard({ budgetCents, tipCents, coordinatorType, vendorLoa
 
 // ─── Pricing card (post-offer) ────────────────────────────────────────────────
 
-function PricingCard({ offer, tipCents, booking, coordinatorType, collectTax = true }) {
+function PricingCard({ offer, tipCents, booking, coordinatorType, vendor, inquiryId, taxAddressKey }) {
   const [youPayOpen, setYouPayOpen] = useState(false);
+  const [taxQuote, setTaxQuote] = useState(null);
 
   const base         = offer.totalPriceCents;
   const committedTip = tipCents ?? 0;
   const extraTip     = Math.max(0, (booking?.tipCents ?? 0) - committedTip);
   const totalTip     = committedTip + extraTip;
   const isCash       = isCoordinatorPaysOffer(offer, coordinatorType);
-  const pricing      = marketplaceBreakdown(base, totalTip, collectTax);
-  const total        = isCash ? pricing.totalChargeCents : base + totalTip;
+  const { collectTax, taxRate } = vendorTaxOptions(vendor);
+  const pricing      = marketplaceBreakdown(base, totalTip, collectTax, taxRate);
+  const taxCents     = taxQuote?.taxCents ?? pricing.taxCents;
+  const coordinatorFeeCents = taxQuote?.coordinatorFeeCents ?? pricing.coordinatorFeeCents;
+  const taxSource    = taxQuote?.taxSource;
+  const total        = isCash
+    ? (taxQuote?.amountCents ?? pricing.totalChargeCents)
+    : base + totalTip;
+
+  useEffect(() => {
+    if (!inquiryId || !isCash || !collectTax) {
+      setTaxQuote(null);
+      return;
+    }
+    let cancelled = false;
+    fetchMarketplaceTaxQuote({ inquiryId, subtotalCents: base, tipCents: totalTip })
+      .then((data) => { if (!cancelled) setTaxQuote(data); })
+      .catch(() => { if (!cancelled) setTaxQuote(null); });
+    return () => { cancelled = true; };
+  }, [inquiryId, isCash, collectTax, base, totalTip, taxAddressKey]);
 
   const ChevronIcon = ({ open }) => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
@@ -205,12 +225,18 @@ function PricingCard({ offer, tipCents, booking, coordinatorType, collectTax = t
               <>
                 <div className="flex justify-between text-sm">
                   <span className="text-[var(--gray-500)]">VEHNDR fee (10%)</span>
-                  <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.coordinatorFeeCents)}</span>
+                  <span className="font-medium text-[var(--gray-800)]">{fmtC(coordinatorFeeCents)}</span>
                 </div>
-                {pricing.taxCents > 0 && (
+                {taxCents > 0 && (
                   <div className="flex justify-between text-sm">
-                    <span className="text-[var(--gray-500)]">Tax (8.25%)</span>
-                    <span className="font-medium text-[var(--gray-800)]">{fmtC(pricing.taxCents)}</span>
+                    <span className="text-[var(--gray-500)]">
+                      {formatSalesTaxLabel(vendor, {
+                        taxSource,
+                        taxCents,
+                        taxableBaseCents: base + coordinatorFeeCents,
+                      })}
+                    </span>
+                    <span className="font-medium text-[var(--gray-800)]">{fmtC(taxCents)}</span>
                   </div>
                 )}
               </>
@@ -1044,7 +1070,15 @@ export default function ProposalDetailPage() {
         activeOffer.proposalType === "product" ? (
           <ECEarningsCard offer={activeOffer} />
         ) : (
-          <PricingCard offer={activeOffer} tipCents={tipCents} booking={booking} coordinatorType={coordinatorType} collectTax={vendor?.collectTax !== false} />
+          <PricingCard
+            offer={activeOffer}
+            tipCents={tipCents}
+            booking={booking}
+            coordinatorType={coordinatorType}
+            vendor={vendor}
+            inquiryId={proposalId}
+            taxAddressKey={`${event?.streetAddress ?? inquiry?.event?.streetAddress ?? ""}|${event?.location ?? inquiry?.event?.location ?? ""}`}
+          />
         )
       ) : (budgetCents > 0 || tipCents > 0 || coordinatorType || event?.vendorLoadIn || event?.vendorLoadOut) && (
         <ProposalDetailsCard

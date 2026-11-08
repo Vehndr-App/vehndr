@@ -8,6 +8,9 @@ import { getEvent } from "../../../../services/events";
 import { createInquiry } from "../../../../services/inquiries";
 import { getCoordinatorStripeAccount } from "../../../../services/coordinators";
 import { marketplaceBreakdown } from "../../../../utils/marketplacePricing";
+import { formatSalesTaxLabel, vendorTaxOptions } from "../../../../utils/salesTaxRates";
+import MarketplaceComingSoonPanel from "../../../../components/MarketplaceComingSoonPanel";
+import { isVendorMarketplaceBookable } from "../../../../utils/vendorMarketplace";
 
 
 // ─── Coordinator types ────────────────────────────────────────────────────────
@@ -60,12 +63,13 @@ function formatFee(cents) {
   }).format(cents / 100);
 }
 
-function FeeEstimateCard({ budgetDollars, tipDollars, collectTax = true }) {
+function FeeEstimateCard({ budgetDollars, tipDollars, vendor }) {
   const [open, setOpen] = useState(false);
   const base = feeBase(budgetDollars);
   if (!base || base <= 0) return null;
   const tip    = feeBase(tipDollars) || 0;
-  const pricing = marketplaceBreakdown(base, tip, collectTax);
+  const { collectTax, taxRate } = vendorTaxOptions(vendor);
+  const pricing = marketplaceBreakdown(base, tip, collectTax, taxRate);
   const coordinatorFee = pricing.coordinatorFeeCents;
   const tax       = pricing.taxCents;
   const total     = pricing.totalChargeCents;
@@ -102,7 +106,7 @@ function FeeEstimateCard({ budgetDollars, tipDollars, collectTax = true }) {
           </div>
           {tax > 0 && (
             <div className="flex justify-between text-xs">
-              <span className="text-[var(--violet-700)]">Sales tax (8.25%)</span>
+              <span className="text-[var(--violet-700)]">{formatSalesTaxLabel(vendor)}</span>
               <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tax)}</span>
             </div>
           )}
@@ -301,6 +305,22 @@ function NewProposalPageInner() {
     );
   }
 
+  if (vendor && !isVendorMarketplaceBookable(vendor)) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
+        <Link href={`/store/${vendorId}`} className="text-sm text-[var(--violet-600)] hover:underline mb-4 inline-block">
+          ← Back to storefront
+        </Link>
+        <div className="bg-white rounded-2xl border border-[var(--gray-100)] shadow-sm min-h-[280px] flex flex-col">
+          <MarketplaceComingSoonPanel
+            onClose={() => router.push(`/store/${vendorId}`)}
+            title="Messaging & bookings coming soon"
+          />
+        </div>
+      </div>
+    );
+  }
+
   const vendorInitial = vendor?.name?.charAt(0)?.toUpperCase() ?? "V";
 
   const fmt = (raw) => {
@@ -442,7 +462,7 @@ function NewProposalPageInner() {
                 <p className="text-xs text-[var(--gray-400)] mt-1.5">Helps the vendor tailor their offer to your budget.</p>
               </div>
               {fields.budget && Number(fields.budget) > 0 && (
-                <FeeEstimateCard budgetDollars={fields.budget} tipDollars={fields.tip} collectTax={vendor?.collectTax !== false} />
+                <FeeEstimateCard budgetDollars={fields.budget} tipDollars={fields.tip} vendor={vendor} />
               )}
               <div>
                 <label className="block text-sm font-semibold text-[var(--gray-900)] mb-1.5">

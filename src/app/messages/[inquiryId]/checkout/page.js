@@ -19,7 +19,9 @@ import {
   marketplaceChargeTotalCents,
   marketplacePayerFeeCents,
   marketplaceTaxCents,
+  marketplaceTaxableBaseCents,
 } from "../../../../utils/marketplacePricing";
+import { formatSalesTaxLabel, salesTaxRateForVendor, vendorTaxOptions } from "../../../../utils/salesTaxRates";
 import {
   WALLET_FIRST_PAYMENT_METHOD_ORDER,
   WALLET_PAYMENT_ELEMENT_OPTIONS,
@@ -31,8 +33,12 @@ const stripePromise = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
 
 // ── Fee helpers — payer-facing only (coordinator never sees vendor payout) ────
 function calcBuyerFee(base)          { return marketplacePayerFeeCents(base); }
-function calcTax(base, collectTax = true) { return marketplaceTaxCents(base, collectTax); }
-function calcChargeTotal(base, tip = 0, collectTax = true) { return marketplaceChargeTotalCents(base, tip, collectTax); }
+function calcTax(base, collectTax = true, taxRate) {
+  return marketplaceTaxCents(marketplaceTaxableBaseCents(base), collectTax, taxRate);
+}
+function calcChargeTotal(base, tip = 0, collectTax = true, taxRate) {
+  return marketplaceChargeTotalCents(base, tip, collectTax, taxRate);
+}
 
 function fmt(cents) {
   if (cents == null) return "—";
@@ -296,8 +302,15 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
   const baseCents  = transactionBaseCents ?? offer?.totalPriceCents ?? 0;
   const isCash     = offer?.proposalType === "cash";
   const totalTip   = tipDone ? (currentBooking?.tip_cents ?? currentBooking?.tipCents ?? 0) : (tipCents ?? 0);
-  const collectTax = inquiry?.vendor?.collectTax !== false;
-  const pricing    = marketplaceBreakdown(baseCents, totalTip, collectTax);
+  const taxVendor = {
+    ...(inquiry?.vendor || {}),
+    collectTax: inquiry?.vendor?.collectTax ?? inquiry?.collectTax,
+    salesTaxState: inquiry?.vendor?.salesTaxState ?? inquiry?.salesTaxState,
+    salesTaxCity: inquiry?.vendor?.salesTaxCity ?? inquiry?.salesTaxCity,
+    salesTaxRate: inquiry?.vendor?.salesTaxRate ?? inquiry?.salesTaxRate,
+  };
+  const { collectTax, taxRate } = vendorTaxOptions(taxVendor);
+  const pricing    = marketplaceBreakdown(baseCents, totalTip, collectTax, taxRate);
   const paidNow    = paidCents ?? (isCash ? pricing.totalChargeCents : baseCents + totalTip);
 
   return (
@@ -332,7 +345,7 @@ function ConfirmationScreen({ inquiry, booking, paidCents, isDeposit, tipCents, 
           <ReceiptRow label="Vendor" value={inquiry?.vendor?.name} bold />
           {offer?.totalPriceCents && <ReceiptRow label="Base service" value={fmtExact(baseCents)} />}
           {isCash && <ReceiptRow label="VEHNDR fee (10%)" value={fmtExact(pricing.coordinatorFeeCents)} />}
-          {isCash && pricing.taxCents > 0 && <ReceiptRow label="Tax (8.25%)" value={fmtExact(pricing.taxCents)} />}
+          {isCash && pricing.taxCents > 0 && <ReceiptRow label={formatSalesTaxLabel(taxVendor)} value={fmtExact(pricing.taxCents)} />}
           {totalTip > 0 && <ReceiptRow label="Tip" value={fmtExact(totalTip)} accent />}
           <ReceiptRow label="Paid now" value={fmtExact(paidNow)} green />
           {!fullyPaid && offer?.remainingBalanceCents > 0 && (
@@ -457,7 +470,14 @@ export default function MarketplaceCheckoutPage() {
   const offer           = inquiry?.activeOffer;
   const booking         = inquiry?.marketplaceBooking;
   const isCash          = offer?.proposalType === "cash";
-  const collectTax      = inquiry?.vendor?.collectTax !== false;
+  const taxVendor = {
+    ...(inquiry?.vendor || {}),
+    collectTax: inquiry?.vendor?.collectTax ?? inquiry?.collectTax,
+    salesTaxState: inquiry?.vendor?.salesTaxState ?? inquiry?.salesTaxState,
+    salesTaxCity: inquiry?.vendor?.salesTaxCity ?? inquiry?.salesTaxCity,
+    salesTaxRate: inquiry?.vendor?.salesTaxRate ?? inquiry?.salesTaxRate,
+  };
+  const { collectTax, taxRate } = vendorTaxOptions(taxVendor);
   const depositAvailable = offer?.depositCents > 0 && booking?.paymentStatus === "pending";
   const remainingDue    = booking?.paymentStatus === "deposit_paid" && offer?.remainingBalanceCents > 0;
   const alreadyPaid     = booking?.paymentStatus === "fully_paid";
@@ -468,7 +488,7 @@ export default function MarketplaceCheckoutPage() {
 
   const effectiveTipCents = depositAvailable && payDeposit ? 0 : tipCents;
   const deferredTipCents = depositAvailable && payDeposit ? tipCents : 0;
-  const estimatedChargeTotal = isCash ? calcChargeTotal(baseCents, effectiveTipCents, collectTax) : baseCents + effectiveTipCents;
+  const estimatedChargeTotal = isCash ? calcChargeTotal(baseCents, effectiveTipCents, collectTax, taxRate) : baseCents + effectiveTipCents;
   const payDepositRequest = depositAvailable && payDeposit;
   const intentMatchesSelection = intentData &&
     intentData.bookingId === booking?.id &&
@@ -710,10 +730,17 @@ export default function MarketplaceCheckoutPage() {
                       <span className="text-gray-500">VEHNDR fee (10%)</span>
                       <span className="font-medium text-gray-900">{fmtExact(currentIntentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents))}</span>
                     </div>
-                    {(currentIntentData?.taxCents ?? calcTax(baseCents, collectTax)) > 0 && (
+                    {(currentIntentData?.taxCents ?? calcTax(baseCents, collectTax, taxRate)) > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Tax (8.25%)</span>
-                        <span className="font-medium text-gray-900">{fmtExact(currentIntentData?.taxCents ?? calcTax(baseCents, collectTax))}</span>
+                        <span className="text-gray-500">
+                          {formatSalesTaxLabel(taxVendor, {
+                            taxSource: currentIntentData?.taxSource,
+                            taxCents: currentIntentData?.taxCents ?? calcTax(baseCents, collectTax, taxRate),
+                            taxableBaseCents:
+                              baseCents + (currentIntentData?.coordinatorFeeCents ?? calcBuyerFee(baseCents)),
+                          })}
+                        </span>
+                        <span className="font-medium text-gray-900">{fmtExact(currentIntentData?.taxCents ?? calcTax(baseCents, collectTax, taxRate))}</span>
                       </div>
                     )}
                   </>

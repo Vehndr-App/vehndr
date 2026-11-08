@@ -7,6 +7,7 @@ import { useAuth } from "../../../contexts/AuthContext";
 import { listInquiries, deleteInquiry } from "../../../services/inquiries";
 import CancelBookingModal from "../../../components/CancelBookingModal";
 import { marketplaceChargeTotalCents, marketplaceRecipientPayoutCents } from "../../../utils/marketplacePricing";
+import { vendorTaxOptions } from "../../../utils/salesTaxRates";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -120,7 +121,10 @@ function ProposalCard({ inquiry, onDelete, onCancel }) {
   const price = (hasOffer || isBooked) && offer?.totalPriceCents
     ? formatPrice(
         offer.proposalType === "cash"
-          ? marketplaceChargeTotalCents(offer.totalPriceCents, tip, inquiry.vendor?.collectTax !== false)
+          ? (() => {
+              const { collectTax, taxRate } = vendorTaxOptions(inquiry.vendor);
+              return marketplaceChargeTotalCents(offer.totalPriceCents, tip, collectTax, taxRate);
+            })()
           : offer.proposalType === "product"
             ? marketplaceRecipientPayoutCents(offer.totalPriceCents)
             : offer.totalPriceCents + tip

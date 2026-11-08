@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createInquiry } from "../services/inquiries";
 import { marketplaceBreakdown } from "../utils/marketplacePricing";
+import { formatSalesTaxLabel, vendorTaxOptions } from "../utils/salesTaxRates";
+import MarketplaceComingSoonPanel from "./MarketplaceComingSoonPanel";
+import { isVendorMarketplaceBookable } from "../utils/vendorMarketplace";
 
 
 
@@ -89,11 +92,12 @@ function _fmt(cents) {
   }).format(cents / 100);
 }
 
-function BudgetFeeEstimate({ budgetDollars, tipDollars, collectTax = true }) {
+function BudgetFeeEstimate({ budgetDollars, tipDollars, vendor }) {
   const base = _feeBase(budgetDollars);
   if (!base || base <= 0) return null;
   const tip = _feeBase(tipDollars) || 0;
-  const pricing = marketplaceBreakdown(base, tip, collectTax);
+  const { collectTax, taxRate } = vendorTaxOptions(vendor);
+  const pricing = marketplaceBreakdown(base, tip, collectTax, taxRate);
 
   return (
     <div className="rounded-[var(--radius-lg)] bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
@@ -114,7 +118,7 @@ function BudgetFeeEstimate({ budgetDollars, tipDollars, collectTax = true }) {
         </div>
         {pricing.taxCents > 0 && (
           <div className="flex justify-between text-[11px]">
-            <span className="text-[var(--violet-600)]">Tax (8.25%)</span>
+            <span className="text-[var(--violet-600)]">{formatSalesTaxLabel(vendor)}</span>
             <span className="font-semibold text-[var(--gray-800)]">+ {_fmt(pricing.taxCents)}</span>
           </div>
         )}
@@ -357,6 +361,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
 
   if (!isOpen) return null;
 
+  const marketplaceBookable = isVendorMarketplaceBookable(vendor);
   const vendorInitial = vendor?.name?.charAt(0)?.toUpperCase() || "V";
 
   return (
@@ -389,8 +394,9 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
           </button>
         </div>
 
-        {/* Auth gate */}
-        {needsAuth ? (
+        {!marketplaceBookable ? (
+          <MarketplaceComingSoonPanel onClose={onClose} />
+        ) : needsAuth ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-10 text-center">
             <div className="w-14 h-14 rounded-full bg-[var(--violet-100)] flex items-center justify-center">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -595,7 +601,7 @@ export default function InquiryModal({ vendor, isOpen, onClose, defaultCoordinat
                       </p>
                     </div>
                     {fields.budget && Number(fields.budget) > 0 && (
-                      <BudgetFeeEstimate budgetDollars={fields.budget} tipDollars={fields.tip} collectTax={vendor?.collectTax !== false} />
+                      <BudgetFeeEstimate budgetDollars={fields.budget} tipDollars={fields.tip} vendor={vendor} />
                     )}
                   </div>
 

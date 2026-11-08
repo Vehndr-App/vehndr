@@ -16,6 +16,11 @@ import {
 } from "../../../utils/vendorBookingDisplay";
 import { useAuth } from "../../../contexts/AuthContext";
 import { getEvent } from "../../../services/events";
+import MarketplaceComingSoonBadge from "../../../components/MarketplaceComingSoonBadge";
+import {
+  isVendorMarketplaceBookable,
+  MARKETPLACE_COMING_SOON_BLURB,
+} from "../../../utils/vendorMarketplace";
 
 function clampFocalPoint(value) {
   const numeric = Number(value);
@@ -88,8 +93,10 @@ export default function StorefrontPage() {
   const heroObjectPosition = useMemo(() => getHeroObjectPosition(vendor), [vendor]);
 
   const footerPriceLabel = useMemo(() => getVendorBookingPriceLabel(vendor), [vendor]);
+  const marketplaceBookable = vendor ? isVendorMarketplaceBookable(vendor) : true;
 
   function handleBookClick() {
+    if (!marketplaceBookable) return;
     if (!user) {
       setAuthWallOpen(true);
       return;
@@ -184,6 +191,12 @@ export default function StorefrontPage() {
           </h1>
           {subtitleParts.length > 0 && (
             <p className="text-sm text-[var(--gray-500)] mt-1">{subtitleParts.join(" · ")}</p>
+          )}
+          {!marketplaceBookable && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <MarketplaceComingSoonBadge />
+              <span className="text-xs text-[var(--gray-500)]">{MARKETPLACE_COMING_SOON_BLURB}</span>
+            </div>
           )}
           <div className="flex flex-wrap items-center gap-3 mt-3 text-sm">
             {vendor.rating && (
@@ -322,16 +335,27 @@ export default function StorefrontPage() {
                 {footerPriceLabel}
               </p>
               <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-snug">
-                {preselectedEvent ? "Ready to send your request" : VENDOR_BOOKING_FOOTER_SUBTITLE}
+                {marketplaceBookable
+                  ? (preselectedEvent ? "Ready to send your request" : VENDOR_BOOKING_FOOTER_SUBTITLE)
+                  : "This vendor is not bookable yet in your area"}
               </p>
             </div>
             <button
               type="button"
               onClick={handleBookClick}
-              className="tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold text-white whitespace-nowrap min-w-[140px] sm:min-w-[160px]"
-              style={{ background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }}
+              disabled={!marketplaceBookable}
+              className={`tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold whitespace-nowrap min-w-[140px] sm:min-w-[160px] ${
+                marketplaceBookable
+                  ? "text-white"
+                  : "text-[var(--gray-600)] bg-[var(--gray-100)] cursor-not-allowed"
+              }`}
+              style={
+                marketplaceBookable
+                  ? { background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }
+                  : undefined
+              }
             >
-              Request to Book
+              {marketplaceBookable ? "Request to Book" : "Coming soon"}
             </button>
           </div>
         </div>

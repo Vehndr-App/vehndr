@@ -4,6 +4,10 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { createEvent, getMyEvents } from "../services/events";
 import { api } from "../services/api";
+import { US_STATE_OPTIONS } from "../utils/salesTaxRates";
+import AddressAutocomplete from "./AddressAutocomplete";
+import MarketplaceComingSoonPanel from "./MarketplaceComingSoonPanel";
+import { isVendorMarketplaceBookable } from "../utils/vendorMarketplace";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,6 +58,9 @@ const INITIAL_FORM = {
   name: "",
   description: "",
   streetAddress: "",
+  eventCity: "",
+  eventState: "tx",
+  eventPostalCode: "",
   startDate: "",
   endDate: "",
   isMultiDay: false,
@@ -613,84 +620,6 @@ function Step1({ form, setField, importing, onImport, onNext, onBack, error }) {
   );
 }
 
-// ─── AddressAutocomplete ──────────────────────────────────────────────────────
-
-function AddressAutocomplete({ value, onChange }) {
-  const [suggestions, setSuggestions] = useState([]);
-  const [open, setOpen] = useState(false);
-  const timerRef = useRef(null);
-
-  function handleInput(e) {
-    const v = e.target.value;
-    onChange(v);
-    clearTimeout(timerRef.current);
-    if (v.length < 3) { setSuggestions([]); setOpen(false); return; }
-    timerRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(v)}&addressdetails=1&limit=5&countrycodes=us`,
-          { headers: { "Accept-Language": "en-US" } }
-        );
-        const data = await res.json();
-        const formatted = data.map((item) => {
-          const a = item.address;
-          return [
-            [a.house_number, a.road].filter(Boolean).join(" "),
-            a.city || a.town || a.village || a.county,
-            a.state,
-            a.postcode,
-          ].filter(Boolean).join(", ");
-        }).filter(Boolean);
-        setSuggestions(formatted);
-        setOpen(formatted.length > 0);
-      } catch {
-        setSuggestions([]); setOpen(false);
-      }
-    }, 350);
-  }
-
-  function pick(s) {
-    onChange(s);
-    setSuggestions([]);
-    setOpen(false);
-  }
-
-  return (
-    <div className="relative">
-      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none z-10">
-        {Icons.pin}
-      </span>
-      <input
-        type="text"
-        value={value}
-        onChange={handleInput}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onFocus={() => suggestions.length > 0 && setOpen(true)}
-        placeholder="e.g. 1234 Main St, Los Angeles, CA 90012"
-        className="input pl-9"
-        autoFocus
-        autoComplete="off"
-      />
-      {open && suggestions.length > 0 && (
-        <ul className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl shadow-lg border border-[var(--gray-200)] overflow-hidden max-h-60 overflow-y-auto">
-          {suggestions.map((s, i) => (
-            <li key={i}>
-              <button
-                type="button"
-                onMouseDown={() => pick(s)}
-                className="w-full text-left px-4 py-2.5 text-sm text-[var(--gray-700)] hover:bg-[var(--violet-50)] flex items-start gap-2.5 border-b border-[var(--gray-100)] last:border-0"
-              >
-                <span className="mt-0.5 flex-shrink-0 text-[var(--violet-400)]">{Icons.pin}</span>
-                <span className="leading-snug">{s}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
-
 // ─── Step 2: Address ──────────────────────────────────────────────────────────
 
 function Step2({ form, setField, onNext, onBack, error }) {
@@ -698,13 +627,62 @@ function Step2({ form, setField, onNext, onBack, error }) {
     <>
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
         <div>
-          <FieldLabel required hint="Include street, city, and state so vendors can plan travel and delivery.">
-            Venue address
+          <FieldLabel required hint="Street name and number where the event happens.">
+            Street address
           </FieldLabel>
           <AddressAutocomplete
             value={form.streetAddress}
             onChange={(v) => setField("streetAddress", v)}
+            onStructuredSelect={(parts) => {
+              if (parts.streetAddress) setField("streetAddress", parts.streetAddress);
+              if (parts.eventCity) setField("eventCity", parts.eventCity);
+              if (parts.eventState) setField("eventState", parts.eventState);
+              if (parts.eventPostalCode) setField("eventPostalCode", parts.eventPostalCode);
+            }}
+            autoFocus
+            placeholder="e.g. 1234 Main St, Los Angeles, CA 90012"
           />
+        </div>
+
+        <div>
+          <FieldLabel required hint="Used to calculate sales tax at checkout.">
+            City
+          </FieldLabel>
+          <input
+            type="text"
+            value={form.eventCity}
+            onChange={(e) => setField("eventCity", e.target.value)}
+            placeholder="Austin"
+            className="input"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <FieldLabel required>State</FieldLabel>
+            <select
+              value={form.eventState}
+              onChange={(e) => setField("eventState", e.target.value)}
+              className="input"
+            >
+              {US_STATE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <FieldLabel required>ZIP code</FieldLabel>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={form.eventPostalCode}
+              onChange={(e) => setField("eventPostalCode", e.target.value)}
+              placeholder="78701"
+              className="input"
+            />
+          </div>
         </div>
 
         <ErrorBox message={error} />
@@ -1207,9 +1185,16 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       case 1:
         if (!form.name.trim()) { setError("Event name is required."); return false; }
         return true;
-      case 2:
-        if (!form.streetAddress.trim()) { setError("Please enter your venue address."); return false; }
+      case 2: {
+        if (!form.streetAddress.trim()) { setError("Please enter the street address."); return false; }
+        if (!form.eventCity.trim()) { setError("Please enter the city."); return false; }
+        if (!form.eventState) { setError("Please select the state."); return false; }
+        if (!/^\d{5}(-\d{4})?$/.test(form.eventPostalCode.trim())) {
+          setError("Please enter a valid 5-digit ZIP code.");
+          return false;
+        }
         return true;
+      }
       case 3:
         if (!form.startDate) { setError("Please pick a start date."); return false; }
         if (form.isMultiDay && !form.endDate) { setError("Please pick an end date for your multi-day event."); return false; }
@@ -1268,8 +1253,8 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       const eventRes = await createEvent({
         name: form.name.trim(),
         description: form.description.trim() || null,
-        location: form.streetAddress.trim(),
         street_address: form.streetAddress.trim(),
+        location: `${form.eventCity.trim()}, ${form.eventState.toUpperCase()} ${form.eventPostalCode.trim()}`,
         start_date: `${form.startDate}T${form.startTime}:00`,
         end_date: `${endDate}T${form.endTime}:00`,
         attendees: Number(form.attendees) || 0,
@@ -1294,6 +1279,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
 
   if (!isOpen) return null;
 
+  const marketplaceBookable = isVendorMarketplaceBookable(vendor);
   const vendorInitial = vendor?.name?.charAt(0)?.toUpperCase() || "V";
   const isNumberStep = typeof step === "number";
   const progress = isNumberStep ? step / 5 : 0;
@@ -1361,7 +1347,9 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
 
         {/* Step content (each step owns its own scroll + footer) */}
         <div className="flex flex-col flex-1 min-h-0">
-          {needsAuth ? (
+          {!marketplaceBookable ? (
+            <MarketplaceComingSoonPanel onClose={onClose} />
+          ) : needsAuth ? (
             <AuthState vendor={vendor} onClose={onClose} router={router} />
           ) : step === "choose" ? (
             <ChooseStep

@@ -1,15 +1,19 @@
 /** @type {import('next').NextConfig} */
+const API_PROXY_TARGET =
+  process.env.API_PROXY_TARGET ||
+  "https://vehndr-api-9f3b664fe80f.herokuapp.com";
+
 const nextConfig = {
   compress: true,
   async rewrites() {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:3000/api/:path*",
+        destination: `${API_PROXY_TARGET}/api/:path*`,
       },
       {
         source: "/cable",
-        destination: "http://localhost:3000/cable",
+        destination: `${API_PROXY_TARGET}/cable`,
       },
     ];
   },

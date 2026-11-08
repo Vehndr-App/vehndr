@@ -1,12 +1,14 @@
-export const MARKETPLACE_TAX_RATE = 0.0825;
+import { TEXAS_SALES_TAX_RATE } from "./salesTaxRates";
+
+export const MARKETPLACE_TAX_RATE = TEXAS_SALES_TAX_RATE;
 export const MARKETPLACE_PAYER_FEE_RATE = 0.10;
 export const MARKETPLACE_RECIPIENT_FEE_RATE = 0.10;
 export const STRIPE_FEE_RATE = 0.029;
 export const STRIPE_FEE_FIXED_CENTS = 30;
 
-export function marketplaceTaxCents(baseCents, collectTax = true) {
+export function marketplaceTaxCents(baseCents, collectTax = true, taxRate = TEXAS_SALES_TAX_RATE) {
   if (!collectTax) return 0;
-  return Math.round(baseCents * MARKETPLACE_TAX_RATE);
+  return Math.round(baseCents * taxRate);
 }
 
 export function marketplacePayerFeeCents(baseCents) {
@@ -22,32 +24,52 @@ export function marketplaceTaxableBaseCents(baseCents) {
   return baseCents + marketplacePayerFeeCents(baseCents);
 }
 
-export function marketplaceChargeTotalCents(baseCents, tipCents = 0, collectTax = true) {
-  return baseCents + marketplaceTaxCents(marketplaceTaxableBaseCents(baseCents), collectTax) + marketplacePayerFeeCents(baseCents) + tipCents;
+export function marketplaceChargeTotalCents(
+  baseCents,
+  tipCents = 0,
+  collectTax = true,
+  taxRate = TEXAS_SALES_TAX_RATE
+) {
+  return (
+    baseCents +
+    marketplaceTaxCents(marketplaceTaxableBaseCents(baseCents), collectTax, taxRate) +
+    marketplacePayerFeeCents(baseCents) +
+    tipCents
+  );
 }
 
 export function marketplaceStripeFeeCents(totalChargeCents) {
   return Math.round(totalChargeCents * STRIPE_FEE_RATE + STRIPE_FEE_FIXED_CENTS);
 }
 
-export function marketplaceRecipientPayoutCents(baseCents, tipCents = 0, collectTax = true) {
+export function marketplaceRecipientPayoutCents(
+  baseCents,
+  tipCents = 0,
+  collectTax = true,
+  taxRate = TEXAS_SALES_TAX_RATE
+) {
   const payoutBeforeTip = Math.max(
     baseCents -
       marketplaceRecipientFeeCents(baseCents) -
-      marketplaceStripeFeeCents(marketplaceChargeTotalCents(baseCents, tipCents, collectTax)),
+      marketplaceStripeFeeCents(marketplaceChargeTotalCents(baseCents, tipCents, collectTax, taxRate)),
     0
   );
 
   return payoutBeforeTip + tipCents;
 }
 
-export function marketplaceBreakdown(baseCents, tipCents = 0, collectTax = true) {
-  const taxCents = marketplaceTaxCents(marketplaceTaxableBaseCents(baseCents), collectTax);
+export function marketplaceBreakdown(
+  baseCents,
+  tipCents = 0,
+  collectTax = true,
+  taxRate = TEXAS_SALES_TAX_RATE
+) {
+  const taxCents = marketplaceTaxCents(marketplaceTaxableBaseCents(baseCents), collectTax, taxRate);
   const payerFeeCents = marketplacePayerFeeCents(baseCents);
   const recipientFeeCents = marketplaceRecipientFeeCents(baseCents);
-  const totalChargeCents = marketplaceChargeTotalCents(baseCents, tipCents, collectTax);
+  const totalChargeCents = marketplaceChargeTotalCents(baseCents, tipCents, collectTax, taxRate);
   const stripeFeeCents = marketplaceStripeFeeCents(totalChargeCents);
-  const recipientPayoutCents = marketplaceRecipientPayoutCents(baseCents, tipCents, collectTax);
+  const recipientPayoutCents = marketplaceRecipientPayoutCents(baseCents, tipCents, collectTax, taxRate);
 
   return {
     subtotalCents: baseCents,
@@ -68,14 +90,9 @@ export function marketplaceBreakdown(baseCents, tipCents = 0, collectTax = true)
   };
 }
 
-// Vendor-pays booth fee breakdown (proposal_type "product"): the vendor pays the EC.
-// Mirrors the backend `MarketplacePricing.vendor_breakdown` (see create_vendor_payment_intent)
-// so the figures match the real Stripe charge: the vendor is charged booth fee + VEHNDR fee
-// (10%) + tax (on booth + VEHNDR fee) + Stripe processing fee (on booth + VEHNDR fee + tax);
-// the EC receives the booth fee less the VEHNDR recipient cut (10%).
-export function vendorBoothBreakdown(baseCents) {
+export function vendorBoothBreakdown(baseCents, collectTax = true, taxRate = TEXAS_SALES_TAX_RATE) {
   const vehndrFeeCents = marketplacePayerFeeCents(baseCents);
-  const taxCents = Math.round((baseCents + vehndrFeeCents) * MARKETPLACE_TAX_RATE);
+  const taxCents = collectTax ? Math.round((baseCents + vehndrFeeCents) * taxRate) : 0;
   const stripeFeeCents = marketplaceStripeFeeCents(baseCents + vehndrFeeCents + taxCents);
   const recipientFeeCents = marketplaceRecipientFeeCents(baseCents);
   return {
@@ -83,9 +100,9 @@ export function vendorBoothBreakdown(baseCents) {
     vehndrFeeCents,
     taxCents,
     stripeFeeCents,
-    totalCents:          baseCents + vehndrFeeCents + taxCents + stripeFeeCents,
+    totalCents: baseCents + vehndrFeeCents + taxCents + stripeFeeCents,
     ecRecipientFeeCents: recipientFeeCents,
-    ecPayoutCents:       Math.max(baseCents - recipientFeeCents, 0),
+    ecPayoutCents: Math.max(baseCents - recipientFeeCents, 0),
   };
 }
 

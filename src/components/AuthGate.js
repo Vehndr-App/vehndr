@@ -10,9 +10,15 @@ export default function AuthGate({ children, allowedRoles = ['vendor'] }) {
 
   useEffect(() => {
     (async () => {
-      const u = await getCurrentUser();
-      setUser(u);
-      setLoading(false);
+      try {
+        const u = await getCurrentUser();
+        setUser(u);
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 

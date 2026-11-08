@@ -30,6 +30,12 @@ export function buildVendorFormData(fields = {}) {
   if (fields.collectTax !== undefined) {
     formData.append("vendor[collect_tax]", fields.collectTax ? "true" : "false");
   }
+  if (fields.salesTaxState !== undefined) {
+    formData.append("vendor[sales_tax_state]", fields.salesTaxState || "tx");
+  }
+  if (fields.salesTaxCity !== undefined && (fields.salesTaxState || "tx") === "az") {
+    formData.append("vendor[sales_tax_city]", fields.salesTaxCity || "phoenix");
+  }
 
   if (fields.categories !== undefined) {
     normalizeVendorCategories(fields.categories).forEach((category) => {

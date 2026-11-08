@@ -21,6 +21,8 @@ import SmartImage from "./SmartImage";
 import ImageEditorModal from "./ImageEditorModal";
 import GuidanceModal from "./GuidanceModal";
 import LocationField from "./vendor-profile/LocationField";
+import TaxJurisdictionSettings from "./TaxJurisdictionSettings";
+import { parseUsStateCodeFromLocation } from "../utils/vendorMarketplace";
 import {
   CATEGORY_DISPLAY,
   EVENT_TYPES,
@@ -62,6 +64,8 @@ export default function VendorProfile({ user, onSuccess }) {
     description: '',
     location: '',
     collectTax: true,
+    salesTaxState: "tx",
+    salesTaxCity: "phoenix",
     profileImage: null,           // Profile photo (the actual person)
     profileImageUrl: '',
     heroImage: null,              // Cover photo (business in action)
@@ -141,6 +145,8 @@ export default function VendorProfile({ user, onSuccess }) {
         description: vendorData.description || '',
         location: vendorData.location || '',
         collectTax: vendorData.collectTax !== false,
+        salesTaxState: vendorData.salesTaxState || "tx",
+        salesTaxCity: vendorData.salesTaxCity || "phoenix",
         profileImage: null,
         profileImageUrl: vendorData.profileImage || '',
         heroImage: null,
@@ -206,6 +212,10 @@ export default function VendorProfile({ user, onSuccess }) {
       formDataToSend.append('vendor[description]', formData.description);
       formDataToSend.append('vendor[location]', formData.location);
       formDataToSend.append('vendor[collect_tax]', formData.collectTax ? 'true' : 'false');
+      formDataToSend.append('vendor[sales_tax_state]', formData.salesTaxState || 'tx');
+      if (formData.salesTaxState === 'az') {
+        formDataToSend.append('vendor[sales_tax_city]', formData.salesTaxCity || 'phoenix');
+      }
 
       // Add categories as an array
       normalizeVendorCategories(formData.categories).forEach(category => {
@@ -676,11 +686,35 @@ export default function VendorProfile({ user, onSuccess }) {
             <LocationField
               label="Location"
               value={formData.location}
-              onChange={(location) => setFormData({ ...formData, location })}
+              onChange={(location) => {
+                const inferredState = parseUsStateCodeFromLocation(location);
+                setFormData((prev) => ({
+                  ...prev,
+                  location,
+                  ...(inferredState
+                    ? {
+                        salesTaxState: inferredState,
+                        salesTaxCity: inferredState === "az" ? prev.salesTaxCity || "phoenix" : "phoenix",
+                      }
+                    : {}),
+                }));
+              }}
             />
 
             {/* Tax Setting */}
-            <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--gray-50)] border border-[var(--gray-200)]">
+            <div className="p-4 rounded-[var(--radius-lg)] bg-[var(--gray-50)] border border-[var(--gray-200)] space-y-4">
+              <TaxJurisdictionSettings
+                salesTaxState={formData.salesTaxState}
+                salesTaxCity={formData.salesTaxCity}
+                onSalesTaxStateChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    salesTaxState: value,
+                    salesTaxCity: value === "az" ? (formData.salesTaxCity || "phoenix") : "phoenix",
+                  })
+                }
+                onSalesTaxCityChange={(value) => setFormData({ ...formData, salesTaxCity: value })}
+              />
               <div className="flex items-start gap-3">
                 <input
                   type="checkbox"
