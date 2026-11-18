@@ -145,7 +145,10 @@ export default function VendorProfile({ user, onSuccess }) {
         description: vendorData.description || '',
         location: vendorData.location || '',
         collectTax: vendorData.collectTax !== false,
-        salesTaxState: vendorData.salesTaxState || "tx",
+        salesTaxState:
+          vendorData.salesTaxState ||
+          parseUsStateCodeFromLocation(vendorData.location || "") ||
+          "tx",
         salesTaxCity: vendorData.salesTaxCity || "phoenix",
         profileImage: null,
         profileImageUrl: vendorData.profileImage || '',
