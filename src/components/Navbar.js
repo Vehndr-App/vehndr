@@ -101,17 +101,27 @@ export default function Navbar() {
                 {pageTitle}
               </h1>
             ) : (
-              <Link 
-                href="/" 
-                className="flex items-center gap-2"
-                aria-label="Vehndr home"
-              >
+              <div className="flex items-center gap-2 min-w-0">
+                <Link 
+                  href="/" 
+                  className="flex items-center shrink-0"
+                  aria-label="Vehndr home"
+                >
+                  <span className="font-display text-xl tracking-tight text-gradient-primary">
+                    vehndr
+                  </span>
+                  <span className="sr-only">Vehndr</span>
+                </Link>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <span className="font-display text-xl tracking-tight text-gradient-primary">
-                  vehndr
-                </span>
-                <span className="sr-only">Vehndr</span>
-              </Link>
+                <img
+                  src="/snooki-nav.jpg"
+                  alt="Snooki"
+                  width={32}
+                  height={32}
+                  className="h-8 w-8 rounded-full object-cover border-2 border-[var(--violet-300)] shadow-sm shrink-0"
+                  title="Snooki (CC BY 2.0, Wikimedia Commons)"
+                />
+              </div>
             )}
           </div>
 
