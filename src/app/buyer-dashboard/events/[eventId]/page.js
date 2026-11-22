@@ -232,7 +232,7 @@ export default function EventDetailPage() {
       getEvent(eventId),
       listInquiries().catch(() => []),
     ]).then(([evt, inquiries]) => {
-      setEvent(evt);
+      setEvent(evt?.event ?? evt);
       const forEvent = (inquiries ?? []).filter(
         (inq) => String(inq.event_id ?? inq.event?.id) === String(eventId)
       );
@@ -282,25 +282,25 @@ export default function EventDetailPage() {
 
         {/* Back button */}
         <Link
-          href="/buyer-dashboard/events"
+          href={user?.role === "coordinator" ? "/coordinator-dashboard" : "/buyer-dashboard/events"}
           className="absolute top-4 left-4 w-9 h-9 rounded-full flex items-center justify-center text-white backdrop-blur-sm transition-colors"
           style={{ background: "rgba(255,255,255,0.15)" }}
         >
           {Icon.back}
         </Link>
 
-        {/* Edit + Find Vendors buttons */}
+        {/* Invite + Edit buttons */}
         <div className="absolute top-4 right-4 flex items-center gap-2">
           <Link
-            href={`/vendors?event_id=${event.id}`}
+            href={`/buyer-dashboard/events/${event.id}/invite`}
             className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[var(--violet-700)] text-[12px] font-bold transition-colors shadow-sm"
             style={{ background: "rgba(255,255,255,0.92)" }}
           >
             {Icon.search}
-            {vendors.length > 0 ? "Find Vendors" : "Find Vendors"}
+            Invite vendors
           </Link>
           <Link
-            href={`/events/${eventId}/edit`}
+            href={`/events/${eventId}/edit?returnTo=${encodeURIComponent(`/buyer-dashboard/events/${eventId}`)}`}
             className="flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[var(--gray-700)] text-[12px] font-bold transition-colors shadow-sm"
             style={{ background: "rgba(255,255,255,0.92)" }}
           >
@@ -433,14 +433,12 @@ export default function EventDetailPage() {
               Vendors
               {vendors.length > 0 && <span className="ml-1.5 text-[var(--gray-300)]">({vendors.length})</span>}
             </p>
-            {vendors.length > 0 && (
-              <Link
-                href={`/vendors?event_id=${event.id}`}
-                className="text-[12px] font-semibold text-[var(--violet-600)] flex items-center gap-0.5"
-              >
-                Find more {Icon.arrow}
-              </Link>
-            )}
+            <Link
+              href={`/buyer-dashboard/events/${event.id}/invite`}
+              className="text-[12px] font-semibold text-[var(--violet-600)] flex items-center gap-0.5"
+            >
+              {vendors.length > 0 ? "Invite more" : "Invite vendors"} {Icon.arrow}
+            </Link>
           </div>
 
           {vendors.length === 0 ? (
@@ -451,9 +449,15 @@ export default function EventDetailPage() {
                 </svg>
               </div>
               <p className="text-[14px] font-semibold text-[var(--gray-700)] mb-1">No vendors yet</p>
-              <p className="text-[12px] text-[var(--gray-400)] leading-relaxed">
-                Browse vendors and send a request — this event will be pre-selected.
+              <p className="text-[12px] text-[var(--gray-400)] leading-relaxed mb-4">
+                Invite several vendors at once — they all get this event&apos;s details.
               </p>
+              <Link
+                href={`/buyer-dashboard/events/${event.id}/invite`}
+                className="btn btn-gradient inline-flex text-sm h-10 px-4"
+              >
+                Invite vendors
+              </Link>
             </div>
           ) : (
             <div className="bg-white rounded-2xl px-5" style={{ boxShadow: "var(--shadow-card)" }}>

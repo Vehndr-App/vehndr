@@ -324,7 +324,13 @@ function EventDashboardInner() {
                 </span>
               </div>
 
-              <div className="mb-4">
+              <div className="mb-4 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/buyer-dashboard/events/${event.id}/invite`}
+                  className="btn btn-gradient text-sm"
+                >
+                  Invite vendors
+                </Link>
                 <Link
                   href={`/events/${event.id}/edit`}
                   className="btn btn-ghost text-sm"
@@ -368,16 +374,24 @@ function EventDashboardInner() {
             <section>
               <div className="section-header">
                 <h2 className="text-h3 text-[var(--foreground)]">Vendor Performance</h2>
-                <button
-                  onClick={fetchEventDashboard}
-                  className="btn btn-ghost text-sm"
-                  aria-label="Refresh vendor performance data"
-                >
-                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span className="hidden sm:inline">Refresh</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/buyer-dashboard/events/${event.id}/invite`}
+                    className="btn btn-ghost text-sm text-[var(--violet-600)]"
+                  >
+                    Invite vendors
+                  </Link>
+                  <button
+                    onClick={fetchEventDashboard}
+                    className="btn btn-ghost text-sm"
+                    aria-label="Refresh vendor performance data"
+                  >
+                    <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span className="hidden sm:inline">Refresh</span>
+                  </button>
+                </div>
               </div>
 
               {vendors.length === 0 ? (
@@ -387,7 +401,15 @@ function EventDashboardInner() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                     <h3 className="text-h4 text-[var(--foreground)] mb-2">No Vendors Yet</h3>
-                    <p className="text-sm sm:text-base text-[var(--gray-500)]">Add vendors to this event to start tracking sales</p>
+                    <p className="text-sm sm:text-base text-[var(--gray-500)] mb-4">
+                      Invite several vendors at once — they all get this event&apos;s details.
+                    </p>
+                    <Link
+                      href={`/buyer-dashboard/events/${event.id}/invite`}
+                      className="btn btn-gradient inline-flex text-sm h-10 px-4"
+                    >
+                      Invite vendors
+                    </Link>
                   </div>
                 ) : (
                   <div className="card p-0 divide-y divide-[var(--gray-100)] overflow-hidden">
