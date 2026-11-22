@@ -33,11 +33,14 @@ const metadataDescription =
   "Discover and book the best vendors for your events. Browse storefronts, add to cart, and checkout seamlessly.";
 
 export const metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.vehndr.com"),
   title: metadataTitle,
   description: metadataDescription,
   openGraph: {
     title: metadataTitle,
     description: metadataDescription,
+    siteName: "Vehndr",
+    type: "website",
     images: [
       {
         url: "/Vehndr%20Logo%20Transparent.png",
