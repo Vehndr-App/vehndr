@@ -103,13 +103,13 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
         
         <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-3">
           {mode === "vendors" 
-            ? "Shop or Book Your Favorite Vendors" 
+            ? "Book local vendors for every part of your event" 
             : "Discover amazing events"}
         </h1>
         
         <p className="text-white/80 text-sm sm:text-base max-w-lg mx-auto">
           {mode === "vendors"
-            ? "Shop products, book services, or hire vendors for your next event."
+            ? "Makers, creatives & event vendors — all in one place."
             : "Find events near you, RSVP, and connect with event organizers and vendors."}
         </p>
       </div>
