@@ -7,6 +7,7 @@ import { AuthProvider } from "../contexts/AuthContext";
 import Navbar from "./Navbar";
 
 const ImpersonationBanner = dynamic(() => import("./ImpersonationBanner"), { ssr: false });
+const LivePreviewBanner = dynamic(() => import("./LivePreviewBanner"), { ssr: false });
 const BottomNav = dynamic(() => import("./BottomNav"), { ssr: false });
 const EventBestie = dynamic(() => import("./EventBestie"), { ssr: false });
 const Footer = dynamic(() => import("./Footer"));
@@ -24,6 +25,7 @@ export default function ClientShell({ children }) {
   return (
     <AuthProvider>
       <CartProvider>
+        <LivePreviewBanner />
         <ImpersonationBanner />
         <Navbar />
         <main className={isMessages ? "" : "min-h-screen pb-20"}>{children}</main>

@@ -1,4 +1,9 @@
 import { api } from "./api";
+import {
+  areLiveInquirySendsAllowed,
+  isLocalPreviewTalkingToLiveApi,
+  LiveInquiryBlockedError,
+} from "../utils/liveInquiryGuard";
 
 export async function listInquiries() {
   const res = await api("/api/inquiries");
@@ -11,6 +16,9 @@ export async function getInquiry(id) {
 }
 
 export async function createInquiry(data) {
+  if (isLocalPreviewTalkingToLiveApi() && !areLiveInquirySendsAllowed()) {
+    throw new LiveInquiryBlockedError();
+  }
   return await api("/api/inquiries", {
     method: "POST",
     body: data,
