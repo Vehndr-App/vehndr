@@ -86,9 +86,10 @@ export default function AddressAutocomplete({
   }
 
   function pick(item) {
-    onChange(item.streetAddress || item.display);
+    // Show the full address in the one field; structured parts fill city/state/ZIP behind the scenes.
+    onChange(item.display || item.streetAddress);
     onStructuredSelect?.({
-      streetAddress: item.streetAddress,
+      streetAddress: item.streetAddress || item.display,
       eventCity: item.eventCity,
       eventState: item.eventState,
       eventPostalCode: item.eventPostalCode,

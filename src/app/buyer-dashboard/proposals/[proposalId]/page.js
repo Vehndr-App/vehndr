@@ -37,6 +37,24 @@ const STATUS_STEPS = [
 
 const STATUS_ORDER = STATUS_STEPS.map((s) => s.key);
 
+/** True until the event has real venue logistics (age/COI alone is not enough). */
+function eventDetailsNeedAttention(raw) {
+  const e = raw?.event ?? raw;
+  if (!e?.id) return false;
+  const hasVenueBasics = !!(
+    e.indoorOutdoor || e.indoor_outdoor ||
+    e.accessToPower || e.access_to_power ||
+    e.parkingAvailable || e.parking_available ||
+    e.accessToWater || e.access_to_water ||
+    e.wifiAvailability || e.wifi_availability ||
+    e.canopyAllowed || e.canopy_allowed ||
+    e.securityPresence || e.security_presence ||
+    e.vendorLoadIn || e.vendor_load_in ||
+    e.vendorLoadOut || e.vendor_load_out
+  );
+  return !hasVenueBasics;
+}
+
 const STATUS_LABEL = {
   submitted:      "Proposal Sent",
   viewed:         "Viewed by Vendor",
@@ -714,11 +732,22 @@ export default function ProposalDetailPage() {
     getInquiry(proposalId)
       .then(async (inq) => {
         setInquiry(inq);
-        if (inq?.event?.id) {
+        // Prefer full event from inquiry (when API includes it); otherwise fetch
+        if (inq?.event?.id && (inq.event.indoorOutdoor !== undefined || inq.event.accessToPower !== undefined || inq.event.description !== undefined)) {
+          setEvent(inq.event);
+        } else if (inq?.event?.id) {
           try {
             const evt = await getEvent(inq.event.id);
-            setEvent(evt);
-          } catch { /* ignore */ }
+            const resolved = evt?.event ?? evt;
+            // Ignore mock fallback objects that aren't this event
+            if (resolved?.id && String(resolved.id) === String(inq.event.id)) {
+              setEvent(resolved);
+            } else {
+              setEvent(inq.event);
+            }
+          } catch {
+            setEvent(inq.event);
+          }
         }
         getCoordinatorStripeAccount()
           .then((res) => {
@@ -968,6 +997,31 @@ export default function ProposalDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Finish event details — right under the proposal card so it’s hard to miss ── */}
+      {!isCancelled && eventDetailsNeedAttention(event ?? inquiry?.event) && (
+        <div className="rounded-2xl border border-[var(--violet-200)] bg-[var(--violet-50)] px-4 py-4 flex items-start gap-3">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-[var(--violet-900)]">Finish your event details</p>
+            <p className="text-xs text-[var(--violet-700)] mt-0.5 leading-relaxed">
+              Strongly recommended — power, parking, age group, and similar info help vendors prepare and cut down back-and-forth after booking is confirmed. This reminder stays until those details are added.
+            </p>
+            <Link
+              href={`/events/${(event ?? inquiry?.event).id}/edit?returnTo=${encodeURIComponent(`/buyer-dashboard/proposals/${proposalId}`)}`}
+              className="mt-3 inline-flex items-center gap-1.5 h-8 px-3.5 rounded-lg text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+              style={{ background: "var(--gradient-vendor)" }}
+            >
+              Complete event details
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* ── Delete confirmation modal ── */}
       {showDeleteModal && (

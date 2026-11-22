@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../contexts/AuthContext";
 import { listMessages, sendMessage, updateInquiryTip } from "../../../services/inquiries";
 import { listOffers, createOffer, updateOffer, acceptOffer, declineOffer } from "../../../services/offers";
+import { getEvent } from "../../../services/events";
 import Link from "next/link";
 import {
   marketplaceChargeTotalCents,
@@ -819,7 +820,7 @@ function MobileOfferPanel({ inquiry, inquiryId, offers, fetchMessages, fetchOffe
           <p className="text-xs text-[var(--gray-400)] leading-relaxed max-w-xs mx-auto">
             {offerChangesRequested
               ? "The vendor needs to review the updated tip and send a new offer before you can accept."
-              : "The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply."}
+              : "The vendor will reach out once they've reviewed your proposal. You'll be able to message and receive offers once they reply."}
           </p>
         </div>
       )}
@@ -1277,7 +1278,7 @@ function CustomerSidebar({ inquiry, inquiryId, offers, fetchMessages, fetchOffer
             <p className="text-xs text-[var(--gray-400)] leading-relaxed">
               {offerChangesRequested
                 ? "The vendor needs to review the updated tip and send a new offer before you can accept."
-                : "The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message and receive offers once they reply."}
+                : "The vendor will reach out once they've reviewed your proposal. You'll be able to message and receive offers once they reply."}
             </p>
           </div>
         )}
@@ -1610,6 +1611,7 @@ export default function InquiryThreadPage() {
   const [messages, setMessages] = useState([]);
   const [inquiry,  setInquiry]  = useState(null);
   const [offers,   setOffers]   = useState([]);
+  const [eventDetails, setEventDetails] = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [body,     setBody]     = useState("");
   const [sending,  setSending]  = useState(false);
@@ -1647,6 +1649,14 @@ export default function InquiryThreadPage() {
     if (!user) { router.push("/login"); return; }
     Promise.all([fetchMessages(true), fetchOffers()]).finally(() => setLoading(false));
   }, [user, router, fetchMessages, fetchOffers]);
+
+  useEffect(() => {
+    const eventId = inquiry?.event?.id;
+    if (!eventId) { setEventDetails(null); return; }
+    getEvent(eventId)
+      .then((res) => setEventDetails(res?.event ?? res))
+      .catch(() => setEventDetails(null));
+  }, [inquiry?.event?.id]);
 
   useEffect(() => {
     pollRef.current = setInterval(() => fetchMessages(false), 4000);
@@ -1800,6 +1810,36 @@ export default function InquiryThreadPage() {
 
         {/* Customer: status timeline */}
         {!isVendor && inquiry && <StatusTimeline inquiry={inquiry} />}
+
+        {/* Customer: always remind until event details are filled */}
+        {!isVendor && eventDetails?.id && (() => {
+          const e = eventDetails;
+          const noLogistics = !e.indoorOutdoor && !e.accessToPower && !e.accessToWater
+            && !e.parkingAvailable && !e.canopyAllowed && !e.wifiAvailability
+            && !e.securityPresence && !e.vendorLoadIn && !e.vendorLoadOut;
+          const noDesc = !e.description?.trim();
+          const defaultAge = !e.ageGroup || e.ageGroup === "All Ages";
+          const sparse = noLogistics && noDesc && defaultAge && !e.requiresCoi;
+          if (!sparse) return null;
+          return (
+            <div className="px-4 pb-3">
+              <div className="rounded-xl border border-[var(--violet-200)] bg-[var(--violet-50)] px-3.5 py-3 flex items-start gap-2.5">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-[var(--violet-900)]">Finish your event details</p>
+                  <p className="text-[11px] text-[var(--violet-700)] mt-0.5 leading-relaxed">
+                    Strongly recommended — more info helps vendors reply faster and cuts back-and-forth after booking.
+                  </p>
+                  <Link
+                    href={`/events/${e.id}/edit?returnTo=${encodeURIComponent(`/messages/${inquiryId}`)}`}
+                    className="inline-flex mt-2 text-[11px] font-semibold text-[var(--violet-700)] underline underline-offset-2"
+                  >
+                    Complete event details
+                  </Link>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Body ── */}
@@ -1815,42 +1855,18 @@ export default function InquiryThreadPage() {
                 <div className="flex justify-center py-16">
                   <div className="w-7 h-7 border-2 border-[var(--violet-400)] border-t-transparent rounded-full animate-spin" />
                 </div>
-              ) : messages.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="w-12 h-12 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ background: "var(--gradient-browse)" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm font-semibold text-[var(--gray-700)]">
-                    {isVendor ? "No messages yet" : "Proposal sent"}
-                  </p>
-                  {isVendor && (
-                    <p className="text-xs text-[var(--gray-400)] mt-1">Start the conversation below.</p>
-                  )}
-                </div>
               ) : (
-                messages.map((msg, i) => {
-                  const isOwn = isVendor
-                    ? msg.senderType === "vendor"
-                    : msg.senderId === user?.id || msg.senderType === "customer";
-
-                  const showTime = shouldShowTimestamp(messages, i);
-                  const isOfferContextMessage =
-                    activeOffer && msg.senderType === "vendor" && i === messages.length - 2;
-
-                  return (
-                    <div key={msg.id}>
-                      {showTime && (
-                        <div className="flex justify-center my-4">
-                          <span className="text-[10px] text-[var(--gray-400)] font-medium px-3 py-1 bg-[var(--gray-100)] rounded-full tracking-wide">
-                            {formatTime(msg.createdAt)}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className={`flex items-end gap-2 mb-0.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-                        {!isOwn && (
+                <>
+                  {/* Initial proposal message (stored on inquiry, not always a chat row) */}
+                  {inquiry?.initialMessage && !messages.some((m) => m.body === inquiry.initialMessage) && (
+                    <div>
+                      <div className="flex justify-center my-4">
+                        <span className="text-[10px] text-[var(--gray-400)] font-medium px-3 py-1 bg-[var(--gray-100)] rounded-full tracking-wide">
+                          {inquiry.submittedAt ? formatTime(inquiry.submittedAt) : "Proposal"}
+                        </span>
+                      </div>
+                      <div className={`flex items-end gap-2 mb-0.5 ${isVendor ? "flex-row" : "flex-row-reverse"}`}>
+                        {isVendor && (
                           <div
                             className="w-7 h-7 rounded-2xl flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mb-0.5 select-none"
                             style={{ background: "var(--gradient-vendor)", boxShadow: "0 2px 6px rgba(139,92,246,0.2)" }}
@@ -1858,30 +1874,115 @@ export default function InquiryThreadPage() {
                             {otherPartyInitial}
                           </div>
                         )}
-
-                        <div
-                          className={`max-w-[78%] px-4 py-3 text-[14px] leading-relaxed ${
-                            isOwn
-                              ? "text-white rounded-[18px] rounded-br-[4px]"
-                              : "bg-white text-[var(--gray-800)] border border-[var(--gray-100)] rounded-[18px] rounded-bl-[4px]"
-                          } ${msg.optimistic ? "opacity-50" : ""}`}
-                          style={isOwn
-                            ? { background: "var(--gradient-vendor)", boxShadow: "0 2px 10px rgba(139,92,246,0.28)" }
-                            : { boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }
-                          }
-                        >
-                          {msg.body}
+                        <div className="max-w-[78%] space-y-1">
+                          <p className={`text-[10px] font-semibold uppercase tracking-wider ${isVendor ? "text-[var(--gray-400)]" : "text-right text-[var(--violet-300)]"}`}>
+                            Proposal
+                          </p>
+                          <div
+                            className={`px-4 py-3 text-[14px] leading-relaxed ${
+                              isVendor
+                                ? "bg-white text-[var(--gray-800)] border border-[var(--gray-100)] rounded-[18px] rounded-bl-[4px]"
+                                : "text-white rounded-[18px] rounded-br-[4px]"
+                            }`}
+                            style={isVendor
+                              ? { boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }
+                              : { background: "var(--gradient-vendor)", boxShadow: "0 2px 10px rgba(139,92,246,0.28)" }
+                            }
+                          >
+                            {inquiry.initialMessage}
+                          </div>
                         </div>
                       </div>
+                    </div>
+                  )}
 
-                      {isOfferContextMessage && activeOffer && (
-                        <div className="ml-9">
-                          <OfferCard offer={activeOffer} />
-                        </div>
+                  {messages.length === 0 && !inquiry?.initialMessage && (
+                    <div className="text-center py-16">
+                      <div className="w-12 h-12 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ background: "var(--gradient-browse)" }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-500)" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-sm font-semibold text-[var(--gray-700)]">
+                        {isVendor ? "No messages yet" : "Proposal sent"}
+                      </p>
+                      {isVendor ? (
+                        <p className="text-xs text-[var(--gray-400)] mt-1">Start the conversation below.</p>
+                      ) : (
+                        <p className="text-xs text-[var(--gray-400)] mt-2 leading-relaxed max-w-xs mx-auto">
+                          The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message once they reply.
+                        </p>
                       )}
                     </div>
-                  );
-                })
+                  )}
+
+                  {messages.length === 0 && inquiry?.initialMessage && !isVendor && (
+                    <div className="text-center py-8 px-4">
+                      <p className="text-xs text-[var(--gray-400)] leading-relaxed max-w-xs mx-auto">
+                        The vendor will reach out once they&apos;ve reviewed your proposal. You&apos;ll be able to message once they reply.
+                      </p>
+                    </div>
+                  )}
+
+                  {messages.length === 0 && inquiry?.initialMessage && isVendor && (
+                    <div className="text-center py-6 px-4">
+                      <p className="text-xs text-[var(--gray-400)]">Reply below to start the conversation.</p>
+                    </div>
+                  )}
+
+                  {messages.map((msg, i) => {
+                    const isOwn = isVendor
+                      ? msg.senderType === "vendor"
+                      : msg.senderId === user?.id || msg.senderType === "customer";
+
+                    const showTime = shouldShowTimestamp(messages, i);
+                    const isOfferContextMessage =
+                      activeOffer && msg.senderType === "vendor" && i === messages.length - 2;
+
+                    return (
+                      <div key={msg.id}>
+                        {showTime && (
+                          <div className="flex justify-center my-4">
+                            <span className="text-[10px] text-[var(--gray-400)] font-medium px-3 py-1 bg-[var(--gray-100)] rounded-full tracking-wide">
+                              {formatTime(msg.createdAt)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className={`flex items-end gap-2 mb-0.5 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                          {!isOwn && (
+                            <div
+                              className="w-7 h-7 rounded-2xl flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mb-0.5 select-none"
+                              style={{ background: "var(--gradient-vendor)", boxShadow: "0 2px 6px rgba(139,92,246,0.2)" }}
+                            >
+                              {otherPartyInitial}
+                            </div>
+                          )}
+
+                          <div
+                            className={`max-w-[78%] px-4 py-3 text-[14px] leading-relaxed ${
+                              isOwn
+                                ? "text-white rounded-[18px] rounded-br-[4px]"
+                                : "bg-white text-[var(--gray-800)] border border-[var(--gray-100)] rounded-[18px] rounded-bl-[4px]"
+                            } ${msg.optimistic ? "opacity-50" : ""}`}
+                            style={isOwn
+                              ? { background: "var(--gradient-vendor)", boxShadow: "0 2px 10px rgba(139,92,246,0.28)" }
+                              : { boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }
+                            }
+                          >
+                            {msg.body}
+                          </div>
+                        </div>
+
+                        {isOfferContextMessage && activeOffer && (
+                          <div className="ml-9">
+                            <OfferCard offer={activeOffer} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
               )}
               <div className="pt-4 pb-2 text-center">
                 <p className="text-[10px] text-[var(--gray-300)]">
@@ -1906,12 +2007,12 @@ export default function InquiryThreadPage() {
           {!isVendor && inquiry && ["submitted", "viewed"].includes(status) ? (
             <div className="flex-shrink-0 bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)]">
               <div className="mx-auto max-w-2xl px-4 py-3">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-[var(--amber-50)] border border-[var(--amber-100)]">
-                  <span className="w-2 h-2 rounded-full bg-[var(--amber-500)] animate-pulse flex-shrink-0" />
-                  <p className="text-[13px] text-[var(--amber-700)] font-medium leading-tight">
+                <div className="flex items-start gap-3 px-4 py-3 rounded-2xl bg-[var(--amber-50)] border border-[var(--amber-100)]">
+                  <span className="w-2 h-2 rounded-full bg-[var(--amber-500)] animate-pulse flex-shrink-0 mt-1.5" />
+                  <p className="text-[13px] text-[var(--amber-700)] font-medium leading-snug">
                     {status === "submitted"
-                      ? "Proposal sent"
-                      : "Vendor has viewed your proposal"}
+                      ? "Proposal sent — chat opens after the vendor reviews and replies."
+                      : "Vendor viewed your proposal — chat opens once they reply."}
                   </p>
                 </div>
               </div>

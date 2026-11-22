@@ -2,9 +2,12 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { createEvent, getMyEvents } from "../services/events";
+import { createEvent, getMyEvents, updateEvent } from "../services/events";
+import { createInquiry } from "../services/inquiries";
+import { getCoordinatorStripeAccount } from "../services/coordinators";
 import { api } from "../services/api";
-import { US_STATE_OPTIONS } from "../utils/salesTaxRates";
+import { formatSalesTaxLabel, vendorTaxOptions } from "../utils/salesTaxRates";
+import { marketplaceBreakdown } from "../utils/marketplacePricing";
 import AddressAutocomplete from "./AddressAutocomplete";
 import MarketplaceComingSoonPanel from "./MarketplaceComingSoonPanel";
 import { isVendorMarketplaceBookable } from "../utils/vendorMarketplace";
@@ -46,12 +49,88 @@ function fmtDayLabel(dateStr) {
 }
 
 const STEP_META = {
-  1: { title: "About Your Event",    subtitle: "Give the vendor context on what you're organizing." },
-  2: { title: "Venue & Location",    subtitle: "Where will this event take place?" },
-  3: { title: "Date & Time",         subtitle: "When is the event happening?" },
-  4: { title: "Your Audience",       subtitle: "Help vendors understand who they'll be serving." },
-  5: { title: "Venue Setup",         subtitle: "Help vendors prepare for the space and logistics." },
+  create: { title: "Event details", subtitle: "A few basics — then send your request." },
+  send: { title: "Send Request", subtitle: "Choose how you're booking, then send your message." },
 };
+
+const COORDINATOR_TYPES = [
+  {
+    value: "hiring_vendor",
+    label: "Hiring a vendor",
+    description: "I'm paying the vendor to work at my event",
+  },
+  {
+    value: "charges_fees",
+    label: "Charging vending fees",
+    description: "Vendors pay me a fee to sell at my event",
+  },
+  {
+    value: "no_fees",
+    label: "Free to vend",
+    description: "No fees — vendors join at no cost",
+  },
+];
+
+function formatFee(cents) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+function buildSendMessage(vendor, event, coordinatorType, fields) {
+  if (!vendor || !event) return "";
+  const rawDate = event.startDate || event.start_date;
+  const rawEndDate = event.endDate || event.end_date;
+  const location = event.streetAddress || event.location || "[location TBD]";
+  const attendees = event.attendees;
+  const guestPart = attendees ? `approximately ${attendees} guests` : "guests";
+
+  let datePart = "[date TBD]";
+  if (rawDate) {
+    try {
+      const start = new Date(rawDate.includes("T") ? rawDate : rawDate + "T00:00:00");
+      datePart = start.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+      if (rawEndDate && rawEndDate !== rawDate) {
+        const end = new Date(rawEndDate.includes("T") ? rawEndDate : rawEndDate + "T00:00:00");
+        if (start.toDateString() !== end.toDateString()) {
+          datePart = `${datePart} – ${end.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+        }
+      }
+    } catch { /* keep TBD */ }
+  }
+
+  if (coordinatorType === "hiring_vendor") {
+    const budgetPart = fields.budget ? `$${Number(fields.budget).toLocaleString()}` : null;
+    return [
+      `Hi ${vendor.name}!`,
+      `I'm organizing "${event.name}" on ${datePart} at ${location} for ${guestPart}.`,
+      budgetPart ? `My budget for this is ${budgetPart}.` : null,
+      `I'd love to discuss how you can be part of our event — are you available?`,
+    ].filter(Boolean).join(" ");
+  }
+
+  if (coordinatorType === "charges_fees") {
+    const feePart = fields.vendingFee ? `$${Number(fields.vendingFee).toLocaleString()}` : null;
+    return [
+      `Hi ${vendor.name}!`,
+      `I'm hosting "${event.name}" on ${datePart} at ${location}, expecting ${guestPart}.`,
+      `I'm looking for vendors to participate.`,
+      feePart ? `The vending fee for this event is ${feePart}.` : null,
+      `Payments are processed through VEHNDR. Would you be interested in joining?`,
+    ].filter(Boolean).join(" ");
+  }
+
+  return [
+    `Hi ${vendor.name}!`,
+    `I'm hosting "${event.name}" on ${datePart} at ${location}, expecting ${guestPart}.`,
+    `I'm looking for vendors to participate.`,
+    `There are no vending fees for this event — it's free to join.`,
+    `Would you be interested?`,
+  ].filter(Boolean).join(" ");
+}
 
 const INITIAL_FORM = {
   importUrl: "",
@@ -494,7 +573,7 @@ function ChooseStep({ myEvents, loadingEvents, selectedEvent, onSelect, onCreate
                   {myEvents.length > 0 ? "Create a new event" : "Create event manually"}
                 </p>
                 <p className="text-xs text-[var(--gray-400)] group-hover:text-[var(--violet-400)] transition-colors mt-0.5">
-                  Walk through a quick setup — takes about 2 minutes
+                  Name, place, date — then send your request
                 </p>
               </div>
               <div className="text-[var(--gray-300)] group-hover:text-[var(--violet-400)] group-hover:translate-x-0.5 transition-all">
@@ -528,179 +607,155 @@ function ChooseStep({ myEvents, loadingEvents, selectedEvent, onSelect, onCreate
   );
 }
 
-// ─── Step 1: Name & Description ───────────────────────────────────────────────
+// ─── Single event form (required + optional extras) ───────────────────────────
 
-const PLATFORM_PILLS = [
-  { label: "Luma",       hint: "lu.ma/…",         color: "bg-[#f0f4ff] text-[#4361ee] hover:bg-[#e0e8ff]" },
-  { label: "Eventbrite", hint: "eventbrite.com/…", color: "bg-[#fff5f0] text-[#f05537] hover:bg-[#ffe8e2]" },
-  { label: "Partiful",   hint: "partiful.com/…",   color: "bg-[#f5f0ff] text-[#7c3aed] hover:bg-[#ede8ff]" },
-];
+const CHIP_YES_NO       = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
+const CHIP_YES_NO_LTD   = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, { value: "limited", label: "Limited" }];
+const CHIP_INDOOR_OUT   = [{ value: "indoor", label: "Indoor" }, { value: "outdoor", label: "Outdoor" }, { value: "both", label: "Both" }];
 
-function Step1({ form, setField, importing, onImport, onNext, onBack, error }) {
+function isOptionalSparse(form) {
+  if (!form) return true;
+  const noLogistics = !form.indoorOutdoor && !form.accessToPower && !form.accessToWater
+    && !form.parkingAvailable && !form.canopyAllowed && !form.wifiAvailability
+    && !form.securityPresence && !form.vendorLoadIn && !form.vendorLoadOut;
+  const noDesc = !form.description?.trim();
+  const defaultAge = !form.ageGroup || form.ageGroup === "All Ages";
+  return noLogistics && noDesc && defaultAge && !form.requiresCoi;
+}
+
+function OptionalDetailsFields({ form, setField }) {
   return (
-    <>
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+    <div className="space-y-5">
+      <div>
+        <FieldLabel hint="Optional — helps vendors understand the vibe.">Event description</FieldLabel>
+        <textarea
+          rows={3}
+          value={form.description}
+          onChange={(e) => setField("description", e.target.value)}
+          placeholder="Tell vendors what makes this event special…"
+          className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-900)] leading-relaxed placeholder:text-[var(--gray-400)] outline-none focus:border-[var(--violet-500)] focus:bg-white resize-none"
+        />
+      </div>
 
-        {/* Import section */}
-        <div className="rounded-2xl border border-[var(--gray-200)] overflow-hidden">
-          <div className="px-4 pt-4 pb-3 bg-[var(--gray-50)] border-b border-[var(--gray-100)]">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[var(--violet-600)]">{Icons.link}</span>
-              <p className="text-xs font-bold text-[var(--gray-700)] uppercase tracking-wider">Import from a platform</p>
-            </div>
-            <p className="text-xs text-[var(--gray-400)]">Paste your event link and we&apos;ll fill in the details.</p>
-            <div className="flex gap-1.5 mt-2.5">
-              {PLATFORM_PILLS.map((p) => (
-                <span key={p.label} className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors ${p.color}`}>
-                  {p.label}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className="flex gap-2 p-3 bg-white">
-            <input
-              type="url"
-              value={form.importUrl}
-              onChange={(e) => setField("importUrl", e.target.value)}
-              placeholder="https://lu.ma/your-event"
-              className="input flex-1 text-sm h-10 rounded-lg"
-            />
+      <div>
+        <FieldLabel>Primary age group</FieldLabel>
+        <div className="flex flex-wrap gap-2 mt-0.5">
+          {AGE_GROUPS.map((g) => (
             <button
+              key={g}
               type="button"
-              onClick={onImport}
-              disabled={importing || !form.importUrl.trim()}
-              className="h-10 px-4 rounded-lg bg-[var(--gray-900)] text-white text-sm font-semibold hover:bg-[var(--gray-700)] transition-colors disabled:opacity-40 flex items-center gap-1.5 flex-shrink-0"
+              onClick={() => setField("ageGroup", g)}
+              className={`text-sm px-3.5 py-1.5 rounded-full border font-medium transition-all ${
+                form.ageGroup === g
+                  ? "border-[var(--violet-500)] bg-[var(--violet-50)] text-[var(--violet-700)]"
+                  : "border-[var(--gray-200)] bg-white text-[var(--gray-600)] hover:border-[var(--gray-300)]"
+              }`}
             >
-              {importing
-                ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                : <><span>{Icons.spark}</span> Import</>
-              }
+              {g}
             </button>
-          </div>
+          ))}
         </div>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3">
-          <div className="flex-1 h-px bg-[var(--gray-200)]" />
-          <span className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">or enter manually</span>
-          <div className="flex-1 h-px bg-[var(--gray-200)]" />
-        </div>
-
-        {/* Fields */}
-        <div className="space-y-4">
-          <div>
-            <FieldLabel required>Event name</FieldLabel>
-            <input
-              type="text"
-              value={form.name}
-              onChange={(e) => setField("name", e.target.value)}
-              placeholder="e.g. Summer Product Launch 2025"
-              className="input"
-              autoFocus
-            />
-          </div>
-          <div>
-            <FieldLabel hint="Optional — helps vendors understand the vibe and what to prepare.">
-              Event description
-            </FieldLabel>
-            <textarea
-              rows={3}
-              value={form.description}
-              onChange={(e) => setField("description", e.target.value)}
-              placeholder="Tell vendors what makes this event special…"
-              className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-900)] leading-relaxed placeholder:text-[var(--gray-400)] outline-none focus:border-[var(--violet-500)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(139,92,246,0.1)] transition-all resize-none"
-            />
-          </div>
-        </div>
-
-        <ErrorBox message={error} />
       </div>
-      <FooterNav onBack={onBack} onNext={onNext} />
-    </>
+
+      <div
+        className={`flex items-start justify-between gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+          form.requiresCoi
+            ? "border-[var(--violet-300)] bg-[var(--violet-50)]"
+            : "border-[var(--gray-200)] bg-white hover:border-[var(--gray-300)]"
+        }`}
+        onClick={() => setField("requiresCoi", !form.requiresCoi)}
+      >
+        <div>
+          <p className={`text-sm font-semibold ${form.requiresCoi ? "text-[var(--violet-800)]" : "text-[var(--gray-800)]"}`}>
+            Certificate of Insurance required
+          </p>
+          <p className={`text-xs mt-0.5 leading-snug ${form.requiresCoi ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>
+            Vendors need proof of liability insurance.
+          </p>
+        </div>
+        <Toggle checked={form.requiresCoi} onChange={(v) => setField("requiresCoi", v)} />
+      </div>
+
+      <div>
+        <FieldLabel>Indoor or outdoor?</FieldLabel>
+        <ChipGroup value={form.indoorOutdoor} onChange={(v) => setField("indoorOutdoor", v)} options={CHIP_INDOOR_OUT} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Access to power?</FieldLabel>
+          <ChipGroup value={form.accessToPower} onChange={(v) => setField("accessToPower", v)} options={CHIP_YES_NO_LTD} />
+        </div>
+        <div>
+          <FieldLabel>Access to water?</FieldLabel>
+          <ChipGroup value={form.accessToWater} onChange={(v) => setField("accessToWater", v)} options={CHIP_YES_NO} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Parking?</FieldLabel>
+          <ChipGroup value={form.parkingAvailable} onChange={(v) => setField("parkingAvailable", v)} options={CHIP_YES_NO_LTD} />
+        </div>
+        <div>
+          <FieldLabel>Canopy / tent OK?</FieldLabel>
+          <ChipGroup value={form.canopyAllowed} onChange={(v) => setField("canopyAllowed", v)} options={CHIP_YES_NO} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Wi-Fi available?</FieldLabel>
+          <ChipGroup value={form.wifiAvailability} onChange={(v) => setField("wifiAvailability", v)} options={CHIP_YES_NO} />
+        </div>
+        <div>
+          <FieldLabel>Security on site?</FieldLabel>
+          <ChipGroup value={form.securityPresence} onChange={(v) => setField("securityPresence", v)} options={CHIP_YES_NO} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <FieldLabel>Vendor load-in</FieldLabel>
+          <select value={form.vendorLoadIn} onChange={(e) => setField("vendorLoadIn", e.target.value)} className="input">
+            <option value="">Not set</option>
+            {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <FieldLabel>Vendor load-out</FieldLabel>
+          <select value={form.vendorLoadOut} onChange={(e) => setField("vendorLoadOut", e.target.value)} className="input">
+            <option value="">Not set</option>
+            {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+          </select>
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ─── Step 2: Address ──────────────────────────────────────────────────────────
-
-function Step2({ form, setField, onNext, onBack, error }) {
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-        <div>
-          <FieldLabel required hint="Street name and number where the event happens.">
-            Street address
-          </FieldLabel>
-          <AddressAutocomplete
-            value={form.streetAddress}
-            onChange={(v) => setField("streetAddress", v)}
-            onStructuredSelect={(parts) => {
-              if (parts.streetAddress) setField("streetAddress", parts.streetAddress);
-              if (parts.eventCity) setField("eventCity", parts.eventCity);
-              if (parts.eventState) setField("eventState", parts.eventState);
-              if (parts.eventPostalCode) setField("eventPostalCode", parts.eventPostalCode);
-            }}
-            autoFocus
-            placeholder="e.g. 1234 Main St, Los Angeles, CA 90012"
-          />
-        </div>
-
-        <div>
-          <FieldLabel required hint="Used to calculate sales tax at checkout.">
-            City
-          </FieldLabel>
-          <input
-            type="text"
-            value={form.eventCity}
-            onChange={(e) => setField("eventCity", e.target.value)}
-            placeholder="Austin"
-            className="input"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel required>State</FieldLabel>
-            <select
-              value={form.eventState}
-              onChange={(e) => setField("eventState", e.target.value)}
-              className="input"
-            >
-              {US_STATE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <FieldLabel required>ZIP code</FieldLabel>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={form.eventPostalCode}
-              onChange={(e) => setField("eventPostalCode", e.target.value)}
-              placeholder="78701"
-              className="input"
-            />
-          </div>
-        </div>
-
-        <ErrorBox message={error} />
-      </div>
-      <FooterNav onBack={onBack} onNext={onNext} />
-    </>
-  );
-}
-
-// ─── Step 3: Date & Time ──────────────────────────────────────────────────────
-
-function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack, error }) {
+function EventForm({
+  form,
+  setField,
+  dailySchedule,
+  setDailySchedule,
+  onBack,
+  onSave,
+  submitting,
+  error,
+}) {
+  const [showMore, setShowMore] = useState(false);
   const [scheduleError, setScheduleError] = useState(null);
+
+  const addressFilled =
+    form.eventCity?.trim() &&
+    form.eventState &&
+    /^\d{5}/.test((form.eventPostalCode || "").trim());
 
   const showPerDay = form.isMultiDay && form.startDate && form.endDate && dailySchedule.length > 1;
 
   function updateDay(date, field, value) {
-    setDailySchedule((prev) => prev.map((d) => d.date === date ? { ...d, [field]: value } : d));
+    setDailySchedule((prev) => prev.map((d) => (d.date === date ? { ...d, [field]: value } : d)));
   }
 
   function applyAllHours() {
@@ -713,20 +768,73 @@ function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack
     setDailySchedule((prev) => prev.map((d) => ({ ...d, startTime: first.startTime, endTime: first.endTime })));
   }
 
+  function applyLoadTimesToAll() {
+    const first = dailySchedule[0];
+    if (!first) return;
+    setDailySchedule((prev) =>
+      prev.map((d) => ({
+        ...d,
+        vendorLoadIn: first.vendorLoadIn,
+        vendorLoadOut: first.vendorLoadOut,
+      }))
+    );
+  }
+
   return (
     <>
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div>
+          <FieldLabel required>Event name</FieldLabel>
+          <input
+            type="text"
+            value={form.name}
+            onChange={(e) => setField("name", e.target.value)}
+            placeholder="e.g. Summer Product Launch"
+            className="input"
+            autoFocus
+          />
+        </div>
+
+        <div>
+          <FieldLabel required hint="Start typing, then pick a suggestion — city, state, and ZIP fill in automatically.">
+            Event address
+          </FieldLabel>
+          <AddressAutocomplete
+            value={form.streetAddress}
+            onChange={(v) => {
+              setField("streetAddress", v);
+              setField("eventCity", "");
+              setField("eventPostalCode", "");
+            }}
+            onStructuredSelect={(parts) => {
+              if (parts.eventCity) setField("eventCity", parts.eventCity);
+              if (parts.eventState) setField("eventState", parts.eventState);
+              if (parts.eventPostalCode) setField("eventPostalCode", parts.eventPostalCode);
+            }}
+            placeholder="Start typing an address…"
+          />
+          {addressFilled && (
+            <p className="mt-2 text-xs text-[var(--mint-700)] bg-[var(--mint-50)] border border-[var(--mint-100)] rounded-lg px-3 py-2">
+              {form.eventCity}, {form.eventState.toUpperCase()} {form.eventPostalCode}
+            </p>
+          )}
+        </div>
+
         <div className="space-y-4">
           <div>
             <FieldLabel required>Event date</FieldLabel>
-            <input type="date" value={form.startDate} onChange={(e) => setField("startDate", e.target.value)} className="input" />
+            <input
+              type="date"
+              value={form.startDate}
+              onChange={(e) => setField("startDate", e.target.value)}
+              className="input"
+            />
           </div>
 
-          {/* Multi-day toggle */}
           <div className="flex items-center justify-between p-4 rounded-xl bg-[var(--gray-50)] border border-[var(--gray-200)]">
             <div>
               <p className="text-sm font-semibold text-[var(--gray-800)]">Multi-day event</p>
-              <p className="text-xs text-[var(--gray-400)] mt-0.5">This event spans more than one calendar day</p>
+              <p className="text-xs text-[var(--gray-400)] mt-0.5">Spans more than one calendar day</p>
             </div>
             <Toggle checked={form.isMultiDay} onChange={(v) => setField("isMultiDay", v)} />
           </div>
@@ -734,11 +842,16 @@ function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack
           {form.isMultiDay && (
             <div>
               <FieldLabel required>End date</FieldLabel>
-              <input type="date" value={form.endDate} min={form.startDate} onChange={(e) => setField("endDate", e.target.value)} className="input" />
+              <input
+                type="date"
+                value={form.endDate}
+                min={form.startDate}
+                onChange={(e) => setField("endDate", e.target.value)}
+                className="input"
+              />
             </div>
           )}
 
-          {/* Times — per day when multi-day, single pair otherwise */}
           {showPerDay ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -746,7 +859,7 @@ function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack
                 <button
                   type="button"
                   onClick={applyAllHours}
-                  className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-800)] underline underline-offset-2 transition-colors flex-shrink-0"
+                  className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-800)] underline underline-offset-2"
                 >
                   Same hours every day
                 </button>
@@ -757,13 +870,13 @@ function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack
                   <p className="text-xs font-bold text-[var(--gray-600)] uppercase tracking-wide mb-3">{fmtDayLabel(day.date)}</p>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <FieldLabel required>Start time</FieldLabel>
+                      <FieldLabel required>Start</FieldLabel>
                       <select value={day.startTime} onChange={(e) => updateDay(day.date, "startTime", e.target.value)} className="input">
                         {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
                     </div>
                     <div>
-                      <FieldLabel required>End time</FieldLabel>
+                      <FieldLabel required>End</FieldLabel>
                       <select value={day.endTime} onChange={(e) => updateDay(day.date, "endTime", e.target.value)} className="input">
                         {TIME_SLOTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                       </select>
@@ -790,78 +903,92 @@ function Step3({ form, setField, dailySchedule, setDailySchedule, onNext, onBack
           )}
         </div>
 
-        <ErrorBox message={error} />
-      </div>
-      <FooterNav onBack={onBack} onNext={onNext} />
-    </>
-  );
-}
+        <div>
+          <FieldLabel required hint="Helps vendors prepare staffing and stock.">
+            Expected attendees
+          </FieldLabel>
+          <div className="relative">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none">{Icons.people}</span>
+            <input
+              type="number"
+              min="1"
+              value={form.attendees}
+              onChange={(e) => setField("attendees", e.target.value)}
+              placeholder="e.g. 250"
+              className="input pl-9"
+            />
+          </div>
+        </div>
 
-// ─── Step 4: Audience ─────────────────────────────────────────────────────────
+        <button
+          type="button"
+          onClick={() => setShowMore((v) => !v)}
+          className="w-full text-left px-4 py-3 rounded-xl border border-dashed border-[var(--violet-200)] bg-[var(--violet-50)]/40 hover:border-[var(--violet-300)] hover:bg-[var(--violet-50)] transition-all"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-[var(--gray-800)]">
+                {showMore ? "Hide extra details" : "Add more details (optional)"}
+              </p>
+              <p className="text-xs text-[var(--gray-500)] mt-1 leading-relaxed">
+                Strongly recommended — the more vendors know (power, parking, age group, etc.), the faster they reply and the less back-and-forth after booking. You can also fill this in later; we&apos;ll remind you until it&apos;s done.
+              </p>
+            </div>
+            <span className={`text-[var(--violet-500)] flex-shrink-0 transition-transform ${showMore ? "rotate-90" : ""}`}>{Icons.next}</span>
+          </div>
+        </button>
 
-function Step4({ form, setField, onSave, onBack, error, submitting, nextLabel }) {
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-        <div className="space-y-4">
-          <div>
-            <FieldLabel required hint="This helps vendors prepare the right stock and staffing levels.">
-              Expected number of attendees
-            </FieldLabel>
-            <div className="relative">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none">{Icons.people}</span>
-              <input
-                type="number"
-                min="1"
-                value={form.attendees}
-                onChange={(e) => setField("attendees", e.target.value)}
-                placeholder="e.g. 250"
-                className="input pl-9"
-                autoFocus
+        {showMore && (
+          <div className="space-y-5 pt-1 pb-2">
+            <OptionalDetailsFields form={form} setField={setField} />
+
+            {showPerDay && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <FieldLabel>Load times per day</FieldLabel>
+                  <button type="button" onClick={applyLoadTimesToAll} className="text-xs font-semibold text-[var(--violet-600)] underline underline-offset-2">
+                    Same times every day
+                  </button>
+                </div>
+                {dailySchedule.map((day) => (
+                  <div key={day.date} className="p-4 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)]">
+                    <p className="text-xs font-bold text-[var(--gray-600)] uppercase tracking-wide mb-3">{fmtDayLabel(day.date)}</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <FieldLabel>Load-in</FieldLabel>
+                        <select value={day.vendorLoadIn} onChange={(e) => updateDay(day.date, "vendorLoadIn", e.target.value)} className="input">
+                          <option value="">Not set</option>
+                          {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <FieldLabel>Load-out</FieldLabel>
+                        <select value={day.vendorLoadOut} onChange={(e) => updateDay(day.date, "vendorLoadOut", e.target.value)} className="input">
+                          <option value="">Not set</option>
+                          {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div>
+              <FieldLabel hint="Public events can show on the homepage. Private stays invite-only.">
+                Event visibility
+              </FieldLabel>
+              <ChipGroup
+                value={form.isPublic ? "public" : "private"}
+                onChange={(v) => setField("isPublic", v === "public")}
+                options={[
+                  { value: "private", label: "Private" },
+                  { value: "public", label: "Public" },
+                ]}
               />
             </div>
           </div>
-
-          <div>
-            <FieldLabel>Primary age group</FieldLabel>
-            <div className="flex flex-wrap gap-2 mt-0.5">
-              {AGE_GROUPS.map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => setField("ageGroup", g)}
-                  className={`text-sm px-3.5 py-1.5 rounded-full border font-medium transition-all ${
-                    form.ageGroup === g
-                      ? "border-[var(--violet-500)] bg-[var(--violet-50)] text-[var(--violet-700)]"
-                      : "border-[var(--gray-200)] bg-white text-[var(--gray-600)] hover:border-[var(--gray-300)]"
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* COI toggle */}
-          <div
-            className={`flex items-start justify-between gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
-              form.requiresCoi
-                ? "border-[var(--violet-300)] bg-[var(--violet-50)]"
-                : "border-[var(--gray-200)] bg-white hover:border-[var(--gray-300)]"
-            }`}
-            onClick={() => setField("requiresCoi", !form.requiresCoi)}
-          >
-            <div>
-              <p className={`text-sm font-semibold ${form.requiresCoi ? "text-[var(--violet-800)]" : "text-[var(--gray-800)]"}`}>
-                Certificate of Insurance required
-              </p>
-              <p className={`text-xs mt-0.5 leading-snug ${form.requiresCoi ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>
-                Vendors will need to provide proof of liability insurance to participate.
-              </p>
-            </div>
-            <Toggle checked={form.requiresCoi} onChange={(v) => setField("requiresCoi", v)} />
-          </div>
-        </div>
+        )}
 
         <ErrorBox message={error} />
       </div>
@@ -869,150 +996,346 @@ function Step4({ form, setField, onSave, onBack, error, submitting, nextLabel })
         onBack={onBack}
         onSubmit={onSave}
         submitting={submitting}
-        nextLabel={nextLabel ?? (submitting ? "Saving…" : "Save & Continue")}
+        nextLabel={submitting ? "Saving…" : "Continue to send"}
       />
     </>
   );
 }
 
-// ─── Step 5: Venue logistics ──────────────────────────────────────────────────
+// ─── Send request (same drawer — no second page) ──────────────────────────────
 
-const CHIP_YES_NO       = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }];
-const CHIP_YES_NO_LTD   = [{ value: "yes", label: "Yes" }, { value: "no", label: "No" }, { value: "limited", label: "Limited" }];
-const CHIP_INDOOR_OUT   = [{ value: "indoor", label: "Indoor" }, { value: "outdoor", label: "Outdoor" }, { value: "both", label: "Both" }];
+function SendStep({
+  vendor,
+  event,
+  form,
+  setField: setEventField,
+  showOptionalNudge = false,
+  onBack,
+  onClose,
+  router,
+}) {
+  const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
+  const [fields, setFields] = useState({ budget: "", vendingFee: "", tip: "" });
+  const [message, setMessage] = useState("");
+  const [messageEdited, setMessageEdited] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState(null);
+  const [stripeConnected, setStripeConnected] = useState(false);
+  const [showOptionalEditor, setShowOptionalEditor] = useState(false);
+  const [savingOptional, setSavingOptional] = useState(false);
+  const [optionalSaved, setOptionalSaved] = useState(false);
 
-function Step5({ form, setField, dailySchedule, setDailySchedule, onSave, onBack, error, submitting }) {
-  const showPerDay = form.isMultiDay && dailySchedule.length > 1;
+  useEffect(() => {
+    getCoordinatorStripeAccount()
+      .then((res) => setStripeConnected(res?.chargesEnabled === true))
+      .catch(() => setStripeConnected(false));
+  }, []);
 
-  function updateDay(date, field, value) {
-    setDailySchedule((prev) => prev.map((d) => d.date === date ? { ...d, [field]: value } : d));
+  useEffect(() => {
+    if (!messageEdited && vendor && event) {
+      setMessage(buildSendMessage(vendor, event, coordinatorType, fields));
+    }
+  }, [vendor, event, coordinatorType, fields, messageEdited]);
+
+  function setField(key, value) {
+    setFields((prev) => ({ ...prev, [key]: value }));
   }
 
-  function applyLoadTimesToAll() {
-    const first = dailySchedule[0];
-    if (!first) return;
-    setDailySchedule((prev) => prev.map((d) => ({
-      ...d,
-      vendorLoadIn: first.vendorLoadIn,
-      vendorLoadOut: first.vendorLoadOut,
-    })));
+  function handleTypeChange(type) {
+    setCoordinatorType(type);
+    if (type !== "hiring_vendor") setField("budget", "");
+    if (type !== "charges_fees") setField("vendingFee", "");
+    setMessageEdited(false);
   }
+
+  async function saveOptionalDetails() {
+    if (!event?.id || !form) return;
+    setSavingOptional(true);
+    setError(null);
+    try {
+      const logisticsPayload = {};
+      if (form.indoorOutdoor) logisticsPayload.indoor_outdoor = form.indoorOutdoor;
+      if (form.accessToPower) logisticsPayload.access_to_power = form.accessToPower;
+      if (form.accessToWater) logisticsPayload.access_to_water = form.accessToWater;
+      if (form.parkingAvailable) logisticsPayload.parking_available = form.parkingAvailable;
+      if (form.canopyAllowed) logisticsPayload.canopy_allowed = form.canopyAllowed;
+      if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
+      if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
+      await updateEvent(event.id, {
+        description: form.description?.trim() || null,
+        age_group: form.ageGroup,
+        requires_coi: form.requiresCoi,
+        vendor_load_in: form.vendorLoadIn || null,
+        vendor_load_out: form.vendorLoadOut || null,
+        ...logisticsPayload,
+      });
+      setOptionalSaved(true);
+      setShowOptionalEditor(false);
+    } catch (err) {
+      setError(err?.message ?? "Could not save event details. You can still send, or try again.");
+    } finally {
+      setSavingOptional(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (!message.trim()) {
+      setError("Please add a message before sending.");
+      return;
+    }
+    setError(null);
+    setSubmitting(true);
+    try {
+      // Persist optional details if they filled them on this screen but didn't tap Save
+      if (showOptionalEditor && form && event?.id && !isOptionalSparse(form)) {
+        try {
+          const logisticsPayload = {};
+          if (form.indoorOutdoor) logisticsPayload.indoor_outdoor = form.indoorOutdoor;
+          if (form.accessToPower) logisticsPayload.access_to_power = form.accessToPower;
+          if (form.accessToWater) logisticsPayload.access_to_water = form.accessToWater;
+          if (form.parkingAvailable) logisticsPayload.parking_available = form.parkingAvailable;
+          if (form.canopyAllowed) logisticsPayload.canopy_allowed = form.canopyAllowed;
+          if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
+          if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
+          await updateEvent(event.id, {
+            description: form.description?.trim() || null,
+            age_group: form.ageGroup,
+            requires_coi: form.requiresCoi,
+            vendor_load_in: form.vendorLoadIn || null,
+            vendor_load_out: form.vendorLoadOut || null,
+            ...logisticsPayload,
+          });
+        } catch {
+          // Don't block sending the request if the detail save fails
+        }
+      }
+      const payload = {
+        vendor_id: vendor.id,
+        event_id: event.id,
+        coordinator_type: coordinatorType,
+        initial_message: message.trim(),
+      };
+      if (coordinatorType === "hiring_vendor" && fields.budget) {
+        payload.budget_cents = Math.round(Number(fields.budget) * 100);
+      }
+      if (coordinatorType === "hiring_vendor" && fields.tip) {
+        payload.tip_cents = Math.round(Number(fields.tip) * 100);
+      }
+      if (coordinatorType === "charges_fees" && fields.vendingFee) {
+        payload.vending_fee_cents = Math.round(Number(fields.vendingFee) * 100);
+      }
+      const res = await createInquiry(payload);
+      const inquiry = res?.inquiry ?? res;
+      onClose();
+      router.push(`/buyer-dashboard/proposals/${inquiry.id}`);
+    } catch (err) {
+      setError(err?.message ?? "Something went wrong. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  // Keep nudging until details are filled — no dismiss (encourages fewer vendor Q&As later)
+  const showNudge = showOptionalNudge && isOptionalSparse(form);
+
+  const budgetCents = Math.round(Number(fields.budget || 0) * 100);
+  const tipCents = Math.round(Number(fields.tip || 0) * 100);
+  const { collectTax, taxRate } = vendorTaxOptions(vendor);
+  const pricing = budgetCents > 0
+    ? marketplaceBreakdown(budgetCents, tipCents, collectTax, taxRate)
+    : null;
 
   return (
     <>
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-        <p className="text-xs text-[var(--gray-400)] leading-relaxed">
-          All optional — fill in what you know so vendors can plan ahead. You can update these later.
-        </p>
-
-        {/* Indoor / outdoor */}
-        <div>
-          <FieldLabel hint="Will vendors be set up inside, outside, or both?">Indoor or outdoor?</FieldLabel>
-          <ChipGroup value={form.indoorOutdoor} onChange={(v) => setField("indoorOutdoor", v)} options={CHIP_INDOOR_OUT} />
+        <div className="rounded-xl border border-[var(--gray-100)] bg-[var(--gray-50)] px-4 py-3">
+          <p className="text-[11px] font-semibold text-[var(--gray-400)] uppercase tracking-wider">Event</p>
+          <p className="text-sm font-semibold text-[var(--gray-900)] mt-0.5 truncate">{event?.name}</p>
         </div>
 
-        {/* Power + Water */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>Access to power?</FieldLabel>
-            <ChipGroup value={form.accessToPower} onChange={(v) => setField("accessToPower", v)} options={CHIP_YES_NO_LTD} />
+        {showNudge && !showOptionalEditor && (
+          <div className="rounded-xl border border-[var(--amber-200)] bg-[var(--amber-50)] px-4 py-3.5 space-y-3">
+            <div className="flex items-start gap-2.5">
+              <span className="text-[var(--amber-600)] flex-shrink-0 mt-0.5">{Icons.warn}</span>
+              <div>
+                <p className="text-sm font-semibold text-[var(--amber-900)]">Add venue details before you send</p>
+                <p className="text-xs text-[var(--amber-800)] mt-1 leading-relaxed">
+                  Strongly recommended — power, parking, age group, insurance, and similar info help vendors reply faster and cut down back-and-forth after you book. You can also add this later from your proposal or event page.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowOptionalEditor(true)}
+              className="w-full h-10 rounded-xl bg-[var(--gray-900)] text-white text-xs font-semibold hover:bg-[var(--gray-700)] transition-colors"
+            >
+              Add details now
+            </button>
           </div>
-          <div>
-            <FieldLabel>Access to water?</FieldLabel>
-            <ChipGroup value={form.accessToWater} onChange={(v) => setField("accessToWater", v)} options={CHIP_YES_NO} />
-          </div>
-        </div>
+        )}
 
-        {/* Parking + Canopy */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>Parking?</FieldLabel>
-            <ChipGroup value={form.parkingAvailable} onChange={(v) => setField("parkingAvailable", v)} options={CHIP_YES_NO_LTD} />
+        {optionalSaved && !isOptionalSparse(form) && (
+          <div className="rounded-xl border border-[var(--mint-100)] bg-[var(--mint-50)] px-4 py-3 text-xs text-[var(--mint-700)] font-medium">
+            Venue details saved — vendors will see them with your request.
           </div>
-          <div>
-            <FieldLabel>Canopy / tent OK?</FieldLabel>
-            <ChipGroup value={form.canopyAllowed} onChange={(v) => setField("canopyAllowed", v)} options={CHIP_YES_NO} />
-          </div>
-        </div>
+        )}
 
-        {/* WiFi + Security */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <FieldLabel>Wi-Fi available?</FieldLabel>
-            <ChipGroup value={form.wifiAvailability} onChange={(v) => setField("wifiAvailability", v)} options={CHIP_YES_NO} />
-          </div>
-          <div>
-            <FieldLabel>Security on site?</FieldLabel>
-            <ChipGroup value={form.securityPresence} onChange={(v) => setField("securityPresence", v)} options={CHIP_YES_NO} />
-          </div>
-        </div>
-
-        {/* Vendor Load-In / Load-Out */}
-        {showPerDay ? (
-          <div className="space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <FieldLabel hint="When can vendors load in and out each day?">Load times per day</FieldLabel>
+        {showOptionalEditor && form && setEventField && (
+          <div className="rounded-xl border border-[var(--violet-200)] bg-white px-4 py-4 space-y-4">
+            <div>
+              <p className="text-sm font-semibold text-[var(--gray-900)]">Recommended event details</p>
+              <p className="text-xs text-[var(--gray-500)] mt-1 leading-relaxed">
+                Filling these in now means fewer questions after the booking is confirmed.
+              </p>
+            </div>
+            <OptionalDetailsFields form={form} setField={setEventField} />
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
-                onClick={applyLoadTimesToAll}
-                className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-800)] underline underline-offset-2 transition-colors flex-shrink-0"
+                onClick={saveOptionalDetails}
+                disabled={savingOptional}
+                className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-600)] text-white text-xs font-semibold disabled:opacity-50"
               >
-                Same times every day
+                {savingOptional ? "Saving…" : "Save details"}
               </button>
-            </div>
-            {dailySchedule.map((day) => (
-              <div key={day.date} className="p-4 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)]">
-                <p className="text-xs font-bold text-[var(--gray-600)] uppercase tracking-wide mb-3">{fmtDayLabel(day.date)}</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <FieldLabel>Load-in</FieldLabel>
-                    <select value={day.vendorLoadIn} onChange={(e) => updateDay(day.date, "vendorLoadIn", e.target.value)} className="input">
-                      <option value="">Not set</option>
-                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <FieldLabel>Load-out</FieldLabel>
-                    <select value={day.vendorLoadOut} onChange={(e) => updateDay(day.date, "vendorLoadOut", e.target.value)} className="input">
-                      <option value="">Not set</option>
-                      {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <FieldLabel hint="When can vendors begin setting up?">Vendor load-in</FieldLabel>
-              <select value={form.vendorLoadIn} onChange={(e) => setField("vendorLoadIn", e.target.value)} className="input">
-                <option value="">Not set</option>
-                {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <FieldLabel hint="When must vendors be fully packed out?">Vendor load-out</FieldLabel>
-              <select value={form.vendorLoadOut} onChange={(e) => setField("vendorLoadOut", e.target.value)} className="input">
-                <option value="">Not set</option>
-                {TIME_SLOTS.map((s) => <option key={s.value} value={s.label}>{s.label}</option>)}
-              </select>
+              <button
+                type="button"
+                onClick={() => setShowOptionalEditor(false)}
+                className="h-10 px-4 rounded-xl border border-[var(--gray-200)] text-[var(--gray-600)] text-xs font-semibold"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
 
-        {/* Public / Private visibility */}
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-[var(--gray-400)] uppercase tracking-wider">I am…</p>
+          {COORDINATOR_TYPES.map((type) => {
+            const selected = coordinatorType === type.value;
+            const locked = type.value === "charges_fees" && !stripeConnected;
+            return (
+              <button
+                key={type.value}
+                type="button"
+                onClick={() => !locked && handleTypeChange(type.value)}
+                className="w-full flex items-start gap-3 px-3.5 py-3 rounded-xl border-2 text-left transition-all"
+                style={{
+                  borderColor: selected ? "var(--violet-500)" : "var(--gray-200)",
+                  background: selected ? "var(--violet-50)" : "white",
+                  opacity: locked ? 0.5 : 1,
+                  cursor: locked ? "not-allowed" : "pointer",
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-semibold ${selected ? "text-[var(--violet-800)]" : "text-[var(--gray-800)]"}`}>
+                    {type.label}
+                  </p>
+                  <p className={`text-xs mt-0.5 ${selected ? "text-[var(--violet-500)]" : "text-[var(--gray-400)]"}`}>
+                    {locked ? "Connect Stripe to enable this option" : type.description}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {coordinatorType === "hiring_vendor" && (
+          <div className="space-y-3">
+            <div>
+              <FieldLabel hint="Optional — helps the vendor tailor their offer.">Your budget (USD)</FieldLabel>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none">$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={fields.budget}
+                  onChange={(e) => setField("budget", e.target.value.replace(/[^0-9]/g, ""))}
+                  placeholder="500"
+                  className="input pl-8"
+                />
+              </div>
+            </div>
+            {pricing && (
+              <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] px-4 py-3 space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="text-[var(--violet-700)]">You pay (est.)</span>
+                  <span className="font-bold text-[var(--violet-900)]">~{formatFee(pricing.totalChargeCents)}</span>
+                </div>
+                {pricing.taxCents > 0 && (
+                  <p className="text-[10px] text-[var(--violet-500)]">
+                    Includes {formatSalesTaxLabel(vendor)} and platform fee
+                  </p>
+                )}
+              </div>
+            )}
+            <div>
+              <FieldLabel hint="Optional — you can also tip later.">Tip (USD)</FieldLabel>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none">$</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={fields.tip}
+                  onChange={(e) => setField("tip", e.target.value)}
+                  placeholder="0"
+                  className="input pl-8"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {coordinatorType === "charges_fees" && (
+          <div>
+            <FieldLabel>Fee per vendor (USD)</FieldLabel>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--gray-400)] pointer-events-none">$</span>
+              <input
+                type="number"
+                min="1"
+                value={fields.vendingFee}
+                onChange={(e) => setField("vendingFee", e.target.value)}
+                placeholder="150"
+                className="input pl-8"
+              />
+            </div>
+          </div>
+        )}
+
+        {coordinatorType === "no_fees" && (
+          <div className="px-4 py-3 rounded-xl bg-[var(--mint-50)] border border-[var(--mint-100)]">
+            <p className="text-xs text-[var(--mint-700)] leading-relaxed">
+              Free to vend — no fees charged through VEHNDR for this invite.
+            </p>
+          </div>
+        )}
+
         <div>
-          <FieldLabel hint="Public events are discoverable on the homepage. Private events are only visible to vendors you contact directly.">
-            Event visibility
-          </FieldLabel>
-          <ChipGroup
-            value={form.isPublic ? "public" : "private"}
-            onChange={(v) => setField("isPublic", v === "public")}
-            options={[
-              { value: "private", label: "Private" },
-              { value: "public",  label: "Public"  },
-            ]}
+          <div className="flex items-center justify-between mb-1.5">
+            <FieldLabel required>Your message</FieldLabel>
+            {messageEdited && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMessageEdited(false);
+                  setMessage(buildSendMessage(vendor, event, coordinatorType, fields));
+                }}
+                className="text-xs font-medium text-[var(--violet-600)]"
+              >
+                Regenerate
+              </button>
+            )}
+          </div>
+          <textarea
+            rows={5}
+            value={message}
+            onChange={(e) => {
+              setMessage(e.target.value);
+              setMessageEdited(true);
+            }}
+            className="w-full rounded-[var(--radius-lg)] border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-900)] leading-relaxed outline-none focus:border-[var(--violet-500)] focus:bg-white resize-none"
           />
         </div>
 
@@ -1020,9 +1343,9 @@ function Step5({ form, setField, dailySchedule, setDailySchedule, onSave, onBack
       </div>
       <FooterNav
         onBack={onBack}
-        onSubmit={onSave}
+        onSubmit={handleSubmit}
         submitting={submitting}
-        nextLabel={submitting ? "Saving…" : "Save & Continue"}
+        nextLabel={submitting ? "Sending…" : "Send request"}
       />
     </>
   );
@@ -1030,7 +1353,8 @@ function Step5({ form, setField, dailySchedule, setDailySchedule, onSave, onBack
 
 // ─── Auth prompt ──────────────────────────────────────────────────────────────
 
-function AuthState({ vendor, onClose, router }) {
+function AuthState({ vendor, onClose, router, loginRedirect }) {
+  const redirect = loginRedirect || `/store/${vendor.id}`;
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-12 text-center">
       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--violet-100)] to-[var(--magenta-100)] flex items-center justify-center shadow-sm">
@@ -1045,7 +1369,7 @@ function AuthState({ vendor, onClose, router }) {
         </p>
       </div>
       <button
-        onClick={() => router.push(`/login?redirect=${encodeURIComponent(`/store/${vendor.id}`)}`)}
+        onClick={() => router.push(`/login?redirect=${encodeURIComponent(redirect)}`)}
         className="w-full btn btn-gradient text-sm h-11"
       >
         Log in or Sign up
@@ -1059,7 +1383,7 @@ function AuthState({ vendor, onClose, router }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ProposalModal({ vendor, isOpen, onClose }) {
+export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }) {
   const router = useRouter();
 
   const [needsAuth, setNeedsAuth] = useState(false);
@@ -1069,9 +1393,9 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [form, setForm] = useState(INITIAL_FORM);
   const [dailySchedule, setDailySchedule] = useState([]);
-  const [importing, setImporting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [createdEventInFlow, setCreatedEventInFlow] = useState(false);
 
   const defaultTimesRef = useRef({ startTime: INITIAL_FORM.startTime, endTime: INITIAL_FORM.endTime });
   useEffect(() => {
@@ -1114,6 +1438,7 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       setDailySchedule([]);
       setError(null);
       setNeedsAuth(false);
+      setCreatedEventInFlow(false);
     }
   }, [isOpen]);
 
@@ -1150,80 +1475,28 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
       }));
     }
 
-    // Always go to step 1 so the user can review/fill in what's missing
+    // Open the single event form so the user can review/fill in what's missing
     setSelectedEvent(null);
-    setStep(1);
+    setStep("create");
   }
 
-  async function handleImport() {
-    if (!form.importUrl.trim()) return;
-    setImporting(true);
-    setError(null);
-    try {
-      const res = await api("/api/events/parse_url", { method: "POST", body: { url: form.importUrl.trim() } });
-      setForm((prev) => ({
-        ...prev,
-        name: res.name || prev.name,
-        description: res.description || prev.description,
-        streetAddress: res.location || prev.streetAddress,
-        startDate: res.startDate ? res.startDate.split("T")[0] : prev.startDate,
-        endDate: res.endDate ? res.endDate.split("T")[0] : prev.endDate,
-        startTime: res.startDate?.includes("T") ? res.startDate.split("T")[1].substring(0, 5) : prev.startTime,
-        endTime: res.endDate?.includes("T") ? res.endDate.split("T")[1].substring(0, 5) : prev.endTime,
-        attendees: res.attendees > 0 ? String(res.attendees) : prev.attendees,
-        isMultiDay: !!(res.endDate && res.startDate && res.endDate.split("T")[0] !== res.startDate.split("T")[0]),
-      }));
-    } catch (err) {
-      setError(err?.message ?? "Could not import event details. Please fill in manually.");
-    } finally {
-      setImporting(false);
+  function validateCreateForm() {
+    if (!form.name.trim()) { setError("Event name is required."); return false; }
+    if (!form.streetAddress.trim()) { setError("Please enter the event address."); return false; }
+    if (!form.eventCity.trim() || !form.eventState || !/^\d{5}(-\d{4})?$/.test(form.eventPostalCode.trim())) {
+      setError("Pick an address from the suggestions so city, state, and ZIP fill in automatically.");
+      return false;
     }
-  }
-
-  function validateStep() {
-    switch (step) {
-      case 1:
-        if (!form.name.trim()) { setError("Event name is required."); return false; }
-        return true;
-      case 2: {
-        if (!form.streetAddress.trim()) { setError("Please enter the street address."); return false; }
-        if (!form.eventCity.trim()) { setError("Please enter the city."); return false; }
-        if (!form.eventState) { setError("Please select the state."); return false; }
-        if (!/^\d{5}(-\d{4})?$/.test(form.eventPostalCode.trim())) {
-          setError("Please enter a valid 5-digit ZIP code.");
-          return false;
-        }
-        return true;
-      }
-      case 3:
-        if (!form.startDate) { setError("Please pick a start date."); return false; }
-        if (form.isMultiDay && !form.endDate) { setError("Please pick an end date for your multi-day event."); return false; }
-        return true;
-      case 4:
-        if (!form.attendees || Number(form.attendees) < 1) { setError("Please enter the expected number of attendees."); return false; }
-        return true;
-      case 5:
-        return true;
-      default:
-        return true;
-    }
-  }
-
-  function next() {
-    setError(null);
-    if (!validateStep()) return;
-    setStep((s) => (typeof s === "number" ? s + 1 : s));
-  }
-
-  function back() {
-    setError(null);
-    if (step === 1) setStep("choose");
-    else if (typeof step === "number") setStep((s) => s - 1);
+    if (!form.startDate) { setError("Please pick a start date."); return false; }
+    if (form.isMultiDay && !form.endDate) { setError("Please pick an end date for your multi-day event."); return false; }
+    if (!form.attendees || Number(form.attendees) < 1) { setError("Please enter the expected number of attendees."); return false; }
+    return true;
   }
 
   function handleContinueExisting() {
-    onClose();
-    router.push(`/buyer-dashboard/proposals/new?vendor_id=${vendor.id}&event_id=${selectedEvent.id}`);
+    setError(null);
+    setCreatedEventInFlow(false);
+    setStep("send");
   }
 
   async function handleSaveEvent() {
@@ -1267,9 +1540,19 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
         vendor_load_out: form.vendorLoadOut || null,
         ...logisticsPayload,
       });
-      const eventId = eventRes?.event?.id ?? eventRes?.id;
-      onClose();
-      router.push(`/buyer-dashboard/proposals/new?vendor_id=${vendor.id}&event_id=${eventId}`);
+      const saved = eventRes?.event ?? eventRes;
+      const eventId = saved?.id;
+      setSelectedEvent({
+        id: eventId,
+        name: saved?.name || form.name.trim(),
+        startDate: saved?.startDate || saved?.start_date || `${form.startDate}T${form.startTime}:00`,
+        endDate: saved?.endDate || saved?.end_date || `${endDate}T${form.endTime}:00`,
+        location: saved?.location || `${form.eventCity.trim()}, ${form.eventState.toUpperCase()} ${form.eventPostalCode.trim()}`,
+        streetAddress: saved?.streetAddress || saved?.street_address || form.streetAddress.trim(),
+        attendees: saved?.attendees ?? (Number(form.attendees) || 0),
+      });
+      setCreatedEventInFlow(true);
+      setStep("send");
     } catch (err) {
       setError(err?.message ?? "Failed to save your event. Please try again.");
     } finally {
@@ -1281,9 +1564,10 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
 
   const marketplaceBookable = isVendorMarketplaceBookable(vendor);
   const vendorInitial = vendor?.name?.charAt(0)?.toUpperCase() || "V";
-  const isNumberStep = typeof step === "number";
-  const progress = isNumberStep ? step / 5 : 0;
-  const headerTitle = step === "choose" ? "Which event is this for?" : STEP_META[step]?.title ?? "";
+  const headerTitle =
+    step === "choose"
+      ? "Which event is this for?"
+      : STEP_META[step]?.title ?? "";
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -1318,59 +1602,61 @@ export default function ProposalModal({ vendor, isOpen, onClose }) {
             </button>
           </div>
 
-          {/* Step progress */}
-          {isNumberStep && (
-            <div className="mt-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((n) => (
-                    <div
-                      key={n}
-                      className={`h-1 rounded-full transition-all duration-500 ${
-                        n < step
-                          ? "bg-[var(--violet-600)] w-6"
-                          : n === step
-                          ? "bg-gradient-to-r from-[var(--violet-600)] to-[var(--magenta-500)] w-8"
-                          : "bg-[var(--gray-200)] w-6"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <span className="text-[11px] font-bold text-[var(--gray-400)]">
-                  {step} <span className="font-normal">of</span> 5
-                </span>
-              </div>
-              <p className="text-xs text-[var(--gray-400)]">{STEP_META[step]?.subtitle}</p>
-            </div>
+          {(step === "create" || step === "send") && (
+            <p className="text-xs text-[var(--gray-400)] mt-3">{STEP_META[step]?.subtitle}</p>
           )}
         </div>
 
-        {/* Step content (each step owns its own scroll + footer) */}
+        {/* Step content */}
         <div className="flex flex-col flex-1 min-h-0">
           {!marketplaceBookable ? (
             <MarketplaceComingSoonPanel onClose={onClose} />
           ) : needsAuth ? (
-            <AuthState vendor={vendor} onClose={onClose} router={router} />
+            <AuthState
+              vendor={vendor}
+              onClose={onClose}
+              router={router}
+              loginRedirect={loginRedirect || `/store/${vendor.id}`}
+            />
           ) : step === "choose" ? (
             <ChooseStep
               myEvents={myEvents}
               loadingEvents={loadingEvents}
               selectedEvent={selectedEvent}
               onSelect={setSelectedEvent}
-              onCreateNew={() => { setSelectedEvent(null); setStep(1); }}
+              onCreateNew={() => { setSelectedEvent(null); setStep("create"); }}
               onContinue={handleContinueExisting}
               onImportUrl={handleImportUrl}
             />
-          ) : step === 1 ? (
-            <Step1 form={form} setField={setField} importing={importing} onImport={handleImport} onNext={next} onBack={back} error={error} />
-          ) : step === 2 ? (
-            <Step2 form={form} setField={setField} onNext={next} onBack={back} error={error} />
-          ) : step === 3 ? (
-            <Step3 form={form} setField={setField} dailySchedule={dailySchedule} setDailySchedule={setDailySchedule} onNext={next} onBack={back} error={error} />
-          ) : step === 4 ? (
-            <Step4 form={form} setField={setField} onSave={next} onBack={back} error={error} submitting={false} nextLabel="Continue" />
-          ) : step === 5 ? (
-            <Step5 form={form} setField={setField} dailySchedule={dailySchedule} setDailySchedule={setDailySchedule} onSave={handleSaveEvent} onBack={back} error={error} submitting={submitting} />
+          ) : step === "create" ? (
+            <EventForm
+              form={form}
+              setField={setField}
+              dailySchedule={dailySchedule}
+              setDailySchedule={setDailySchedule}
+              onBack={() => { setError(null); setStep("choose"); }}
+              onSave={() => {
+                setError(null);
+                if (!validateCreateForm()) return;
+                handleSaveEvent();
+              }}
+              submitting={submitting}
+              error={error}
+            />
+          ) : step === "send" ? (
+            <SendStep
+              vendor={vendor}
+              event={selectedEvent}
+              form={form}
+              setField={setField}
+              showOptionalNudge={createdEventInFlow && isOptionalSparse(form)}
+              onBack={() => {
+                setError(null);
+                setStep("choose");
+              }}
+              onClose={onClose}
+              router={router}
+            />
           ) : null}
         </div>
       </div>

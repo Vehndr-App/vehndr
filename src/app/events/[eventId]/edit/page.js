@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import AuthGate from "../../../../components/AuthGate";
 import { useAuth } from "../../../../contexts/AuthContext";
@@ -67,20 +67,40 @@ function fmtDayLabel(dateStr) {
 export default function EventEditPage() {
   return (
     <AuthGate allowedRoles={["coordinator", "customer"]}>
-      <EventEditInner />
+      <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-sm text-[var(--gray-500)]">Loading event...</div>}>
+        <EventEditInner />
+      </Suspense>
     </AuthGate>
   );
+}
+
+/** Only allow same-site relative paths (blocks open redirects). */
+function safeReturnPath(raw) {
+  if (!raw || typeof raw !== "string") return null;
+  const path = raw.trim();
+  if (!path.startsWith("/") || path.startsWith("//") || path.includes("://")) return null;
+  return path;
 }
 
 function EventEditInner() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
+  const returnTo = safeReturnPath(searchParams.get("returnTo"));
+  const defaultReturn =
+    user?.role === "customer"
+      ? `/buyer-dashboard/events/${params.eventId}`
+      : `/events/${params.eventId}/dashboard`;
+  const exitPath = returnTo || defaultReturn;
+  const fromProposal = returnTo?.includes("/buyer-dashboard/proposals/");
+  const fromMessages = returnTo?.includes("/messages/");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [scheduleError, setScheduleError] = useState(null);
   const [eventId, setEventId] = useState(null);
+  const [isDirty, setIsDirty] = useState(false);
   const [dailySchedule, setDailySchedule] = useState([]);
   const [formData, setFormData] = useState({
     name: "",
@@ -157,6 +177,7 @@ function EventEditInner() {
         console.error("Failed to load event", err);
         setError("Unable to load event details.");
       } finally {
+        setIsDirty(false);
         setLoading(false);
       }
     };
@@ -164,12 +185,30 @@ function EventEditInner() {
     loadEvent();
   }, [params.eventId]);
 
+  // Warn if the browser tab is closed/refreshed with unsaved edits
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const onBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  function confirmLeave() {
+    if (!isDirty) return true;
+    return window.confirm("You have unsaved changes. Leave without saving?");
+  }
+
   const handleChange = (field, value) => {
+    setIsDirty(true);
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   // When dates change, rebuild the daily schedule preserving any existing values
   const handleDateChange = useCallback((field, value) => {
+    setIsDirty(true);
     setFormData((prev) => {
       const next = { ...prev, [field]: value };
       const { startDate, endDate } = next;
@@ -189,6 +228,7 @@ function EventEditInner() {
   }, []);
 
   const updateDay = (date, field, value) => {
+    setIsDirty(true);
     setDailySchedule((prev) =>
       prev.map((d) => (d.date === date ? { ...d, [field]: value } : d))
     );
@@ -256,11 +296,8 @@ function EventEditInner() {
         body: payload,
       });
 
-      const returnPath =
-        user?.role === "customer"
-          ? `/buyer-dashboard/events/${eventId}`
-          : `/events/${eventId}/dashboard`;
-      router.push(returnPath);
+      setIsDirty(false);
+      router.push(exitPath);
     } catch (err) {
       console.error("Failed to update event", err);
       setError(err?.details?.error || err?.details?.errors?.join(", ") || "Failed to update event.");
@@ -270,6 +307,7 @@ function EventEditInner() {
   };
 
   const toggleDesiredVendorCategory = (category) => {
+    setIsDirty(true);
     const normalizedCategory = normalizeVendorCategory(category);
     setFormData((prev) => ({
       ...prev,
@@ -290,25 +328,32 @@ function EventEditInner() {
   const isMultiDay = formData.startDate && formData.endDate && formData.startDate !== formData.endDate;
 
   return (
-    <div className="min-h-screen bg-[var(--background)] pb-24">
+    <div className="min-h-screen bg-[var(--background)] pb-40">
       <div className="bg-white border-b border-[var(--gray-100)]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6">
           <Link
-            href={user?.role === "customer" ? `/buyer-dashboard/events/${eventId}` : `/events/${eventId}/dashboard`}
+            href={exitPath}
+            onClick={(e) => {
+              if (!confirmLeave()) e.preventDefault();
+            }}
             className="inline-flex items-center gap-2 text-sm text-[var(--gray-500)] hover:text-[var(--gray-700)] mb-4"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to dashboard
+            {fromProposal ? "Back to proposal" : fromMessages ? "Back to messages" : "Back to dashboard"}
           </Link>
           <h1 className="text-h2 text-[var(--foreground)]">Edit Event</h1>
-          <p className="text-sm text-[var(--gray-500)] mt-1">Update details shown to vendors and attendees.</p>
+          <p className="text-sm text-[var(--gray-500)] mt-1">
+            {fromProposal || fromMessages
+              ? "Editing for your booking request — you’ll return when you’re done."
+              : "Update details shown to vendors and attendees."}
+          </p>
         </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
-        <form onSubmit={handleSubmit} className="card space-y-6">
+        <form id="event-edit-form" onSubmit={handleSubmit} className="card space-y-6 pb-4">
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
               {error}
@@ -670,22 +715,64 @@ function EventEditInner() {
             />
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-3">
+          {/* In-form save (also kept if sticky bar is covered) */}
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-3 pt-2 border-t border-[var(--gray-100)]">
             <Link
-              href={user?.role === "customer" ? `/buyer-dashboard/events/${eventId}` : `/events/${eventId}/dashboard`}
-              className="btn btn-outline px-4"
+              href={exitPath}
+              onClick={(e) => {
+                if (!confirmLeave()) e.preventDefault();
+              }}
+              className="btn btn-outline px-4 text-center"
             >
               Cancel
             </Link>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || !isDirty}
               className="btn btn-gradient px-6 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Sticky save bar — sits above the site bottom nav (h-16) so it stays visible */}
+      <div
+        className="fixed inset-x-0 z-[45] border-t border-[var(--gray-200)] bg-white/95 backdrop-blur-md"
+        style={{
+          bottom: "calc(4rem + env(safe-area-inset-bottom, 0px))",
+          boxShadow: "0 -4px 24px rgba(0,0,0,0.06)",
+        }}
+      >
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+          <p className={`text-xs flex-1 ${isDirty ? "text-[var(--amber-700)] font-medium" : "text-[var(--gray-400)]"}`}>
+            {saving
+              ? "Saving…"
+              : isDirty
+              ? "You have unsaved changes — tap Save before you leave."
+              : "No unsaved changes"}
+          </p>
+          <div className="flex gap-2 sm:justify-end">
+            <Link
+              href={exitPath}
+              onClick={(e) => {
+                if (!confirmLeave()) e.preventDefault();
+              }}
+              className="btn btn-outline px-4 flex-1 sm:flex-none text-center"
+            >
+              Cancel
+            </Link>
+            <button
+              type="submit"
+              form="event-edit-form"
+              disabled={saving || !isDirty}
+              className="btn btn-gradient px-6 flex-1 sm:flex-none disabled:opacity-50"
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

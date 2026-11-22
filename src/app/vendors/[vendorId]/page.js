@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import Link from "next/link";
 import { getStorefrontPath } from "../../../utils/storefrontLinks";
-import InquiryModal from "../../../components/InquiryModal";
+import ProposalModal from "../../../components/ProposalModal";
 
 export default function VendorProfilePage() {
   const { vendorId } = useParams();
@@ -148,10 +148,11 @@ export default function VendorProfilePage() {
         </div>
       )}
 
-      <InquiryModal
+      <ProposalModal
         vendor={vendor}
         isOpen={inquiryOpen}
         onClose={() => setInquiryOpen(false)}
+        loginRedirect={`/vendors/${vendorId}`}
       />
     </div>
   );
