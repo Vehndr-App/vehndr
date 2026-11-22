@@ -8,6 +8,7 @@ import Navbar from "./Navbar";
 
 const ImpersonationBanner = dynamic(() => import("./ImpersonationBanner"), { ssr: false });
 const LivePreviewBanner = dynamic(() => import("./LivePreviewBanner"), { ssr: false });
+const PostHogProvider = dynamic(() => import("./PostHogProvider"), { ssr: false });
 const BottomNav = dynamic(() => import("./BottomNav"), { ssr: false });
 const EventBestie = dynamic(() => import("./EventBestie"), { ssr: false });
 const Footer = dynamic(() => import("./Footer"));
@@ -24,15 +25,17 @@ export default function ClientShell({ children }) {
 
   return (
     <AuthProvider>
-      <CartProvider>
-        <LivePreviewBanner />
-        <ImpersonationBanner />
-        <Navbar />
-        <main className={isMessages ? "" : "min-h-screen pb-20"}>{children}</main>
-        {!isMessages && <Footer />}
-        <BottomNav />
-        {!isMessages && <EventBestie />}
-      </CartProvider>
+      <PostHogProvider>
+        <CartProvider>
+          <LivePreviewBanner />
+          <ImpersonationBanner />
+          <Navbar />
+          <main className={isMessages ? "" : "min-h-screen pb-20"}>{children}</main>
+          {!isMessages && <Footer />}
+          <BottomNav />
+          {!isMessages && <EventBestie />}
+        </CartProvider>
+      </PostHogProvider>
     </AuthProvider>
   );
 }

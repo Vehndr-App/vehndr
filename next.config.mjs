@@ -3,6 +3,12 @@ const API_PROXY_TARGET =
   process.env.API_PROXY_TARGET ||
   "https://vehndr-api-9f3b664fe80f.herokuapp.com";
 
+const POSTHOG_HOST =
+  process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
+const POSTHOG_ASSETS_HOST = POSTHOG_HOST.includes(".eu.")
+  ? "https://eu-assets.i.posthog.com"
+  : "https://us-assets.i.posthog.com";
+
 const nextConfig = {
   compress: true,
   async rewrites() {
@@ -14,6 +20,19 @@ const nextConfig = {
       {
         source: "/cable",
         destination: `${API_PROXY_TARGET}/cable`,
+      },
+      // PostHog reverse proxy (helps tracking when ad blockers are on)
+      {
+        source: "/ingest/static/:path*",
+        destination: `${POSTHOG_ASSETS_HOST}/static/:path*`,
+      },
+      {
+        source: "/ingest/array/:path*",
+        destination: `${POSTHOG_ASSETS_HOST}/array/:path*`,
+      },
+      {
+        source: "/ingest/:path*",
+        destination: `${POSTHOG_HOST}/:path*`,
       },
     ];
   },
