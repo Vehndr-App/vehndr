@@ -9,6 +9,7 @@ import Navbar from "./Navbar";
 const ImpersonationBanner = dynamic(() => import("./ImpersonationBanner"), { ssr: false });
 const LivePreviewBanner = dynamic(() => import("./LivePreviewBanner"), { ssr: false });
 const PostHogProvider = dynamic(() => import("./PostHogProvider"), { ssr: false });
+const CookieConsentBanner = dynamic(() => import("./CookieConsentBanner"), { ssr: false });
 const BottomNav = dynamic(() => import("./BottomNav"), { ssr: false });
 const EventBestie = dynamic(() => import("./EventBestie"), { ssr: false });
 const Footer = dynamic(() => import("./Footer"));
@@ -34,6 +35,7 @@ export default function ClientShell({ children }) {
           {!isMessages && <Footer />}
           <BottomNav />
           {!isMessages && <EventBestie />}
+          <CookieConsentBanner />
         </CartProvider>
       </PostHogProvider>
     </AuthProvider>

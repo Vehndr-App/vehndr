@@ -1,10 +1,11 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import posthog from "posthog-js";
 import { PostHogProvider as PHProvider, usePostHog } from "posthog-js/react";
 import { useAuth } from "../contexts/AuthContext";
+import { getCookieConsent } from "../utils/cookieConsent";
 
 const POSTHOG_KEY = process.env.NEXT_PUBLIC_POSTHOG_KEY;
 
@@ -40,33 +41,68 @@ function PostHogIdentify() {
   return null;
 }
 
+function stopPostHog() {
+  try {
+    if (posthog.__loaded) {
+      posthog.opt_out_capturing();
+      posthog.reset();
+    }
+  } catch {
+    // Ignore
+  }
+}
+
 export default function PostHogProvider({ children }) {
+  const [analyticsReady, setAnalyticsReady] = useState(false);
+
   useEffect(() => {
-    if (!POSTHOG_KEY) return;
-    if (posthog.__loaded) return;
-    posthog.init(POSTHOG_KEY, {
-      api_host: "/ingest",
-      ui_host: "https://us.posthog.com",
-      // Fall back if reverse proxy is unavailable
-      // (PostHog still works via direct host when /ingest fails to rewrite)
-      person_profiles: "identified_only",
-      capture_pageview: false,
-      capture_pageleave: true,
-      persistence: "localStorage+cookie",
-    });
+    function applyConsent(next = getCookieConsent()) {
+      if (!POSTHOG_KEY || next !== "accepted") {
+        setAnalyticsReady(false);
+        stopPostHog();
+        return;
+      }
+
+      if (!posthog.__loaded) {
+        posthog.init(POSTHOG_KEY, {
+          api_host: "/ingest",
+          ui_host: "https://us.posthog.com",
+          person_profiles: "identified_only",
+          capture_pageview: false,
+          capture_pageleave: true,
+          persistence: "localStorage+cookie",
+        });
+      } else {
+        try {
+          posthog.opt_in_capturing();
+        } catch {
+          // Ignore
+        }
+      }
+      setAnalyticsReady(true);
+    }
+
+    applyConsent();
+
+    function onConsent(event) {
+      applyConsent(event?.detail || getCookieConsent());
+    }
+
+    window.addEventListener("vehndr:cookie-consent", onConsent);
+    return () => window.removeEventListener("vehndr:cookie-consent", onConsent);
   }, []);
 
-  if (!POSTHOG_KEY) {
-    return children;
-  }
-
   return (
-    <PHProvider client={posthog}>
-      <Suspense fallback={null}>
-        <PostHogPageView />
-      </Suspense>
-      <PostHogIdentify />
+    <>
+      {analyticsReady ? (
+        <PHProvider client={posthog}>
+          <Suspense fallback={null}>
+            <PostHogPageView />
+          </Suspense>
+          <PostHogIdentify />
+        </PHProvider>
+      ) : null}
       {children}
-    </PHProvider>
+    </>
   );
 }
