@@ -1585,8 +1585,11 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, 
     let res = null;
     try {
       res = await api("/api/events/parse_url", { method: "POST", body: { url } });
-    } catch {
-      // Scraping failed — fall through to manual form
+    } catch (err) {
+      setError(err?.message || "Couldn’t read that event link. Try creating the event manually.");
+      setSelectedEvent(null);
+      setStep("create");
+      return;
     }
 
     const startDate = res?.startDate ? res.startDate.split("T")[0] : "";
@@ -1595,7 +1598,7 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, 
     const endTime   = res?.endDate?.includes("T")   ? res.endDate.split("T")[1].substring(0, 5)   : "22:00";
 
     // Pre-populate form with whatever was extracted
-    if (res) {
+    if (res?.name) {
       setForm((prev) => ({
         ...prev,
         name:          res.name        || prev.name,
@@ -1608,6 +1611,9 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, 
         attendees:     res.attendees > 0 ? String(res.attendees) : prev.attendees,
         isMultiDay:    !!(res.endDate && res.startDate && endDate !== startDate),
       }));
+      setError(null);
+    } else {
+      setError("Couldn’t pull details from that link. Fill in the event manually — or double-check it’s a public Partiful/Luma/Eventbrite page.");
     }
 
     // Open the single event form so the user can review/fill in what's missing
