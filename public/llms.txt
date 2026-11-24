@@ -1,0 +1,21 @@
+# Vehndr
+
+> Vehndr is a marketplace to discover and book event vendors — makers, creatives, talent, rentals, food, and more — in one place.
+
+Vehndr helps people planning events find trusted local vendors, browse storefronts, send booking requests, and checkout. Vendors can create a free profile, list offerings, and get booked.
+
+## Main pages
+
+- Homepage: https://www.vehndr.com/
+- Browse vendors: https://www.vehndr.com/vendors
+- Events: https://www.vehndr.com/events
+- Vendor signup: https://www.vehndr.com/register
+- Support: https://www.vehndr.com/support
+- Privacy: https://www.vehndr.com/privacy
+- Terms: https://www.vehndr.com/terms
+- Refunds: https://www.vehndr.com/refunds
+
+## Optional
+
+- Sitemap: https://www.vehndr.com/sitemap.xml
+- Robots: https://www.vehndr.com/robots.txt

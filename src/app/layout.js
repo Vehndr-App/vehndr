@@ -36,6 +36,14 @@ export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://www.vehndr.com"),
   title: metadataTitle,
   description: metadataDescription,
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   openGraph: {
     title: metadataTitle,
     description: metadataDescription,
