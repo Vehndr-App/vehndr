@@ -1,18 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import Link from "next/link";
 import { getStorefrontPath } from "../../../utils/storefrontLinks";
 import ProposalModal from "../../../components/ProposalModal";
+import { useAuth } from "../../../contexts/AuthContext";
+import { loadBookingDraft } from "../../../utils/bookingDraft";
 
 export default function VendorProfilePage() {
   const { vendorId } = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [inquiryOpen, setInquiryOpen] = useState(false);
+  const [bookingDraft, setBookingDraft] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -30,6 +36,16 @@ export default function VendorProfilePage() {
       }
     })();
   }, [vendorId]);
+
+  useEffect(() => {
+    if (searchParams.get("resume_booking") !== "1") return;
+    if (!user || !vendor) return;
+    const draft = loadBookingDraft();
+    if (!draft || String(draft.vendorId) !== String(vendor.id)) return;
+    setBookingDraft(draft);
+    setInquiryOpen(true);
+    router.replace(`/vendors/${vendorId}`, { scroll: false });
+  }, [user, vendor, searchParams, vendorId, router]);
 
   if (loading || !vendor) {
     return (
@@ -151,8 +167,12 @@ export default function VendorProfilePage() {
       <ProposalModal
         vendor={vendor}
         isOpen={inquiryOpen}
-        onClose={() => setInquiryOpen(false)}
+        onClose={() => {
+          setInquiryOpen(false);
+          setBookingDraft(null);
+        }}
         loginRedirect={`/vendors/${vendorId}`}
+        resumeDraft={bookingDraft}
       />
     </div>
   );

@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { login, resendVerification, getCurrentUser } from "../../services/auth";
 import { api } from "../../services/api";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ConfettiBurst from "../../components/ConfettiBurst";
+
+function safeRedirectPath(value) {
+  if (!value || typeof value !== "string") return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+}
 
 const recaptchaEnabled =
   process.env.NEXT_PUBLIC_DISABLE_RECAPTCHA !== "true" &&
@@ -16,6 +22,8 @@ const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default :
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = safeRedirectPath(searchParams.get("redirect"));
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -31,6 +39,10 @@ export default function LoginPage() {
     if (!user || !allowRedirect) return;
 
     (async () => {
+      if (redirectTo) {
+        router.push(redirectTo);
+        return;
+      }
       if (user.role === "vendor" && user.vendorId) {
         try {
           const onboarding = await api(`/api/vendors/${user.vendorId}/onboarding`);
@@ -49,7 +61,7 @@ export default function LoginPage() {
         router.push("/");
       }
     })();
-  }, [user, router, allowRedirect]);
+  }, [user, router, allowRedirect, redirectTo]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -79,6 +91,14 @@ export default function LoginPage() {
 
       await refreshUser();
       const loggedIn = await getCurrentUser();
+
+      if (redirectTo) {
+        setShowConfetti(true);
+        setLoading(false);
+        router.push(redirectTo);
+        return;
+      }
+
       if (loggedIn?.role === "vendor" && loggedIn.vendorId) {
         try {
           const onboarding = await api(`/api/vendors/${loggedIn.vendorId}/onboarding`);

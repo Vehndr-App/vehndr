@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createEvent, getMyEvents, updateEvent } from "../services/events";
 import { createInquiry } from "../services/inquiries";
 import { getCoordinatorStripeAccount } from "../services/coordinators";
@@ -11,6 +12,17 @@ import { marketplaceBreakdown } from "../utils/marketplacePricing";
 import AddressAutocomplete from "./AddressAutocomplete";
 import MarketplaceComingSoonPanel from "./MarketplaceComingSoonPanel";
 import { isVendorMarketplaceBookable } from "../utils/vendorMarketplace";
+import { useAuth } from "../contexts/AuthContext";
+import {
+  clearBookingDraft,
+  saveBookingDraft,
+} from "../utils/bookingDraft";
+
+function isUnauthorizedError(err) {
+  const status = err?.status ?? err?.details?.status;
+  const message = String(err?.message || err?.details?.error || "").toLowerCase();
+  return status === 401 || message.includes("not authorized") || message.includes("unauthorized");
+}
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1004,20 +1016,80 @@ function EventForm({
 
 // ─── Send request (same drawer — no second page) ──────────────────────────────
 
+function buildEventPayload(form, dailySchedule) {
+  const endDate = form.isMultiDay && form.endDate ? form.endDate : form.startDate;
+  const logisticsPayload = {};
+  if (form.indoorOutdoor) logisticsPayload.indoor_outdoor = form.indoorOutdoor;
+  if (form.accessToPower) logisticsPayload.access_to_power = form.accessToPower;
+  if (form.accessToWater) logisticsPayload.access_to_water = form.accessToWater;
+  if (form.parkingAvailable) logisticsPayload.parking_available = form.parkingAvailable;
+  if (form.canopyAllowed) logisticsPayload.canopy_allowed = form.canopyAllowed;
+  if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
+  if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
+  const schedulePayload =
+    form.isMultiDay && dailySchedule.length > 1
+      ? dailySchedule.map((d) => ({
+          date: d.date,
+          startDate: d.date,
+          startTime: d.startTime,
+          endDate: d.date,
+          endTime: d.endTime,
+          vendorLoadIn: d.vendorLoadIn || "",
+          vendorLoadOut: d.vendorLoadOut || "",
+        }))
+      : [];
+
+  return {
+    name: form.name.trim(),
+    description: form.description.trim() || null,
+    street_address: form.streetAddress.trim(),
+    location: `${form.eventCity.trim()}, ${form.eventState.toUpperCase()} ${form.eventPostalCode.trim()}`,
+    start_date: `${form.startDate}T${form.startTime}:00`,
+    end_date: `${endDate}T${form.endTime}:00`,
+    attendees: Number(form.attendees) || 0,
+    age_group: form.ageGroup,
+    requires_coi: form.requiresCoi,
+    status: "draft",
+    is_public: form.isPublic,
+    daily_schedule: schedulePayload,
+    vendor_load_in: form.vendorLoadIn || null,
+    vendor_load_out: form.vendorLoadOut || null,
+    ...logisticsPayload,
+  };
+}
+
+function buildLocalEventFromForm(form) {
+  const endDate = form.isMultiDay && form.endDate ? form.endDate : form.startDate;
+  return {
+    id: null,
+    name: form.name.trim(),
+    startDate: `${form.startDate}T${form.startTime}:00`,
+    endDate: `${endDate}T${form.endTime}:00`,
+    location: `${form.eventCity.trim()}, ${form.eventState.toUpperCase()} ${form.eventPostalCode.trim()}`,
+    streetAddress: form.streetAddress.trim(),
+    attendees: Number(form.attendees) || 0,
+  };
+}
+
 function SendStep({
   vendor,
   event,
   form,
+  dailySchedule = [],
   setField: setEventField,
   showOptionalNudge = false,
+  createdEventInFlow = false,
+  sendDraft = null,
+  isLoggedIn = false,
+  onNeedAuth,
   onBack,
   onClose,
   router,
 }) {
-  const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
-  const [fields, setFields] = useState({ budget: "", vendingFee: "", tip: "" });
-  const [message, setMessage] = useState("");
-  const [messageEdited, setMessageEdited] = useState(false);
+  const [coordinatorType, setCoordinatorType] = useState(sendDraft?.coordinatorType || "hiring_vendor");
+  const [fields, setFields] = useState(sendDraft?.fields || { budget: "", vendingFee: "", tip: "" });
+  const [message, setMessage] = useState(sendDraft?.message || "");
+  const [messageEdited, setMessageEdited] = useState(Boolean(sendDraft?.messageEdited));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [stripeConnected, setStripeConnected] = useState(false);
@@ -1083,11 +1155,39 @@ function SendStep({
       setError("Please add a message before sending.");
       return;
     }
+
+    if (!isLoggedIn) {
+      onNeedAuth?.({
+        vendorId: vendor.id,
+        form,
+        dailySchedule,
+        selectedEvent: event,
+        coordinatorType,
+        fields,
+        message: message.trim(),
+        messageEdited,
+        createdEventInFlow: createdEventInFlow || !event?.id,
+      });
+      return;
+    }
+
     setError(null);
     setSubmitting(true);
     try {
+      let eventId = event?.id;
+
+      if (!eventId && form) {
+        const eventRes = await createEvent(buildEventPayload(form, dailySchedule));
+        const saved = eventRes?.event ?? eventRes;
+        eventId = saved?.id;
+      }
+
+      if (!eventId) {
+        throw new Error("Could not create your event. Please try again.");
+      }
+
       // Persist optional details if they filled them on this screen but didn't tap Save
-      if (showOptionalEditor && form && event?.id && !isOptionalSparse(form)) {
+      if (showOptionalEditor && form && eventId && !isOptionalSparse(form)) {
         try {
           const logisticsPayload = {};
           if (form.indoorOutdoor) logisticsPayload.indoor_outdoor = form.indoorOutdoor;
@@ -1097,7 +1197,7 @@ function SendStep({
           if (form.canopyAllowed) logisticsPayload.canopy_allowed = form.canopyAllowed;
           if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
           if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
-          await updateEvent(event.id, {
+          await updateEvent(eventId, {
             description: form.description?.trim() || null,
             age_group: form.ageGroup,
             requires_coi: form.requiresCoi,
@@ -1111,7 +1211,7 @@ function SendStep({
       }
       const payload = {
         vendor_id: vendor.id,
-        event_id: event.id,
+        event_id: eventId,
         coordinator_type: coordinatorType,
         initial_message: message.trim(),
       };
@@ -1126,6 +1226,7 @@ function SendStep({
       }
       const res = await createInquiry(payload);
       const inquiry = res?.inquiry ?? res;
+      clearBookingDraft();
       onClose();
       router.push(`/buyer-dashboard/proposals/${inquiry.id}`);
     } catch (err) {
@@ -1353,29 +1454,37 @@ function SendStep({
 
 // ─── Auth prompt ──────────────────────────────────────────────────────────────
 
-function AuthState({ vendor, onClose, router, loginRedirect }) {
-  const redirect = loginRedirect || `/store/${vendor.id}`;
+function AuthState({ vendor, onClose, loginRedirect }) {
+  const redirect = loginRedirect || `/store/${vendor.id}?resume_booking=1`;
+  const registerHref = `/register?role=coordinator&redirect=${encodeURIComponent(redirect)}`;
+  const loginHref = `/login?redirect=${encodeURIComponent(redirect)}`;
   return (
     <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6 py-12 text-center">
       <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[var(--violet-100)] to-[var(--magenta-100)] flex items-center justify-center shadow-sm">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
         </svg>
       </div>
       <div>
-        <p className="font-bold text-[var(--gray-900)] text-lg mb-1">Sign in to continue</p>
+        <p className="font-bold text-[var(--gray-900)] text-lg mb-1">Create an account to send</p>
         <p className="text-sm text-[var(--gray-500)] leading-relaxed">
-          You need an account to submit proposals and contact vendors.
+          Your booking details are saved. Sign up or log in to send your request to {vendor?.name || "this vendor"}.
         </p>
       </div>
-      <button
-        onClick={() => router.push(`/login?redirect=${encodeURIComponent(redirect)}`)}
-        className="w-full btn btn-gradient text-sm h-11"
-      >
-        Log in or Sign up
-      </button>
+      <div className="flex flex-col gap-3 w-full">
+        <Link href={registerHref} className="w-full btn btn-gradient text-sm h-11 flex items-center justify-center">
+          Create account
+        </Link>
+        <Link
+          href={loginHref}
+          className="w-full h-11 rounded-2xl border border-[var(--gray-200)] text-[var(--gray-700)] font-semibold text-sm flex items-center justify-center hover:bg-[var(--gray-50)] transition-colors"
+        >
+          Log in
+        </Link>
+      </div>
       <button onClick={onClose} className="text-sm text-[var(--gray-400)] hover:text-[var(--gray-600)] transition-colors">
-        Maybe later
+        Keep editing
       </button>
     </div>
   );
@@ -1383,10 +1492,12 @@ function AuthState({ vendor, onClose, router, loginRedirect }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }) {
+export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, resumeDraft = null }) {
   const router = useRouter();
+  const { user } = useAuth();
+  const isLoggedIn = Boolean(user);
 
-  const [needsAuth, setNeedsAuth] = useState(false);
+  const [authGateOpen, setAuthGateOpen] = useState(false);
   const [step, setStep] = useState("choose");
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [myEvents, setMyEvents] = useState([]);
@@ -1396,6 +1507,8 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [createdEventInFlow, setCreatedEventInFlow] = useState(false);
+  const [sendDraft, setSendDraft] = useState(null);
+  const resumeStartedRef = useRef(false);
 
   const defaultTimesRef = useRef({ startTime: INITIAL_FORM.startTime, endTime: INITIAL_FORM.endTime });
   useEffect(() => {
@@ -1417,18 +1530,17 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
 
   useEffect(() => {
     if (!isOpen) return;
-    const token = typeof window !== "undefined" ? window.localStorage?.getItem("vehndr_token") : null;
-    setNeedsAuth(!token);
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen || needsAuth) return;
+    if (!isLoggedIn) {
+      setMyEvents([]);
+      setLoadingEvents(false);
+      return;
+    }
     setLoadingEvents(true);
     getMyEvents()
       .then((data) => setMyEvents(Array.isArray(data) ? data : []))
       .catch(() => setMyEvents([]))
       .finally(() => setLoadingEvents(false));
-  }, [isOpen, needsAuth]);
+  }, [isOpen, isLoggedIn]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -1437,10 +1549,33 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
       setForm(INITIAL_FORM);
       setDailySchedule([]);
       setError(null);
-      setNeedsAuth(false);
+      setAuthGateOpen(false);
       setCreatedEventInFlow(false);
+      setSendDraft(null);
+      resumeStartedRef.current = false;
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !resumeDraft || resumeStartedRef.current) return;
+    if (!isLoggedIn) return;
+    if (String(resumeDraft.vendorId) !== String(vendor?.id)) return;
+
+    resumeStartedRef.current = true;
+    const restoredForm = { ...INITIAL_FORM, ...(resumeDraft.form || {}) };
+    setForm(restoredForm);
+    setDailySchedule(Array.isArray(resumeDraft.dailySchedule) ? resumeDraft.dailySchedule : []);
+    setSelectedEvent(resumeDraft.selectedEvent || null);
+    setCreatedEventInFlow(Boolean(resumeDraft.createdEventInFlow));
+    setSendDraft({
+      coordinatorType: resumeDraft.coordinatorType || "hiring_vendor",
+      fields: resumeDraft.fields || { budget: "", vendingFee: "", tip: "" },
+      message: resumeDraft.message || "",
+      messageEdited: Boolean(resumeDraft.messageEdited),
+    });
+    setStep("send");
+    setAuthGateOpen(false);
+  }, [isOpen, resumeDraft, vendor?.id, isLoggedIn]);
 
   const setField = useCallback((key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1499,47 +1634,25 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
     setStep("send");
   }
 
+  function continueAsGuestWithLocalEvent() {
+    setSelectedEvent(buildLocalEventFromForm(form));
+    setCreatedEventInFlow(true);
+    setStep("send");
+  }
+
   async function handleSaveEvent() {
     setError(null);
+
+    // Guests keep details local until the final send (account required then).
+    if (!isLoggedIn) {
+      continueAsGuestWithLocalEvent();
+      return;
+    }
+
     setSubmitting(true);
     try {
       const endDate = form.isMultiDay && form.endDate ? form.endDate : form.startDate;
-      const logisticsPayload = {};
-      if (form.indoorOutdoor)    logisticsPayload.indoor_outdoor    = form.indoorOutdoor;
-      if (form.accessToPower)    logisticsPayload.access_to_power   = form.accessToPower;
-      if (form.accessToWater)    logisticsPayload.access_to_water   = form.accessToWater;
-      if (form.parkingAvailable) logisticsPayload.parking_available = form.parkingAvailable;
-      if (form.canopyAllowed)    logisticsPayload.canopy_allowed    = form.canopyAllowed;
-      if (form.wifiAvailability) logisticsPayload.wifi_availability = form.wifiAvailability;
-      if (form.securityPresence) logisticsPayload.security_presence = form.securityPresence;
-      const schedulePayload = form.isMultiDay && dailySchedule.length > 1
-        ? dailySchedule.map((d) => ({
-            date: d.date,
-            startDate: d.date,
-            startTime: d.startTime,
-            endDate: d.date,
-            endTime: d.endTime,
-            vendorLoadIn: d.vendorLoadIn || "",
-            vendorLoadOut: d.vendorLoadOut || "",
-          }))
-        : [];
-      const eventRes = await createEvent({
-        name: form.name.trim(),
-        description: form.description.trim() || null,
-        street_address: form.streetAddress.trim(),
-        location: `${form.eventCity.trim()}, ${form.eventState.toUpperCase()} ${form.eventPostalCode.trim()}`,
-        start_date: `${form.startDate}T${form.startTime}:00`,
-        end_date: `${endDate}T${form.endTime}:00`,
-        attendees: Number(form.attendees) || 0,
-        age_group: form.ageGroup,
-        requires_coi: form.requiresCoi,
-        status: "draft",
-        is_public: form.isPublic,
-        daily_schedule: schedulePayload,
-        vendor_load_in: form.vendorLoadIn || null,
-        vendor_load_out: form.vendorLoadOut || null,
-        ...logisticsPayload,
-      });
+      const eventRes = await createEvent(buildEventPayload(form, dailySchedule));
       const saved = eventRes?.event ?? eventRes;
       const eventId = saved?.id;
       setSelectedEvent({
@@ -1554,10 +1667,20 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
       setCreatedEventInFlow(true);
       setStep("send");
     } catch (err) {
+      // Stale/expired login cookie: keep going locally, ask for account at send.
+      if (isUnauthorizedError(err)) {
+        continueAsGuestWithLocalEvent();
+        return;
+      }
       setError(err?.message ?? "Failed to save your event. Please try again.");
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function handleNeedAuth(draft) {
+    saveBookingDraft(draft);
+    setAuthGateOpen(true);
   }
 
   if (!isOpen) return null;
@@ -1611,12 +1734,15 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
         <div className="flex flex-col flex-1 min-h-0">
           {!marketplaceBookable ? (
             <MarketplaceComingSoonPanel onClose={onClose} />
-          ) : needsAuth ? (
+          ) : authGateOpen ? (
             <AuthState
               vendor={vendor}
-              onClose={onClose}
-              router={router}
-              loginRedirect={loginRedirect || `/store/${vendor.id}`}
+              onClose={() => setAuthGateOpen(false)}
+              loginRedirect={
+                loginRedirect
+                  ? `${loginRedirect}${loginRedirect.includes("?") ? "&" : "?"}resume_booking=1`
+                  : `/store/${vendor.id}?resume_booking=1`
+              }
             />
           ) : step === "choose" ? (
             <ChooseStep
@@ -1645,14 +1771,20 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect }
             />
           ) : step === "send" ? (
             <SendStep
+              key={sendDraft ? "resumed" : "fresh"}
               vendor={vendor}
               event={selectedEvent}
               form={form}
+              dailySchedule={dailySchedule}
               setField={setField}
               showOptionalNudge={createdEventInFlow && isOptionalSparse(form)}
+              createdEventInFlow={createdEventInFlow}
+              sendDraft={sendDraft}
+              isLoggedIn={isLoggedIn}
+              onNeedAuth={handleNeedAuth}
               onBack={() => {
                 setError(null);
-                setStep("choose");
+                setStep(createdEventInFlow ? "create" : "choose");
               }}
               onClose={onClose}
               router={router}

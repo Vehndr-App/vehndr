@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { register } from "../../services/auth";
 import { useAuth } from "../../contexts/AuthContext";
 import Link from "next/link";
 import ConfettiBurst from "../../components/ConfettiBurst";
 import { VENDOR_CATEGORY_TREE } from "../../constants/categories";
+
+function safeRedirectPath(value) {
+  if (!value || typeof value !== "string") return null;
+  if (!value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+}
 
 const PRIMARY_CATEGORIES = VENDOR_CATEGORY_TREE.filter((c) => !c.parent);
 
@@ -17,11 +23,16 @@ const ReCAPTCHA = recaptchaEnabled ? require("react-google-recaptcha").default :
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = safeRedirectPath(searchParams.get("redirect"));
+  const roleParam = searchParams.get("role");
   const { user, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
-  const [selectedRole, setSelectedRole] = useState("vendor");
+  const [selectedRole, setSelectedRole] = useState(
+    roleParam === "coordinator" || roleParam === "vendor" ? roleParam : "vendor"
+  );
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -29,15 +40,25 @@ export default function RegisterPage() {
   const recaptchaRef = useRef(null);
 
   useEffect(() => {
+    if (roleParam === "coordinator" || roleParam === "vendor") {
+      setSelectedRole(roleParam);
+    }
+  }, [roleParam]);
+
+  useEffect(() => {
     // Redirect if already logged in
     if (user) {
+      if (redirectTo) {
+        router.push(redirectTo);
+        return;
+      }
       if (user.role === 'vendor') {
         router.push('/dashboard/setup');
       } else if (user.role === 'coordinator') {
         router.push('/coordinator-dashboard');
       }
     }
-  }, [user, router]);
+  }, [user, router, redirectTo]);
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -194,7 +215,15 @@ export default function RegisterPage() {
               <p className="mt-2 text-xs text-[var(--gray-500)]">
                 The link will expire in 24 hours.
               </p>
-              <Link href="/login" className="btn btn-primary w-full mt-6">
+              {redirectTo && (
+                <p className="mt-3 text-sm text-[var(--violet-700)]">
+                  After you verify, log in and we&apos;ll bring you back to finish your booking.
+                </p>
+              )}
+              <Link
+                href={redirectTo ? `/login?redirect=${encodeURIComponent(redirectTo)}` : "/login"}
+                className="btn btn-primary w-full mt-6"
+              >
                 Go to Login
               </Link>
             </div>

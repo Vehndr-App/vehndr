@@ -8,7 +8,6 @@ import ProposalModal from "../../../components/ProposalModal";
 import StorefrontHeroGallery from "../../../components/storefront/StorefrontHeroGallery";
 import StorefrontPhotoTour from "../../../components/storefront/StorefrontPhotoTour";
 import StorefrontGalleryCarousel from "../../../components/storefront/StorefrontGalleryCarousel";
-import Link from "next/link";
 import { getStorefrontUrl } from "../../../utils/storefrontLinks";
 import {
   getVendorBookingPriceLabel,
@@ -21,6 +20,7 @@ import {
   isVendorMarketplaceBookable,
   MARKETPLACE_COMING_SOON_BLURB,
 } from "../../../utils/vendorMarketplace";
+import { loadBookingDraft } from "../../../utils/bookingDraft";
 
 function clampFocalPoint(value) {
   const numeric = Number(value);
@@ -46,7 +46,7 @@ export default function StorefrontPage() {
   const [carouselReturnToTour, setCarouselReturnToTour] = useState(false);
   const [shareStatus, setShareStatus] = useState(null);
   const [inquiryOpen, setInquiryOpen] = useState(false);
-  const [authWallOpen, setAuthWallOpen] = useState(false);
+  const [bookingDraft, setBookingDraft] = useState(null);
   const [preselectedEvent, setPreselectedEvent] = useState(null);
   const { user } = useAuth();
 
@@ -63,6 +63,16 @@ export default function StorefrontPage() {
     if (!preselectedEventId) return;
     getEvent(preselectedEventId).then(setPreselectedEvent).catch(() => {});
   }, [preselectedEventId]);
+
+  useEffect(() => {
+    if (searchParams.get("resume_booking") !== "1") return;
+    if (!user || !vendor) return;
+    const draft = loadBookingDraft();
+    if (!draft || String(draft.vendorId) !== String(vendor.id)) return;
+    setBookingDraft(draft);
+    setInquiryOpen(true);
+    router.replace(`/store/${vendorId}`, { scroll: false });
+  }, [user, vendor, searchParams, vendorId, router]);
 
   const filteredProducts = useMemo(() => {
     if (activeTab === "products") return products.filter((p) => !p.isService);
@@ -97,11 +107,7 @@ export default function StorefrontPage() {
 
   function handleBookClick() {
     if (!marketplaceBookable) return;
-    if (!user) {
-      setAuthWallOpen(true);
-      return;
-    }
-    if (preselectedEventId) {
+    if (preselectedEventId && user) {
       router.push(`/buyer-dashboard/proposals/new?vendor_id=${vendor.id}&event_id=${preselectedEventId}`);
       return;
     }
@@ -363,65 +369,15 @@ export default function StorefrontPage() {
         </div>
       </div>
 
-      <ProposalModal vendor={vendor} isOpen={inquiryOpen} onClose={() => setInquiryOpen(false)} />
-
-      {authWallOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4"
-          onClick={() => setAuthWallOpen(false)}
-        >
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-w-sm bg-white rounded-3xl p-8 flex flex-col items-center text-center shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="w-14 h-14 rounded-2xl mb-5 flex items-center justify-center"
-              style={{ background: "var(--gradient-vendor)" }}
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="white"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                <circle cx="12" cy="7" r="4" />
-              </svg>
-            </div>
-            <h2 className="text-xl font-bold text-[var(--gray-900)] mb-2">Create an account to book</h2>
-            <p className="text-sm text-[var(--gray-500)] mb-7 leading-relaxed">
-              Sign up or log in to send a booking request to {vendor?.name ?? "this vendor"}.
-            </p>
-            <div className="flex flex-col gap-3 w-full">
-              <Link
-                href={`/register?redirect=/store/${vendorId}`}
-                className="w-full py-3 rounded-2xl text-white font-semibold text-sm text-center"
-                style={{ background: "var(--gradient-vendor)" }}
-              >
-                Create account
-              </Link>
-              <Link
-                href={`/login?redirect=/store/${vendorId}`}
-                className="w-full py-3 rounded-2xl border border-[var(--gray-200)] text-[var(--gray-700)] font-semibold text-sm text-center hover:bg-[var(--gray-50)] transition-colors"
-              >
-                Log in
-              </Link>
-            </div>
-            <button
-              type="button"
-              onClick={() => setAuthWallOpen(false)}
-              className="mt-5 text-xs text-[var(--gray-400)] hover:text-[var(--gray-600)] transition-colors"
-            >
-              Maybe later
-            </button>
-          </div>
-        </div>
-      )}
+      <ProposalModal
+        vendor={vendor}
+        isOpen={inquiryOpen}
+        onClose={() => {
+          setInquiryOpen(false);
+          setBookingDraft(null);
+        }}
+        resumeDraft={bookingDraft}
+      />
 
       {galleryView === "tour" && allImages.length > 0 && (
         <StorefrontPhotoTour
