@@ -655,13 +655,15 @@ function NewEventInner() {
                               <p className="font-semibold text-[var(--gray-900)]">{vendor.name}</p>
                               <div className="flex items-center gap-2 text-xs text-[var(--gray-500)]">
                                 <span>{vendor.categories?.join(", ") || "Vendor"}</span>
-                                {vendor.rating && (
+                                {Number(vendor.rating) > 0 ? (
                                   <span className="flex items-center gap-0.5">
                                     <svg width="10" height="10" viewBox="0 0 24 24" fill="var(--amber-500)" stroke="none">
                                       <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
                                     </svg>
                                     {vendor.rating}
                                   </span>
+                                ) : (
+                                  <span>New</span>
                                 )}
                               </div>
                             </div>

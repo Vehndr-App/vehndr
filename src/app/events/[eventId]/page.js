@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getEvent } from "../../../services/events";
 import { listVendors } from "../../../services/vendors";
+import VendorRatingBadge from "../../../components/VendorRatingBadge";
 import { getStorefrontPath } from "../../../utils/storefrontLinks";
 import { normalizeVendorCategories } from "../../../constants/categories";
 
@@ -230,15 +231,7 @@ function VendorCard({ vendor, index }) {
           Open
         </div>
         
-        {/* Rating Badge */}
-        {vendor.rating && (
-          <div className="absolute top-3 left-3 badge-rating flex items-center gap-1">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            {vendor.rating}
-          </div>
-        )}
+        <VendorRatingBadge vendor={vendor} className="absolute top-3 left-3" />
       </div>
 
       {/* Content */}

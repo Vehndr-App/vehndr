@@ -57,7 +57,7 @@ export default function VendorProfilePage() {
           <h1 className="text-2xl font-semibold">{vendor.name}</h1>
           <p className="text-sm text-black/60">{vendor.description}</p>
           <div className="text-xs mt-2 text-black/50">
-            {vendor.location} • {vendor.rating}★
+            {vendor.location} • {Number(vendor.rating) > 0 ? `${vendor.rating}★` : "New"}
           </div>
           <div className="mt-4 flex flex-wrap gap-2">
             <button

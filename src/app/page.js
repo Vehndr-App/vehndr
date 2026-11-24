@@ -5,6 +5,7 @@ import FavoriteButton from "../components/FavoriteButton";
 import HeroMedia from "../components/HeroMedia";
 import HomeToggle from "../components/HomeToggle";
 import UserTypePopup from "../components/UserTypePopup";
+import VendorRatingBadge from "../components/VendorRatingBadge";
 import { getVendorPlaceholderImage } from "../utils/placeholderImages";
 import {
   EVENT_TYPE_DISPLAY,
@@ -379,15 +380,7 @@ function VendorCard({ vendor, index }) {
         {/* Favorite button - Airbnb style */}
         <FavoriteButton vendorId={vendor.id} className="absolute top-3 left-3 z-10" />
 
-        {/* Rating Badge */}
-        {vendor.rating && (
-          <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 bg-white/90 backdrop-blur-sm rounded-full text-xs font-semibold text-[var(--gray-900)]">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="var(--amber-500)" stroke="none">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-            </svg>
-            {vendor.rating}
-          </div>
-        )}
+        <VendorRatingBadge vendor={vendor} />
 
         {/* Vendor Profile Photo (The actual person) */}
         <div className="absolute bottom-2 right-2 w-9 h-9 rounded-full border-2 border-white shadow-md overflow-hidden bg-[var(--violet-100)]">
