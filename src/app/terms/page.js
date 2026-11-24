@@ -251,7 +251,7 @@ export default function TermsPage() {
         <p>
           <strong>Email:</strong> admin@vehndr.com
           <br />
-          <strong>Company Name:</strong> VEHNDR
+          <strong>Company Name:</strong> Vehndr by Gabby &amp; Shay LLC
         </p>
       </section>
     </div>

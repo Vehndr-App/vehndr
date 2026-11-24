@@ -10,7 +10,7 @@ export default function PrivacyPage() {
         VEHNDR Privacy Policy
       </h1>
       <p className="mt-2 text-sm text-[var(--gray-500)]">
-        Last Updated: January 25, 2026
+        Last Updated: November 24, 2026
       </p>
 
       <section className="mt-8 space-y-6 text-sm leading-6">
@@ -23,7 +23,7 @@ export default function PrivacyPage() {
         </p>
         <p>
           By using VEHNDR, you agree to the practices described in this Privacy
-          Policy.
+          Policy. If you do not agree, please do not use the Platform.
         </p>
 
         <hr className="border-[var(--gray-200)]" />
@@ -44,7 +44,7 @@ export default function PrivacyPage() {
               <li>Phone number</li>
               <li>Account login credentials</li>
               <li>Business information (for Vendors)</li>
-              <li>Payment-related information (processed via third-party providers)</li>
+              <li>Payment-related information (processed via third-party providers such as Stripe)</li>
               <li>Profile photos, listings, messages, and reviews</li>
               <li>Event details or service requests</li>
             </ul>
@@ -57,9 +57,13 @@ export default function PrivacyPage() {
             <p>When you use VEHNDR, we may automatically collect:</p>
             <ul className="list-disc pl-5 space-y-2">
               <li>Device type, operating system, and app version</li>
-              <li>IP address and location data (approximate)</li>
+              <li>IP address and approximate location</li>
               <li>Usage data (pages viewed, features used, time spent)</li>
-              <li>Cookies or similar tracking technologies</li>
+              <li>Cookies, local storage, and similar tracking technologies</li>
+              <li>
+                Analytics events (for example page views and product usage) when you
+                consent to analytics cookies
+              </li>
             </ul>
           </div>
 
@@ -69,10 +73,10 @@ export default function PrivacyPage() {
             </h3>
             <p>We may receive information from:</p>
             <ul className="list-disc pl-5 space-y-2">
-              <li>Payment processors</li>
-              <li>Identity verification services</li>
-              <li>Analytics providers</li>
-              <li>Marketing or advertising partners (where permitted by law)</li>
+              <li>Payment processors (including Stripe)</li>
+              <li>Identity verification services (where used)</li>
+              <li>Analytics providers (including PostHog, when you accept analytics)</li>
+              <li>Hosting and infrastructure providers</li>
             </ul>
           </div>
         </div>
@@ -83,12 +87,12 @@ export default function PrivacyPage() {
         <p>We use your information to:</p>
         <ul className="list-disc pl-5 space-y-2">
           <li>Create and manage user accounts</li>
-          <li>Facilitate marketplace transactions</li>
-          <li>Process payments and payouts</li>
-          <li>Enable communication between users</li>
+          <li>Facilitate marketplace bookings, proposals, and transactions</li>
+          <li>Process payments, payouts, tips, fees, and applicable taxes</li>
+          <li>Enable communication between customers, coordinators, and vendors</li>
           <li>Improve, personalize, and optimize the Platform</li>
           <li>Provide customer support</li>
-          <li>Send transactional or promotional communications</li>
+          <li>Send transactional messages (and promotional messages only where permitted)</li>
           <li>Detect fraud, abuse, or security issues</li>
           <li>Comply with legal obligations</li>
         </ul>
@@ -104,8 +108,9 @@ export default function PrivacyPage() {
           </h3>
           <ul className="list-disc pl-5 space-y-2">
             <li>
-              Limited profile information necessary to complete transactions
-              (e.g., vendor business name, service details).
+              Limited profile and booking information needed to complete a request
+              or transaction (for example vendor business name, event details you
+              share, and messages related to a booking).
             </li>
           </ul>
         </div>
@@ -115,10 +120,15 @@ export default function PrivacyPage() {
             B. Service Providers
           </h3>
           <ul className="list-disc pl-5 space-y-2">
-            <li>Payment processors</li>
-            <li>Hosting providers</li>
-            <li>Analytics and customer support tools</li>
+            <li>Payment processors (Stripe)</li>
+            <li>Hosting and infrastructure providers</li>
+            <li>Analytics tools (PostHog), when you have accepted analytics cookies</li>
+            <li>Customer support and email delivery tools</li>
           </ul>
+          <p>
+            These providers are only intended to process information on our behalf
+            to operate the Platform.
+          </p>
         </div>
 
         <div className="space-y-3">
@@ -140,56 +150,94 @@ export default function PrivacyPage() {
           </ul>
         </div>
 
-        <p>We do not sell your personal information.</p>
+        <p>
+          <strong>We do not sell your personal information</strong> for money. We also
+          do not knowingly “share” personal information for cross-context behavioral
+          advertising as those terms are commonly used under California law. If that
+          ever changes, we will update this Policy and provide required opt-out options.
+        </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           4. Payments &amp; Financial Information
         </h2>
         <p>
           VEHNDR does not store full credit card or banking details. Payments are
-          processed by secure third-party payment processors who have their own
-          privacy policies.
+          processed by Stripe and similar secure third-party payment processors, who
+          have their own privacy policies. We may receive limited payment status and
+          transaction details needed to operate bookings, payouts, and support.
         </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           5. Data Retention
         </h2>
         <p>
-          We retain personal information only as long as necessary to:
+          We retain personal information only as long as reasonably necessary to:
         </p>
         <ul className="list-disc pl-5 space-y-2">
           <li>Provide the Platform and services</li>
-          <li>Comply with legal and regulatory obligations</li>
+          <li>Comply with legal, tax, and regulatory obligations</li>
           <li>Resolve disputes and enforce agreements</li>
+          <li>Maintain security and prevent fraud</li>
         </ul>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           6. Your Privacy Rights
         </h2>
         <p>
-          Depending on your location, you may have the right to:
+          Depending on where you live (including California and certain other U.S.
+          states), you may have the right to:
         </p>
         <ul className="list-disc pl-5 space-y-2">
-          <li>Access your personal data</li>
-          <li>Correct inaccurate information</li>
-          <li>Request deletion of your data</li>
+          <li>Know / access the personal information we have about you</li>
+          <li>Correct inaccurate personal information</li>
+          <li>Request deletion of your personal information</li>
           <li>Opt out of marketing communications</li>
-          <li>Restrict or object to certain processing</li>
+          <li>Opt out of the sale or sharing of personal information (where applicable)</li>
+          <li>Limit use of sensitive personal information (where applicable)</li>
+          <li>Appeal a decision we make about a privacy request (where required by law)</li>
         </ul>
-        <p>Requests can be submitted by contacting us at <strong>[admin@vehndr.com]</strong>.</p>
+        <p>
+          <strong>How to submit a request:</strong> email{" "}
+          <a href="mailto:admin@vehndr.com" className="underline text-[var(--violet-700)]">
+            admin@vehndr.com
+          </a>{" "}
+          with the subject line “Privacy Request.” Please include your name, the
+          email on your VEHNDR account, and what you are asking for (access,
+          correction, deletion, or opt-out). We may need to verify your identity
+          before completing the request.
+        </p>
+        <p>
+          We will respond within the time required by applicable law (generally
+          within 45 days for California requests, unless an extension is permitted).
+        </p>
+        <p>
+          You will not be discriminated against for exercising privacy rights
+          available to you under law.
+        </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
-          7. Cookies &amp; Tracking Technologies
+          7. Cookies &amp; Analytics
         </h2>
         <p>
-          VEHNDR may use cookies or similar technologies to:
+          VEHNDR uses cookies, local storage, and similar technologies to:
         </p>
         <ul className="list-disc pl-5 space-y-2">
-          <li>Remember preferences</li>
-          <li>Analyze usage and performance</li>
-          <li>Improve user experience</li>
+          <li>Keep you signed in and remember preferences</li>
+          <li>Make the Platform secure and functional</li>
+          <li>Measure site performance and usage</li>
+          <li>Improve the product experience</li>
         </ul>
-        <p>You may control cookies through your device or browser settings.</p>
+        <p>
+          <strong>Analytics:</strong> If you click <strong>Accept</strong> on our
+          cookie banner, we may use PostHog to understand how people use VEHNDR
+          (for example which pages are visited). If you click <strong>Decline</strong>,
+          we will not run that analytics tracking. Essential cookies needed for login
+          and basic site function may still be used.
+        </p>
+        <p>
+          You can also control cookies through your browser settings. Blocking some
+          cookies may affect how the Platform works.
+        </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           8. Data Security
@@ -212,39 +260,48 @@ export default function PrivacyPage() {
           10. Third-Party Links
         </h2>
         <p>
-          The Platform may contain links to third-party websites or services. We
-          are not responsible for their privacy practices.
+          The Platform may contain links to third-party websites or services
+          (including payment pages and vendor content). We are not responsible for
+          their privacy practices.
         </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           11. International Users
         </h2>
         <p>
-          If you access VEHNDR from outside your country, your information may be
-          transferred to and processed in jurisdictions with different data
-          protection laws.
+          If you access VEHNDR from outside the United States, your information may
+          be transferred to and processed in the United States or other jurisdictions
+          with different data protection laws.
         </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           12. Changes to This Privacy Policy
         </h2>
         <p>
-          We may update this Privacy Policy from time to time. Updates will be
-          posted within the Platform, and continued use indicates acceptance of
-          the changes.
+          We may update this Privacy Policy from time to time. The “Last Updated”
+          date at the top will change when we post updates. Continued use of the
+          Platform after an update means you acknowledge the revised Policy.
         </p>
 
         <h2 className="text-lg font-semibold text-[var(--gray-900)]">
           13. Contact Us
         </h2>
         <p>
-          If you have questions or concerns about this Privacy Policy, contact
-          us at:
+          If you have questions or concerns about this Privacy Policy, or want to
+          make a privacy request, contact us at:
         </p>
         <p>
-          <strong>Email:</strong> admin@vehndr.com
+          <strong>Email:</strong>{" "}
+          <a href="mailto:admin@vehndr.com" className="underline text-[var(--violet-700)]">
+            admin@vehndr.com
+          </a>
           <br />
-          <strong>Company Name:</strong> VEHNDR
+          <strong>Company:</strong> Vehndr by Gabby &amp; Shay LLC
+          <br />
+          <strong>Support:</strong>{" "}
+          <a href="/support" className="underline text-[var(--violet-700)]">
+            vehndr.com/support
+          </a>
         </p>
       </section>
     </div>
