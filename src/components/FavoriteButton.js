@@ -178,6 +178,7 @@ export default function FavoriteButton({ vendorId, className = "", size = "defau
 
   return (
     <button
+      type="button"
       onClick={handleClick}
       className={`${sizeClasses} rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-all shadow-sm relative overflow-visible ${className} ${
         isAnimating ? "scale-125" : "hover:scale-110 active:scale-95"
@@ -188,6 +189,7 @@ export default function FavoriteButton({ vendorId, className = "", size = "defau
           : "transform 0.2s ease",
       }}
       aria-label={isFavorited ? "Remove from favorites" : "Add to favorites"}
+      aria-pressed={isFavorited}
     >
       {/* Particle burst effect */}
       <ParticleBurst active={showBurst} onComplete={() => setShowBurst(false)} />

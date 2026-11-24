@@ -80,7 +80,10 @@ export default function Navbar() {
   
   return (
     <>
-      <header className={`w-full bg-white/95 backdrop-blur-xl sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50 border-b border-[var(--gray-100)]`}>
+      <header
+        className={`w-full bg-white/95 backdrop-blur-xl sticky ${isImpersonating ? 'top-10' : 'top-0'} z-50 border-b border-[var(--gray-100)]`}
+        role="banner"
+      >
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between gap-4">
           {/* Left: Back button or Logo */}
           <div className="flex items-center gap-3 min-w-0">

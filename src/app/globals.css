@@ -662,6 +662,67 @@ body {
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--violet-500);
 }
 
+/* Keyboard focus for mouse-free navigation (Tab / screen readers) */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--violet-600);
+  outline-offset: 2px;
+}
+
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--violet-600);
+  outline-offset: 2px;
+}
+
+/* Utility used by screen-reader-only text */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* First Tab stop: jump past nav chrome */
+.skip-to-content {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  z-index: 100;
+}
+
+.skip-to-content:focus,
+.skip-to-content:focus-visible {
+  position: fixed;
+  left: 0.75rem;
+  top: 0.75rem;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  padding: 0.625rem 1rem;
+  border-radius: 0.75rem;
+  background: var(--gray-900);
+  color: white;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-lg);
+  outline: 2px solid var(--violet-400);
+  outline-offset: 2px;
+}
+
 /* Safe Area Padding */
 .safe-area-bottom {
   padding-bottom: max(env(safe-area-inset-bottom), 24px);

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { CartProvider } from "../contexts/CartContext";
 import { AuthProvider } from "../contexts/AuthContext";
 import Navbar from "./Navbar";
+import SkipToContent from "./SkipToContent";
 
 const ImpersonationBanner = dynamic(() => import("./ImpersonationBanner"), { ssr: false });
 const LivePreviewBanner = dynamic(() => import("./LivePreviewBanner"), { ssr: false });
@@ -28,10 +29,17 @@ export default function ClientShell({ children }) {
     <AuthProvider>
       <PostHogProvider>
         <CartProvider>
+          <SkipToContent />
           <LivePreviewBanner />
           <ImpersonationBanner />
           <Navbar />
-          <main className={isMessages ? "" : "min-h-screen pb-20"}>{children}</main>
+          <main
+            id="main-content"
+            tabIndex={-1}
+            className={isMessages ? "" : "min-h-screen pb-20"}
+          >
+            {children}
+          </main>
           {!isMessages && <Footer />}
           <BottomNav />
           {!isMessages && <EventBestie />}

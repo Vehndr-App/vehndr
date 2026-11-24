@@ -66,7 +66,7 @@ export default function VendorProfilePage() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={vendor.heroImage}
-          alt=""
+          alt={vendor.name || "Vendor"}
           className="h-24 w-24 rounded-lg bg-black/[.04] object-cover"
         />
         <div className="flex-1">

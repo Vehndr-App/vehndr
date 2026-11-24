@@ -388,7 +388,7 @@ function VendorCard({ vendor, index }) {
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={vendor.profileImage}
-              alt=""
+              alt={`${vendor.name} profile`}
               className="w-full h-full object-cover"
             />
           ) : (

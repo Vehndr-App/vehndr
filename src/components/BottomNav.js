@@ -110,9 +110,12 @@ export default function BottomNav() {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[var(--gray-200)] safe-area-bottom">
+      <nav
+        className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[var(--gray-200)] safe-area-bottom"
+        aria-label="Primary"
+      >
         <div className="flex items-center justify-around h-16 max-w-lg mx-auto">
-          {navItems.map((item, index) => {
+          {navItems.map((item) => {
             const isActive = item.href === activeHref;
             const Icon = item.icon;
             
@@ -120,7 +123,9 @@ export default function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] transition-colors relative ${
+                aria-current={isActive ? "page" : undefined}
+                aria-label={item.badge ? `${item.label}, ${item.badge} new` : item.label}
+                className={`flex flex-col items-center justify-center gap-1 px-3 py-2 min-w-[64px] transition-colors relative focus-visible:outline-offset-[-2px] ${
                   isActive 
                     ? 'text-[var(--violet-600)]' 
                     : 'text-black hover:text-black'
