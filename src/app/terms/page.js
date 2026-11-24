@@ -151,9 +151,19 @@ export default function TermsPage() {
           8. Cancellations, Refunds &amp; Disputes
         </h2>
         <ul className="list-disc pl-5 space-y-2">
-          <li>Each vendor sets their own cancellation and refund policies.</li>
-          <li>VEHNDR is not responsible for issuing refunds unless explicitly stated.</li>
-          <li>Users are encouraged to resolve disputes directly.</li>
+          <li>
+            Marketplace cancellation and refund steps are described in our{" "}
+            <a href="/refunds" className="underline text-[var(--violet-700)]">
+              Refunds &amp; Cancellations
+            </a>{" "}
+            page.
+          </li>
+          <li>
+            Paid marketplace bookings generally require both parties to agree before
+            a cancellation and refund are completed.
+          </li>
+          <li>Deposit terms (refundable vs non-refundable) on an offer affect refund amounts.</li>
+          <li>Users are encouraged to resolve disputes directly when possible.</li>
           <li>VEHNDR may assist with dispute facilitation but is not obligated to intervene.</li>
         </ul>
 
