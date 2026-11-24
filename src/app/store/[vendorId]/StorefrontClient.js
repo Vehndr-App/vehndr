@@ -297,9 +297,9 @@ export default function StorefrontPage() {
 
         <div className="mt-8 mb-4 grid grid-cols-3 gap-3">
           {[
-            { icon: "✓", label: "Verified", sub: "Identity checked" },
+            { icon: "⚡", label: "Easy Booking", sub: "Book in a few taps" },
             { icon: "🔒", label: "Secure Pay", sub: "Protected by Stripe" },
-            { icon: "⭐", label: "Top Rated", sub: "Event marketplace" },
+            { icon: "⭐", label: "From the Field", sub: "Built by event pros" },
           ].map(({ icon, label, sub }) => (
             <div
               key={label}
