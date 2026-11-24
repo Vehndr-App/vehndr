@@ -4,13 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getVendorCategoryLabel, normalizeVendorCategories } from "../constants/categories";
 
-export default function SearchFilters({ categories = [], variant = "full", basePath = "/", eventType = "" }) {
+export default function SearchFilters({ categories = [], variant = "full", basePath = "/", eventType = "", glass = false }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
   const [isDateOpen, setIsDateOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(!glass); // glass hero starts collapsed
   const [selectedDate, setSelectedDate] = useState(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [userLocation, setUserLocation] = useState(null);
@@ -172,17 +173,87 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
     );
   }
 
+  const shellClass = glass
+    ? "bg-white/90 rounded-[var(--radius-2xl)] shadow-[0_20px_50px_rgba(0,0,0,0.35)] border border-white/70 p-2"
+    : "bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] border border-[var(--gray-100)] p-2";
+  const rowHover = glass
+    ? "hover:bg-black/[0.04] focus-within:bg-black/[0.04]"
+    : "hover:bg-[var(--gray-50)] focus-within:bg-[var(--gray-50)]";
+  const rowHoverBtn = glass ? "hover:bg-black/[0.04]" : "hover:bg-[var(--gray-50)]";
+  const dividerClass = glass ? "hidden sm:block w-px bg-[var(--gray-200)] my-2" : "hidden sm:block w-px bg-[var(--gray-200)] my-2";
+
+  const openExpanded = () => {
+    setIsExpanded(true);
+    // Focus search after the expanded UI mounts
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  };
+
+  // Collapsed pill over video — tap to open full search
+  if (glass && !isExpanded) {
+    const summary =
+      searchQuery ||
+      (selectedDate
+        ? selectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        : null) ||
+      (activeFilterCount > 0 ? `${activeFilterCount} filter${activeFilterCount > 1 ? "s" : ""}` : null);
+
+    return (
+      <button
+        type="button"
+        onClick={openExpanded}
+        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-full bg-white/90 shadow-[0_16px_40px_rgba(0,0,0,0.3)] border border-white/70 text-left hover:bg-white transition-colors"
+        aria-expanded="false"
+        aria-label="Open search"
+      >
+        <div className="w-10 h-10 rounded-full bg-[var(--coral-100)] flex items-center justify-center flex-shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--coral-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--gray-900)] truncate">
+            {summary || "Search vendors"}
+          </div>
+          <div className="text-xs text-[var(--gray-500)] truncate">
+            {summary ? "Tap to edit search" : "Date · filters · categories"}
+          </div>
+        </div>
+        <span className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-primary text-white flex items-center justify-center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </span>
+      </button>
+    );
+  }
+
   return (
     <>
       {/* Main Search Bar - Airbnb Style */}
-      <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] border border-[var(--gray-100)] p-2">
+      <div className={shellClass}>
+        {glass && (
+          <div className="flex items-center justify-end px-2 pt-1 pb-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsExpanded(false);
+                setIsDateOpen(false);
+              }}
+              className="text-xs font-medium text-[var(--gray-500)] hover:text-[var(--gray-800)] px-2 py-1 rounded-full hover:bg-black/[0.04]"
+            >
+              Close
+            </button>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-2">
           
           {/* Search Input */}
           <div className="flex-[2] relative">
             <label 
               htmlFor="vendor-search"
-              className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] focus-within:bg-[var(--gray-50)] focus-within:ring-2 focus-within:ring-[var(--violet-500)]/20 transition-colors cursor-text"
+              className={`flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHover} focus-within:ring-2 focus-within:ring-[var(--violet-500)]/20 transition-colors cursor-text`}
             >
               <div className="w-10 h-10 rounded-full bg-[var(--coral-100)] flex items-center justify-center flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--coral-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -213,13 +284,13 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px bg-[var(--gray-200)] my-2" />
+          <div className={dividerClass} />
 
           {/* Date Picker */}
           <div ref={dateRef} className="relative flex-1">
             <button
               onClick={() => { setIsDateOpen(!isDateOpen); setIsFiltersOpen(false); }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] transition-colors text-left"
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors text-left`}
             >
               <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -353,13 +424,13 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
           </div>
 
           {/* Divider */}
-          <div className="hidden sm:block w-px bg-[var(--gray-200)] my-2" />
+          <div className={dividerClass} />
 
           {/* Filters Button */}
           <div className="flex-1">
             <button
               onClick={() => { setIsFiltersOpen(true); setIsDateOpen(false); }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] transition-colors text-left"
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors text-left`}
             >
               <div className="w-10 h-10 rounded-full bg-[var(--magenta-100)] flex items-center justify-center flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--magenta-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

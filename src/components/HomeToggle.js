@@ -51,86 +51,85 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
   };
 
   return (
-    <>
-      {/* Mode Toggle - Airbnb Style */}
-      <div className="flex justify-center mb-6">
-        <div className="inline-flex bg-white/10 backdrop-blur-md rounded-full p-1">
+    <div className="flex flex-col items-center gap-5 sm:gap-6">
+      {/* Mode toggle floats over video */}
+      <div className="inline-flex bg-black/30 backdrop-blur-md rounded-full p-1 border border-white/20 shadow-lg">
+        <button
+          onClick={() => handleModeChange("vendors")}
+          className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
+            mode === "vendors"
+              ? "bg-white text-[var(--gray-900)] shadow-lg"
+              : "text-white/85 hover:text-white hover:bg-white/10"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+              <polyline points="9 22 9 12 15 12 15 22"/>
+            </svg>
+            Vendors
+          </span>
+        </button>
+        {canSeeEvents && (
           <button
-            onClick={() => handleModeChange("vendors")}
+            onClick={() => handleModeChange("events")}
             className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
-              mode === "vendors"
+              mode === "events"
                 ? "bg-white text-[var(--gray-900)] shadow-lg"
-                : "text-white/80 hover:text-white hover:bg-white/10"
+                : "text-white/85 hover:text-white hover:bg-white/10"
             }`}
           >
             <span className="flex items-center gap-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                <polyline points="9 22 9 12 15 12 15 22"/>
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
               </svg>
-              Vendors
+              Events
             </span>
           </button>
-          {canSeeEvents && (
-            <button
-              onClick={() => handleModeChange("events")}
-              className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all ${
-                mode === "events"
-                  ? "bg-white text-[var(--gray-900)] shadow-lg"
-                  : "text-white/80 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                  <line x1="16" y1="2" x2="16" y2="6"/>
-                  <line x1="8" y1="2" x2="8" y2="6"/>
-                  <line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                Events
-              </span>
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Dynamic Title based on mode */}
-      <div className="text-center max-w-2xl mx-auto mb-6 sm:mb-8">
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white/90 text-xs font-medium mb-4">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)] animate-pulse"></span>
+      {/* Title floats over video */}
+      <div className="text-center max-w-2xl mx-auto">
+        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/25 backdrop-blur-md border border-white/15 text-white/90 text-xs font-medium mb-4">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--mint-500)] animate-pulse" />
           {mode === "vendors" ? "75+ trusted vendors" : "Live at 50+ events"}
         </div>
-        
-        <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-3">
-          {mode === "vendors" 
-            ? "Book local vendors for every part of your event" 
+
+        <h1 className="font-display text-3xl sm:text-4xl md:text-5xl text-white tracking-tight mb-3 drop-shadow-md">
+          {mode === "vendors"
+            ? "Book local vendors for every part of your event"
             : "Discover amazing events"}
         </h1>
-        
-        <p className="text-white/80 text-sm sm:text-base max-w-lg mx-auto">
+
+        <p className="text-white/85 text-sm sm:text-base max-w-lg mx-auto drop-shadow-sm">
           {mode === "vendors"
             ? "Makers, creatives & event vendors — all in one place."
             : "Find events near you, RSVP, and connect with event organizers and vendors."}
         </p>
       </div>
-      
-      {/* Search Filters - Changes based on mode */}
-      <div className="max-w-3xl mx-auto">
+
+      {/* Search card floats over video */}
+      <div className="w-full max-w-3xl mx-auto">
         {mode === "vendors" ? (
-          <SearchFilters categories={categories} />
+          <SearchFilters categories={categories} glass />
         ) : (
-          <EventSearchFilters />
+          <EventSearchFilters glass />
         )}
       </div>
-    </>
+    </div>
   );
 }
 
-function EventSearchFilters() {
+function EventSearchFilters({ glass = false }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [eventType, setEventType] = useState("");
   const [date, setDate] = useState("");
+  const [isExpanded, setIsExpanded] = useState(!glass);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -142,15 +141,68 @@ function EventSearchFilters() {
   };
 
   const eventTypes = [{ slug: "", label: "All Events" }, ...EVENT_TYPES];
+  const shellClass = glass
+    ? "bg-white/90 rounded-[var(--radius-2xl)] shadow-[0_20px_50px_rgba(0,0,0,0.35)] border border-white/70 p-2"
+    : "bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] border border-[var(--gray-100)] p-2";
+  const rowHover = glass
+    ? "hover:bg-black/[0.04] focus-within:bg-black/[0.04]"
+    : "hover:bg-[var(--gray-50)] focus-within:bg-[var(--gray-50)]";
+  const rowHoverBtn = glass ? "hover:bg-black/[0.04]" : "hover:bg-[var(--gray-50)]";
+  const dividerClass = glass ? "hidden sm:block w-px bg-[var(--gray-200)] my-2" : "hidden sm:block w-px bg-[var(--gray-200)] my-2";
+
+  if (glass && !isExpanded) {
+    const summary = search || (eventType ? "Filtered" : null) || (date || null);
+    return (
+      <button
+        type="button"
+        onClick={() => setIsExpanded(true)}
+        className="w-full flex items-center gap-3 px-4 py-3.5 rounded-full bg-white/90 shadow-[0_16px_40px_rgba(0,0,0,0.3)] border border-white/70 text-left hover:bg-white transition-colors"
+        aria-expanded="false"
+        aria-label="Open search"
+      >
+        <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-semibold text-[var(--gray-900)] truncate">
+            {summary || "Search events"}
+          </div>
+          <div className="text-xs text-[var(--gray-500)] truncate">
+            {summary ? "Tap to edit search" : "Type · date · location"}
+          </div>
+        </div>
+        <span className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-primary text-white flex items-center justify-center">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+        </span>
+      </button>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] border border-[var(--gray-100)] p-2">
+    <div className={shellClass}>
+      {glass && (
+        <div className="flex items-center justify-end px-2 pt-1 pb-0">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(false)}
+            className="text-xs font-medium text-[var(--gray-500)] hover:text-[var(--gray-800)] px-2 py-1 rounded-full hover:bg-black/[0.04]"
+          >
+            Close
+          </button>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row gap-2">
         {/* Search Input */}
         <div className="flex-[2] relative">
           <label 
             htmlFor="event-search" 
-            className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] focus-within:bg-[var(--gray-50)] focus-within:ring-2 focus-within:ring-[var(--violet-500)]/20 transition-colors cursor-text"
+            className={`flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHover} focus-within:ring-2 focus-within:ring-[var(--violet-500)]/20 transition-colors cursor-text`}
           >
             <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -176,11 +228,11 @@ function EventSearchFilters() {
         </div>
 
         {/* Divider */}
-        <div className="hidden sm:block w-px bg-[var(--gray-200)] my-2" />
+        <div className={dividerClass} />
 
         {/* Event Type */}
         <div className="flex-1">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] transition-colors">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors`}>
             <div className="w-10 h-10 rounded-full bg-[var(--coral-100)] flex items-center justify-center flex-shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--coral-600)" strokeWidth="2">
                 <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -203,11 +255,11 @@ function EventSearchFilters() {
         </div>
 
         {/* Divider */}
-        <div className="hidden sm:block w-px bg-[var(--gray-200)] my-2" />
+        <div className={dividerClass} />
 
         {/* Date */}
         <div className="flex-1">
-          <div className="flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] hover:bg-[var(--gray-50)] transition-colors">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors`}>
             <div className="w-10 h-10 rounded-full bg-[var(--magenta-100)] flex items-center justify-center flex-shrink-0">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--magenta-600)" strokeWidth="2">
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>

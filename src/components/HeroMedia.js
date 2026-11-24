@@ -3,104 +3,119 @@
 import { useState, useEffect, useRef } from "react";
 
 /**
- * HeroMedia component for displaying video or image backgrounds
- * 
- * To use:
- * 1. Place your video at /public/hero-video.mp4 (or custom path)
- * 2. Place your fallback image at /public/hero-image.jpg (or custom path)
- * 
- * The component will:
- * - Try to load video first (if videoSrc provided)
- * - Fall back to image (if imageSrc provided)
- * - Show gradient if neither loads
+ * Hero background: prefers looping muted video, falls back to image, then solid.
  */
-export default function HeroMedia({ 
-  videoSrc = "/hero-video.mp4", 
+export default function HeroMedia({
+  videoSrc = "/hero-video.mp4",
   imageSrc = "/hero-image.jpg",
-  overlayOpacity = 0.4 
+  overlayOpacity = 0.4,
 }) {
-  const [mediaLoaded, setMediaLoaded] = useState(false);
   const [mediaType, setMediaType] = useState(null); // 'video' | 'image' | null
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [ready, setReady] = useState(false);
   const videoRef = useRef(null);
 
   useEffect(() => {
-    // Try to load video first
-    if (videoSrc) {
-      const video = document.createElement("video");
-      video.src = videoSrc;
-      video.oncanplaythrough = () => {
-        setMediaType("video");
-        setMediaLoaded(true);
-      };
-      video.onerror = () => {
-        // Video failed, try image
-        tryLoadImage();
-      };
-      // Timeout for slow loading
-      setTimeout(() => {
-        if (!mediaLoaded) {
-          tryLoadImage();
-        }
-      }, 3000);
-    } else {
-      tryLoadImage();
-    }
+    let cancelled = false;
+    let timeoutId;
 
-    function tryLoadImage() {
+    async function resolveMedia() {
+      if (videoSrc) {
+        const ok = await canPlayVideo(videoSrc);
+        if (cancelled) return;
+        if (ok) {
+          setMediaType("video");
+          setReady(true);
+          return;
+        }
+      }
+
       if (imageSrc) {
-        const img = new Image();
-        img.src = imageSrc;
-        img.onload = () => {
+        const ok = await canLoadImage(imageSrc);
+        if (cancelled) return;
+        if (ok) {
           setMediaType("image");
-          setMediaLoaded(true);
-        };
-        img.onerror = () => {
-          setMediaType(null);
-          setMediaLoaded(true);
-        };
-      } else {
+          setReady(true);
+          return;
+        }
+      }
+
+      if (!cancelled) {
         setMediaType(null);
-        setMediaLoaded(true);
+        setReady(true);
       }
     }
-  }, [videoSrc, imageSrc, mediaLoaded]);
 
-  // Handle video playback
+    // Don't wait forever on slow networks
+    timeoutId = setTimeout(() => {
+      if (!cancelled) {
+        setReady((already) => {
+          if (already) return already;
+          // Soft fallback: try image if video is still pending
+          setMediaType((current) => current || (imageSrc ? "image" : null));
+          return true;
+        });
+      }
+    }, 8000);
+
+    resolveMedia();
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [videoSrc, imageSrc]);
+
   useEffect(() => {
-    if (mediaType === "video" && videoRef.current) {
-      videoRef.current.play().then(() => {
-        setIsPlaying(true);
-      }).catch(() => {
-        // Autoplay blocked, show play button or fallback
-        setIsPlaying(false);
+    const el = videoRef.current;
+    if (mediaType !== "video" || !el) return;
+
+    const tryPlay = () => {
+      el.play().catch(() => {
+        // Autoplay may be blocked until user interaction; muted+playsInline usually works.
       });
-    }
+    };
+
+    tryPlay();
+    el.addEventListener("canplay", tryPlay);
+    // If loop ever fails to restart on some browsers, kick it again
+    const onEnded = () => {
+      el.currentTime = 0;
+      tryPlay();
+    };
+    el.addEventListener("ended", onEnded);
+
+    return () => {
+      el.removeEventListener("canplay", tryPlay);
+      el.removeEventListener("ended", onEnded);
+    };
   }, [mediaType]);
 
-  if (!mediaLoaded) {
-    return null; // Let the gradient show through
+  if (!ready) {
+    return null;
   }
+
+  const overlayStyle = {
+    background:
+      "linear-gradient(to bottom, rgba(20,16,14,0.45) 0%, rgba(20,16,14,0.35) 45%, rgba(20,16,14,0.55) 100%)",
+    opacity: Math.min(Math.max(overlayOpacity + 0.35, 0.4), 0.85),
+  };
 
   if (mediaType === "video") {
     return (
       <>
         <video
           ref={videoRef}
+          key={videoSrc}
           autoPlay
           muted
           loop
           playsInline
+          preload="auto"
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: overlayOpacity + 0.3 }}
         >
           <source src={videoSrc} type="video/mp4" />
-          <source src={videoSrc.replace('.mp4', '.webm')} type="video/webm" />
         </video>
-        {/* Dark overlay for text readability */}
-        <div 
-          className="absolute inset-0 bg-gradient-to-br from-[var(--violet-900)]/60 via-[var(--magenta-900)]/50 to-[var(--coral-900)]/40"
-        />
+        <div className="absolute inset-0" style={overlayStyle} />
       </>
     );
   }
@@ -113,17 +128,49 @@ export default function HeroMedia({
           src={imageSrc}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
-          style={{ opacity: overlayOpacity + 0.3 }}
         />
-        {/* Dark overlay for text readability */}
-        <div 
-          className="absolute inset-0 bg-gradient-to-br from-[var(--violet-900)]/60 via-[var(--magenta-900)]/50 to-[var(--coral-900)]/40"
-        />
+        <div className="absolute inset-0" style={overlayStyle} />
       </>
     );
   }
 
-  // No media loaded - gradient shows through from parent
   return null;
 }
 
+function canPlayVideo(src) {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.preload = "auto";
+    video.muted = true;
+    video.playsInline = true;
+
+    const done = (ok) => {
+      cleanup();
+      resolve(ok);
+    };
+    const cleanup = () => {
+      video.oncanplaythrough = null;
+      video.onloadeddata = null;
+      video.onerror = null;
+      video.removeAttribute("src");
+      video.load();
+    };
+
+    video.oncanplaythrough = () => done(true);
+    video.onloadeddata = () => done(true);
+    video.onerror = () => done(false);
+    video.src = src;
+    video.load();
+
+    setTimeout(() => done(false), 6000);
+  });
+}
+
+function canLoadImage(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(true);
+    img.onerror = () => resolve(false);
+    img.src = src;
+  });
+}

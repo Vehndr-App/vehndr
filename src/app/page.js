@@ -89,27 +89,17 @@ export default async function Home({ searchParams }) {
     <div className="w-full">
       <UserTypePopup />
 
-      {/* Hero Section with Video/Graphic Support */}
-      <section className="relative">
-        {/* Background - Video, Image, or Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[var(--violet-600)] via-[var(--magenta-500)] to-[var(--coral-500)] overflow-hidden">
-          {/* 
-            To add a video, place your video file at /public/hero-video.mp4 
-            Supported formats: .mp4, .webm
-            Recommended: 1920x1080, < 10MB, 15-30 seconds loop
-          */}
-          <HeroMedia 
+      {/* Hero: full-bleed video with floating search (Beacons-style) */}
+      <section className="relative min-h-[78svh] sm:min-h-[70vh] flex items-center">
+        <div className="absolute inset-0 bg-[var(--gray-900)] overflow-hidden">
+          <HeroMedia
             videoSrc="/hero-video.mp4"
             imageSrc="/hero-image.jpg"
+            overlayOpacity={0.5}
           />
-          
-          {/* Animated gradient overlay */}
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iYSIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSIgd2lkdGg9IjQwIiBoZWlnaHQ9IjQwIiBwYXR0ZXJuVHJhbnNmb3JtPSJyb3RhdGUoNDUpIj48cGF0aCBkPSJNLTEwIDMwaDYwdi0yMGgtNjB6IiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMDMpIi8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCBmaWxsPSJ1cmwoI2EpIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIi8+PC9zdmc+')] opacity-50" />
         </div>
-        
-        {/* Content */}
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 pt-8 pb-6 sm:pt-12 sm:pb-8">
-          {/* Airbnb-style Toggle */}
+
+        <div className="relative w-full mx-auto max-w-3xl px-4 sm:px-6 py-12 sm:py-16">
           <HomeToggle categories={allCategories} initialMode={mode} />
         </div>
       </section>
