@@ -474,32 +474,40 @@ function StorefrontStorySections({ vendor }) {
       {teamMembers.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Team</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 sm:gap-5">
             {teamMembers.map((member) => {
               const photoSrc = member.photoUrl || member.photo_url;
               return (
                 <div
                   key={member.id || member.name}
-                  className="flex items-center gap-3 p-3 rounded-xl border border-[var(--gray-100)] bg-white"
+                  className="relative aspect-square w-full rounded-full overflow-hidden bg-[var(--gray-100)] shadow-sm"
                 >
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--gray-100)] flex-shrink-0">
-                    {photoSrc ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={photoSrc}
-                        alt=""
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-[var(--gray-400)]">
-                        {(member.name || "?").charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--gray-900)] truncate">{member.name}</p>
+                  {photoSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={photoSrc}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center text-3xl font-semibold text-[var(--gray-400)]">
+                      {(member.name || "?").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div
+                    className="absolute inset-x-0 bottom-0 pt-10 pb-3 px-3 text-center"
+                    style={{
+                      background:
+                        "linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.35) 55%, rgba(0,0,0,0) 100%)",
+                    }}
+                  >
+                    <p className="text-sm sm:text-[15px] font-semibold text-white leading-tight truncate drop-shadow-sm">
+                      {member.name}
+                    </p>
                     {member.title && (
-                      <p className="text-xs text-[var(--gray-500)] truncate">{member.title}</p>
+                      <p className="text-[11px] sm:text-xs text-white/85 leading-tight truncate mt-0.5">
+                        {member.title}
+                      </p>
                     )}
                   </div>
                 </div>
