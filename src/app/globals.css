@@ -890,3 +890,25 @@ textarea {
 .text-red-900 { color: var(--error); }
 .border-red-100 { border-color: var(--error-100); }
 .border-red-200 { border-color: var(--error-100); }
+
+/* Vehndr mascot speech bubble (launcher) */
+@keyframes mascot-bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.mascot-bubble-enter {
+  animation: mascot-bubble-in 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mascot-bubble-enter {
+    animation: none;
+  }
+}

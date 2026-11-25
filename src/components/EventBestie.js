@@ -3,6 +3,14 @@
 import { useState, useRef, useEffect } from "react";
 import { Capacitor } from "@capacitor/core";
 import { EVENT_BESTIE_OPEN } from "../constants/eventBestie";
+import {
+  MASCOT_VISIBILITY_EVENT,
+  readMascotHidden,
+  readMascotSettled,
+  writeMascotHidden,
+  writeMascotSettled,
+} from "../constants/mascot";
+import VehndrMascotLauncher from "./VehndrMascotLauncher";
 
 const QUICK_PROMPTS = [
   { text: "Find me vendors 🔍", prompt: "Help me find vendors" },
@@ -58,6 +66,13 @@ export default function EventBestie() {
   const inputRef = useRef(null);
   const [isNativePlatform, setIsNativePlatform] = useState(null);
   const [viewportRect, setViewportRect] = useState(null);
+  const [mascotHidden, setMascotHidden] = useState(false);
+  const [mascotSettled, setMascotSettled] = useState(false);
+
+  useEffect(() => {
+    setMascotHidden(readMascotHidden());
+    setMascotSettled(readMascotSettled());
+  }, []);
 
   // Hide bubble when running as native app (iOS/Android via Capacitor)
   useEffect(() => {
@@ -112,9 +127,24 @@ export default function EventBestie() {
 
   // Open from support page (or anywhere) via custom event
   useEffect(() => {
-    const handler = () => setIsOpen(true);
+    const handler = () => {
+      setMascotHidden(readMascotHidden());
+      setIsOpen(true);
+    };
     window.addEventListener(EVENT_BESTIE_OPEN, handler);
     return () => window.removeEventListener(EVENT_BESTIE_OPEN, handler);
+  }, []);
+
+  // Stay in sync if Support (or elsewhere) shows/hides/settles the mascot
+  useEffect(() => {
+    const onVisibility = (e) => {
+      if (typeof e?.detail?.hidden === "boolean") setMascotHidden(e.detail.hidden);
+      else setMascotHidden(readMascotHidden());
+      if (typeof e?.detail?.settled === "boolean") setMascotSettled(e.detail.settled);
+      else setMascotSettled(readMascotSettled());
+    };
+    window.addEventListener(MASCOT_VISIBILITY_EVENT, onVisibility);
+    return () => window.removeEventListener(MASCOT_VISIBILITY_EVENT, onVisibility);
   }, []);
 
   const handleSend = async (messageText = input) => {
@@ -219,35 +249,43 @@ export default function EventBestie() {
     return recs;
   };
 
-  // On native (iOS/Android) we hide the bubble but still show the panel when opened (e.g. from support page)
+  // On native (iOS/Android) we hide the launcher but still show the panel when opened (e.g. from support page)
   if (isNativePlatform === null) return null;
 
-  const showBubble = !isNativePlatform;
+  const showLauncher = !isNativePlatform && !mascotHidden;
+  const mascotMood = isLoading ? "thinking" : isOpen ? "responding" : "idle";
+
+  function settleMascot() {
+    writeMascotSettled(true);
+    setMascotSettled(true);
+  }
+
+  function hideMascot() {
+    writeMascotHidden(true);
+    setMascotHidden(true);
+    setIsOpen(false);
+  }
 
   return (
     <>
-      {/* Floating Button - hidden on native so support-page trigger is the only entry */}
-      {showBubble && (
-        <button
-          onClick={() => setIsOpen(!isOpen)}
-          className={`fixed bottom-20 right-4 z-[60] w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 ${
-            isOpen
-              ? "bg-[var(--gray-200)] rotate-0"
-              : "bg-gradient-to-br from-[var(--violet-500)] to-[var(--magenta-500)] hover:scale-110 hover:shadow-2xl"
-          }`}
-          aria-label={isOpen ? "Close chat" : "Open Event Bestie"}
-        >
-          {isOpen ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gray-600)" strokeWidth="2">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          ) : (
-            <span className="text-2xl">✨</span>
-          )}
-        </button>
+      {showLauncher && (
+        <VehndrMascotLauncher
+          isOpen={isOpen}
+          onToggle={() => {
+            // After settling (bubble dismissed + still), a click wakes her
+            // back to animated idle rules, then opens/closes chat as usual.
+            if (mascotSettled) {
+              writeMascotSettled(false);
+              setMascotSettled(false);
+            }
+            setIsOpen((open) => !open);
+          }}
+          onSettle={settleMascot}
+          onHide={hideMascot}
+          settled={mascotSettled}
+          mood={mascotMood}
+        />
       )}
-
 
       {/* Chat Panel - full-screen on native (positioned to visual viewport so keyboard doesn't push page), card on web */}
       <div
@@ -256,9 +294,13 @@ export default function EventBestie() {
             ? `fixed z-[60] flex flex-col bg-white transition-all duration-300 ${
                 isOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
               }`
-            : `fixed bottom-36 right-4 z-[60] w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-[var(--radius-2xl)] shadow-2xl overflow-hidden transition-all duration-300 ${
-                isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
-              }`
+            : showLauncher
+              ? `fixed bottom-[calc(5rem+95px+28px)] sm:bottom-[calc(5rem+130px+28px)] right-3 sm:right-4 z-[60] w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-[var(--radius-2xl)] shadow-2xl overflow-hidden transition-all duration-300 ${
+                  isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+                }`
+              : `fixed bottom-36 right-4 z-[60] w-[320px] max-w-[calc(100vw-2rem)] bg-white rounded-[var(--radius-2xl)] shadow-2xl overflow-hidden transition-all duration-300 ${
+                  isOpen ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+                }`
         }
         style={
           isNativePlatform && isOpen && viewportRect
