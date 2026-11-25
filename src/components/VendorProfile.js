@@ -21,6 +21,7 @@ import SmartImage from "./SmartImage";
 import ImageEditorModal from "./ImageEditorModal";
 import GuidanceModal from "./GuidanceModal";
 import LocationField from "./vendor-profile/LocationField";
+import VendorStoryFields from "./vendor-profile/VendorStoryFields";
 import TaxJurisdictionSettings from "./TaxJurisdictionSettings";
 import { parseUsStateCodeFromLocation } from "../utils/vendorMarketplace";
 import {
@@ -79,7 +80,14 @@ export default function VendorProfile({ user, onSuccess }) {
     bookingAcceptsFree: false,
     bookingAcceptsTrade: false,
     bookingAcceptsPaid: false,
-    bookingStartingFeeDollars: ""
+    bookingStartingFeeDollars: "",
+    yearsInBusiness: "",
+    bestFor: [],
+    languagesSpoken: [],
+    trustedBy: [],
+    trustedByText: "",
+    faqs: [],
+    teamMembers: [],
   });
   const [processingImages, setProcessingImages] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(null);
@@ -168,7 +176,26 @@ export default function VendorProfile({ user, onSuccess }) {
         bookingStartingFeeDollars: (() => {
           const cents = vendorData.bookingStartingFeeCents ?? vendorData.booking_starting_fee_cents;
           return cents != null && cents > 0 ? String(cents / 100) : "";
-        })()
+        })(),
+        yearsInBusiness:
+          vendorData.yearsInBusiness ?? vendorData.years_in_business ?? "",
+        bestFor: vendorData.bestFor || vendorData.best_for || [],
+        languagesSpoken: vendorData.languagesSpoken || vendorData.languages_spoken || [],
+        trustedBy: vendorData.trustedBy || vendorData.trusted_by || [],
+        trustedByText: (vendorData.trustedBy || vendorData.trusted_by || []).join("\n"),
+        faqs: (vendorData.faqs || []).map((faq) => ({
+          question: faq.question || "",
+          answer: faq.answer || "",
+        })),
+        teamMembers: (vendorData.teamMembers || vendorData.team_members || []).map((member) => ({
+          id: member.id || `team_${Math.random().toString(36).slice(2, 9)}`,
+          name: member.name || "",
+          title: member.title || "",
+          photoUrl: member.photoUrl || member.photo_url || "",
+          photoSignedId: member.photoSignedId || member.photo_signed_id || "",
+          photoFile: null,
+          photoFilePreview: null,
+        })),
       };
       setFormData(newFormData);
       const existingItems = (vendorData.galleryImagesData ||
@@ -243,6 +270,65 @@ export default function VendorProfile({ user, onSuccess }) {
         formDataToSend.append('vendor[booking_starting_fee_cents]', '');
       }
 
+      if (formData.yearsInBusiness === "" || formData.yearsInBusiness == null) {
+        formDataToSend.append("vendor[years_in_business]", "");
+      } else {
+        formDataToSend.append("vendor[years_in_business]", String(formData.yearsInBusiness));
+      }
+
+      (formData.bestFor || []).forEach((item) => {
+        formDataToSend.append("vendor[best_for][]", item);
+      });
+      if (!(formData.bestFor || []).length) {
+        formDataToSend.append("vendor[best_for][]", "");
+      }
+
+      (formData.languagesSpoken || []).forEach((item) => {
+        formDataToSend.append("vendor[languages_spoken][]", item);
+      });
+      if (!(formData.languagesSpoken || []).length) {
+        formDataToSend.append("vendor[languages_spoken][]", "");
+      }
+
+      const trustedByLines = (
+        formData.trustedByText != null
+          ? formData.trustedByText
+          : (formData.trustedBy || []).join("\n")
+      )
+        .split("\n")
+        .map((n) => n.trim())
+        .filter(Boolean);
+      formDataToSend.append(
+        "vendor[trusted_by_json]",
+        JSON.stringify(trustedByLines)
+      );
+      formDataToSend.append(
+        "vendor[faqs_json]",
+        JSON.stringify(
+          (formData.faqs || [])
+            .map((faq) => ({
+              question: (faq.question || "").trim(),
+              answer: (faq.answer || "").trim(),
+            }))
+            .filter((faq) => faq.question && faq.answer)
+        )
+      );
+
+      const teamPayload = (formData.teamMembers || [])
+        .map((member) => ({
+          id: member.id,
+          name: (member.name || "").trim(),
+          title: (member.title || "").trim(),
+          photo_signed_id: member.photoSignedId || null,
+        }))
+        .filter((member) => member.name);
+      formDataToSend.append("vendor[team_members_json]", JSON.stringify(teamPayload));
+      (formData.teamMembers || []).forEach((member) => {
+        if (member.photoFile && member.id) {
+          formDataToSend.append(`team_member_photos[${member.id}]`, member.photoFile);
+        }
+      });
+
       // Add profile image if a new file was selected
       if (formData.profileImage) {
         formDataToSend.append('vendor[profile_image]', formData.profileImage);
@@ -316,6 +402,24 @@ export default function VendorProfile({ user, onSuccess }) {
         slug: resultData.slug || prev.slug,
         existingGalleryImages: resultData.galleryImagesData ||
           (resultData.galleryImages || []).map((url, i) => ({ id: `legacy_${i}`, url })),
+        yearsInBusiness: resultData.yearsInBusiness ?? resultData.years_in_business ?? "",
+        bestFor: resultData.bestFor || resultData.best_for || [],
+        languagesSpoken: resultData.languagesSpoken || resultData.languages_spoken || [],
+        trustedBy: resultData.trustedBy || resultData.trusted_by || [],
+        trustedByText: (resultData.trustedBy || resultData.trusted_by || []).join("\n"),
+        faqs: (resultData.faqs || []).map((faq) => ({
+          question: faq.question || "",
+          answer: faq.answer || "",
+        })),
+        teamMembers: (resultData.teamMembers || resultData.team_members || []).map((member) => ({
+          id: member.id || `team_${Math.random().toString(36).slice(2, 9)}`,
+          name: member.name || "",
+          title: member.title || "",
+          photoUrl: member.photoUrl || member.photo_url || "",
+          photoSignedId: member.photoSignedId || member.photo_signed_id || "",
+          photoFile: null,
+          photoFilePreview: null,
+        })),
         bookingAcceptsFree: resultData.bookingAcceptsFree ?? resultData.booking_accepts_free ?? false,
         bookingAcceptsTrade: resultData.bookingAcceptsTrade ?? resultData.booking_accepts_trade ?? false,
         bookingAcceptsPaid: resultData.bookingAcceptsPaid ?? resultData.booking_accepts_paid ?? false,
@@ -736,6 +840,8 @@ export default function VendorProfile({ user, onSuccess }) {
             </div>
           </div>
         </div>
+
+        <VendorStoryFields formData={formData} setFormData={setFormData} />
 
         {/* Profile Photo Card - Photo of the actual person */}
         <div id="profile-photo" className="card bg-white p-5 scroll-mt-20">
