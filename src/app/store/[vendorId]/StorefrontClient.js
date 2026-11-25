@@ -174,9 +174,7 @@ export default function StorefrontPage() {
     );
   }
 
-  const categoryLine =
-    vendor.categories?.length > 0 ? vendor.categories.join(" · ") : null;
-  const subtitleParts = [vendor.location, categoryLine].filter(Boolean);
+  const subtitleParts = [vendor.location].filter(Boolean);
 
   return (
     <div className="w-full pb-36">
@@ -236,16 +234,6 @@ export default function StorefrontPage() {
         )}
 
         <p className="text-[var(--gray-600)] text-sm mt-4 mb-6">{vendor.description}</p>
-
-        {vendor.categories && vendor.categories.length > 0 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            {vendor.categories.map((category, index) => (
-              <span key={index} className="chip chip-filled text-xs">
-                {category}
-              </span>
-            ))}
-          </div>
-        )}
 
         <StorefrontMetaChips vendor={vendor} />
 
@@ -432,14 +420,12 @@ function StorefrontMetaChips({ vendor }) {
 }
 
 function StorefrontStorySections({ vendor }) {
-  const bestFor = vendor.bestFor || vendor.best_for || [];
   const trustedBy = (vendor.trustedBy || vendor.trusted_by || []).filter(Boolean);
   const pastEvents = (vendor.pastEvents || vendor.past_events || []).filter((event) => event?.name);
   const faqs = (vendor.faqs || []).filter((faq) => faq?.question && faq?.answer);
   const teamMembers = (vendor.teamMembers || vendor.team_members || []).filter((m) => m?.name);
 
   const hasAny =
-    bestFor.length > 0 ||
     trustedBy.length > 0 ||
     pastEvents.length > 0 ||
     faqs.length > 0 ||
@@ -448,19 +434,6 @@ function StorefrontStorySections({ vendor }) {
 
   return (
     <div className="space-y-6 mt-10 mb-8 pt-8 border-t border-[var(--gray-100)]">
-      {bestFor.length > 0 && (
-        <section>
-          <h2 className="text-sm font-semibold text-[var(--gray-900)] mb-2">Best for</h2>
-          <div className="flex flex-wrap gap-2">
-            {bestFor.map((item) => (
-              <span key={item} className="chip chip-outlined text-xs">
-                {item}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-
       {trustedBy.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-[var(--gray-900)] mb-2">Trusted by</h2>
