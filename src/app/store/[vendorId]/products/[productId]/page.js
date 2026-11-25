@@ -9,6 +9,8 @@ import { api } from "../../../../../services/api";
 import Link from "next/link";
 import { getVendorPlaceholderImage } from "../../../../../utils/placeholderImages";
 import { generateCalendarLinks, downloadIcsFile } from "../../../../../utils/calendarLinks";
+import { isPackageListing, isServiceListing } from "../../../../../utils/listingType";
+import ProposalModal from "../../../../../components/ProposalModal";
 
 // Calendar helper functions
 const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -37,6 +39,7 @@ export default function ProductPage() {
 
   const [vendor, setVendor] = useState(null);
   const [product, setProduct] = useState(null);
+  const [inquiryOpen, setInquiryOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [selected, setSelected] = useState({});
   const [selectedDate, setSelectedDate] = useState(null);
@@ -115,11 +118,18 @@ export default function ProductPage() {
     );
   }
 
-  const isService = product.isService === true;
+  const isService = isServiceListing(product);
+  const isPackage = isPackageListing(product);
   const hasOptions = (product.options?.length ?? 0) > 0;
   const optionDefs = product.options ?? [];
-  const isValid = (!hasOptions || optionDefs.every((o) => selected[o.id])) &&
-                  (!isService || (selectedDate && selectedTimeSlot));
+  const isValid = isPackage
+    ? true
+    : (!hasOptions || optionDefs.every((o) => selected[o.id])) &&
+      (!isService || (selectedDate && selectedTimeSlot));
+  const packageBudget =
+    isPackage && typeof product.price === "number" && product.price > 0
+      ? String(Math.round(product.price / 100))
+      : "";
   
   const placeholderImage = getVendorPlaceholderImage(vendor.categories, product.id);
   const hasImages = product.images && product.images.length > 0;
@@ -548,7 +558,7 @@ export default function ProductPage() {
             )}
 
             {/* Quantity - Only for products */}
-            {!isService && (
+            {!isService && !isPackage && (
               <div className="bg-white rounded-[var(--radius-2xl)] shadow-[var(--shadow-card)] p-6">
                 <label className="block text-sm font-semibold text-[var(--gray-900)] mb-3">Quantity</label>
                 <div className="flex items-center gap-3">
@@ -580,10 +590,14 @@ export default function ProductPage() {
               {/* Total */}
               <div className="flex items-center justify-between pb-4 border-b border-[var(--gray-100)]">
                 <span className="text-[var(--gray-600)] font-medium">
-                  {isService ? "Service Total" : `Total (${quantity} ${quantity === 1 ? "item" : "items"})`}
+                  {isPackage
+                    ? "Package price"
+                    : isService
+                      ? "Service Total"
+                      : `Total (${quantity} ${quantity === 1 ? "item" : "items"})`}
                 </span>
                 <span className="text-2xl font-bold text-gradient-primary">
-                  ${((product.price * (isService ? 1 : quantity)) / 100).toFixed(2)}
+                  ${((product.price * (isService || isPackage ? 1 : quantity)) / 100).toFixed(2)}
                 </span>
               </div>
 
@@ -601,42 +615,52 @@ export default function ProductPage() {
                 </div>
               )}
 
-              {/* Book/Add to Cart Button */}
-              <button
-                className={`w-full h-14 rounded-[var(--radius-xl)] font-semibold text-lg transition-all flex items-center justify-center gap-2 ${
-                  isValid && !bookingInProgress
-                    ? "bg-gradient-primary text-white hover:shadow-lg hover:shadow-[var(--violet-500)]/25"
-                    : "bg-[var(--gray-200)] text-[var(--gray-400)] cursor-not-allowed"
-                }`}
-                disabled={!isValid || bookingInProgress}
-                onClick={isService ? handleBookService : handleAddToCart}
-              >
-                {bookingInProgress ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Booking...
-                  </>
-                ) : isService ? (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                      <line x1="16" y1="2" x2="16" y2="6"/>
-                      <line x1="8" y1="2" x2="8" y2="6"/>
-                      <line x1="3" y1="10" x2="21" y2="10"/>
-                    </svg>
-                    Book Now
-                  </>
-                ) : (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="9" cy="21" r="1"/>
-                      <circle cx="20" cy="21" r="1"/>
-                      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-                    </svg>
-                    Add to Cart
-                  </>
-                )}
-              </button>
+              {/* Package / Service / Cart Button */}
+              {isPackage ? (
+                <button
+                  type="button"
+                  className="w-full h-14 rounded-[var(--radius-xl)] font-semibold text-lg transition-all flex items-center justify-center gap-2 bg-gradient-primary text-white hover:shadow-lg hover:shadow-[var(--violet-500)]/25"
+                  onClick={() => setInquiryOpen(true)}
+                >
+                  Request to Book
+                </button>
+              ) : (
+                <button
+                  className={`w-full h-14 rounded-[var(--radius-xl)] font-semibold text-lg transition-all flex items-center justify-center gap-2 ${
+                    isValid && !bookingInProgress
+                      ? "bg-gradient-primary text-white hover:shadow-lg hover:shadow-[var(--violet-500)]/25"
+                      : "bg-[var(--gray-200)] text-[var(--gray-400)] cursor-not-allowed"
+                  }`}
+                  disabled={!isValid || bookingInProgress}
+                  onClick={isService ? handleBookService : handleAddToCart}
+                >
+                  {bookingInProgress ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Booking...
+                    </>
+                  ) : isService ? (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                      </svg>
+                      Book Now
+                    </>
+                  ) : (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="9" cy="21" r="1"/>
+                        <circle cx="20" cy="21" r="1"/>
+                        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                      </svg>
+                      Add to Cart
+                    </>
+                  )}
+                </button>
+              )}
 
               {/* Secondary Actions */}
               <div className="grid grid-cols-2 gap-3">
@@ -832,6 +856,13 @@ export default function ProductPage() {
           </div>
         </div>
       )}
+
+      <ProposalModal
+        vendor={vendor}
+        isOpen={inquiryOpen}
+        onClose={() => setInquiryOpen(false)}
+        initialBudget={packageBudget}
+      />
     </div>
   );
 }

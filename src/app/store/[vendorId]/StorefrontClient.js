@@ -23,6 +23,7 @@ import {
 } from "../../../utils/vendorMarketplace";
 import { loadBookingDraft } from "../../../utils/bookingDraft";
 import { useCart } from "../../../contexts/CartContext";
+import { getListingType, isPackageListing, isShopListing } from "../../../utils/listingType";
 
 function clampFocalPoint(value) {
   const numeric = Number(value);
@@ -81,10 +82,11 @@ export default function StorefrontPage() {
   const hasHeroImage = vendor?.heroImage && vendor.heroImage.length > 0;
   const galleryImages = vendor?.galleryImages || [];
   const allImages = hasHeroImage ? [vendor.heroImage, ...galleryImages] : galleryImages;
-  const shopItems = useMemo(() => products.filter((p) => !p.isService), [products]);
-  const packages = useMemo(() => products.filter((p) => p.isService), [products]);
-  const productCount = shopItems.length;
-  const serviceCount = packages.length;
+  const shopItems = useMemo(() => products.filter((p) => isShopListing(p)), [products]);
+  const packages = useMemo(() => products.filter((p) => isPackageListing(p)), [products]);
+  const productCount = shopItems.filter((p) => getListingType(p) === "product").length;
+  const serviceCount = shopItems.filter((p) => getListingType(p) === "service").length;
+  const packageCount = packages.length;
 
   const sortedShopItems = useMemo(() => {
     const list = [...shopItems];
@@ -227,11 +229,15 @@ export default function StorefrontPage() {
             ) : (
               <span className="font-semibold text-[var(--gray-900)]">New</span>
             )}
-            {productCount + serviceCount > 0 && (
+            {productCount + serviceCount + packageCount > 0 && (
               <span className="text-[var(--gray-500)]">
-                {productCount > 0 && `${productCount} product${productCount !== 1 ? "s" : ""}`}
-                {productCount > 0 && serviceCount > 0 && " · "}
-                {serviceCount > 0 && `${serviceCount} service${serviceCount !== 1 ? "s" : ""}`}
+                {[
+                  productCount > 0 && `${productCount} product${productCount !== 1 ? "s" : ""}`,
+                  serviceCount > 0 && `${serviceCount} service${serviceCount !== 1 ? "s" : ""}`,
+                  packageCount > 0 && `${packageCount} package${packageCount !== 1 ? "s" : ""}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
               </span>
             )}
           </div>

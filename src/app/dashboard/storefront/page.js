@@ -22,6 +22,7 @@ import { CSS } from "@dnd-kit/utilities";
 import SmartImage from "../../../components/SmartImage";
 import ImageEditorModal from "../../../components/ImageEditorModal";
 import { getStorefrontUrl } from "../../../utils/storefrontLinks";
+import { getListingType, isPackageListing } from "../../../utils/listingType";
 
 const MAX_CHARGE_CENTS = 5000000;
 const MAX_CHARGE_LABEL = "$50,000.00";
@@ -397,9 +398,11 @@ function POSSystem() {
       formData.append('product[name]', productData.name);
       formData.append('product[description]', productData.description || '');
       formData.append('product[price]', Math.round(parseFloat(productData.price) * 100));
-      formData.append('product[is_service]', productData.isService);
-      if (productData.isService && productData.duration) {
-        formData.append('product[duration]', productData.duration);
+      const listingType = productData.listingType || (productData.isService ? "service" : "product");
+      formData.append("product[listing_type]", listingType);
+      formData.append("product[is_service]", listingType === "service");
+      if (listingType === "service" && productData.duration) {
+        formData.append("product[duration]", productData.duration);
       }
 
       // Add new images
@@ -487,10 +490,12 @@ function POSSystem() {
   // Filter products
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = 
-      (activeLibraryCategory === 'items' && !product.isService) ||
-      (activeLibraryCategory === 'services' && product.isService) ||
-      activeLibraryCategory === 'all';
+    const listingType = getListingType(product);
+    const matchesCategory =
+      (activeLibraryCategory === "items" && listingType === "product") ||
+      (activeLibraryCategory === "services" && listingType === "service") ||
+      (activeLibraryCategory === "packages" && listingType === "package") ||
+      activeLibraryCategory === "all";
     return matchesSearch && matchesCategory;
   });
 
@@ -732,10 +737,11 @@ function LibraryPanel({
   cart 
 }) {
   const categories = [
-    { id: 'items', label: 'Items', icon: '📦' },
-    { id: 'services', label: 'Services', icon: '✨' },
-    { id: 'discounts', label: 'Discounts', icon: '🏷️' },
-    { id: 'gift_cards', label: 'Gift Cards', icon: '🎁' },
+    { id: "items", label: "Items", icon: "📦" },
+    { id: "services", label: "Services", icon: "✨" },
+    { id: "packages", label: "Packages", icon: "🎀" },
+    { id: "discounts", label: "Discounts", icon: "🏷️" },
+    { id: "gift_cards", label: "Gift Cards", icon: "🎁" },
   ];
 
   return (
@@ -789,7 +795,8 @@ function LibraryPanel({
             </button>
             
             {/* Expanded Items */}
-            {activeCategory === category.id && (category.id === 'items' || category.id === 'services') && (
+            {activeCategory === category.id &&
+              (category.id === "items" || category.id === "services" || category.id === "packages") && (
               <div className="bg-[var(--gray-50)]">
                 {products.length === 0 ? (
                   <div className="px-4 py-8 text-center">
@@ -798,7 +805,12 @@ function LibraryPanel({
                       onClick={onAddNew}
                       className="text-sm font-semibold text-[var(--violet-600)]"
                     >
-                      + Add {category.id === 'services' ? 'Service' : 'Item'}
+                      + Add{" "}
+                      {category.id === "services"
+                        ? "Service"
+                        : category.id === "packages"
+                          ? "Package"
+                          : "Item"}
                     </button>
                   </div>
                 ) : (
@@ -807,11 +819,15 @@ function LibraryPanel({
                       <LibraryItem
                         key={product.id}
                         product={product}
-                        onAdd={() => onAddToCart(product)}
+                        onAdd={
+                          isPackageListing(product)
+                            ? undefined
+                            : () => onAddToCart(product)
+                        }
                         onEdit={() => onEdit(product)}
                         onDelete={() => onDelete(product.id)}
                         onToggleActive={() => onToggleActive(product)}
-                        inCart={cart.some(item => item.id === product.id)}
+                        inCart={cart.some((item) => item.id === product.id)}
                       />
                     ))}
                   </div>
@@ -895,14 +911,16 @@ function LibraryItem({ product, onAdd, onEdit, onDelete, onToggleActive, inCart 
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
           </svg>
         </button>
-        <button
-          onClick={onAdd}
-          className="w-10 h-10 rounded-xl bg-[var(--violet-600)] flex items-center justify-center hover:bg-[var(--violet-700)] transition-colors shadow-md"
-        >
-          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+        {onAdd && (
+          <button
+            onClick={onAdd}
+            className="w-10 h-10 rounded-xl bg-[var(--violet-600)] flex items-center justify-center hover:bg-[var(--violet-700)] transition-colors shadow-md"
+          >
+            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Actions Dropdown */}
@@ -1245,19 +1263,19 @@ function PaymentMethodButton({ active, onClick, icon, label }) {
 // Product Modal Component
 function ProductModal({ product, onSave, onClose }) {
   const [form, setForm] = useState({
-    name: product?.name || '',
-    description: product?.description || '',
-    price: product ? (product.price / 100).toString() : '',
-    isService: product?.isService || false,
-    duration: product?.duration?.toString() || '',
+    name: product?.name || "",
+    description: product?.description || "",
+    price: product ? (product.price / 100).toString() : "",
+    listingType: product ? getListingType(product) : "product",
+    duration: product?.duration?.toString() || "",
     imageItems: (product?.images_data || (product?.images || []).map((url, i) => ({ id: `legacy_${i}`, url }))).map(
       (img) => ({
         id: img.id,
         url: img.url,
         isExisting: true,
-        file: null
+        file: null,
       })
-    )
+    ),
   });
   const [saving, setSaving] = useState(false);
   const [imageEditor, setImageEditor] = useState({
@@ -1333,26 +1351,37 @@ function ProductModal({ product, onSave, onClose }) {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Type Toggle */}
-            <div className="flex gap-2 p-1 bg-[var(--gray-100)] rounded-xl">
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, isService: false, duration: '' })}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                  !form.isService ? 'bg-white shadow-sm text-[var(--foreground)]' : 'text-[var(--gray-500)]'
-                }`}
-              >
-                Product
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm({ ...form, isService: true })}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
-                  form.isService ? 'bg-white shadow-sm text-[var(--foreground)]' : 'text-[var(--gray-500)]'
-                }`}
-              >
-                Service
-              </button>
+            <div className="flex gap-1 p-1 bg-[var(--gray-100)] rounded-xl">
+              {[
+                { value: "product", label: "Product" },
+                { value: "service", label: "Service" },
+                { value: "package", label: "Package" },
+              ].map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  onClick={() =>
+                    setForm({
+                      ...form,
+                      listingType: type.value,
+                      duration: type.value === "service" ? form.duration : "",
+                    })
+                  }
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    form.listingType === type.value
+                      ? "bg-white shadow-sm text-[var(--foreground)]"
+                      : "text-[var(--gray-500)]"
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
             </div>
+            <p className="text-xs text-[var(--gray-500)] -mt-2">
+              {form.listingType === "package"
+                ? "Packages show under Book for your event."
+                : "Products and services show under Shop in person."}
+            </p>
 
             {/* Name */}
             <div>
@@ -1386,7 +1415,7 @@ function ProductModal({ product, onSave, onClose }) {
             </div>
 
             {/* Duration (Services only) */}
-            {form.isService && (
+            {form.listingType === "service" && (
               <div>
                 <label className="block text-sm font-semibold text-[var(--gray-700)] mb-2">Duration (minutes)</label>
                 <input

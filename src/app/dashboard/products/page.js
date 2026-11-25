@@ -22,6 +22,7 @@ import ImageEditorModal from "../../../components/ImageEditorModal";
 import { getCurrentUser } from "../../../services/auth";
 import { api } from "../../../services/api";
 import { resizeImages, formatFileSize } from "../../../utils/imageResize";
+import { getListingType } from "../../../utils/listingType";
 
 export default function ProductsPage() {
   return (
@@ -45,7 +46,7 @@ function ProductsInner() {
     name: '',
     description: '',
     price: '',
-    isService: false,
+    listingType: 'product', // product | service | package
     duration: '',
     active: true,
     imageItems: []
@@ -107,7 +108,7 @@ function ProductsInner() {
         name: product.name || '',
         description: product.description || '',
         price: product.price ? (product.price / 100).toString() : '',
-        isService: product.isService || false,
+        listingType: getListingType(product),
         duration: product.duration?.toString() || '',
         active: product.active !== false,
         imageItems: existingItems
@@ -118,7 +119,7 @@ function ProductsInner() {
         name: '',
         description: '',
         price: '',
-        isService: false,
+        listingType: 'product',
         duration: '',
         active: true,
         imageItems: []
@@ -172,9 +173,10 @@ function ProductsInner() {
       formData.append('product[name]', productForm.name);
       formData.append('product[description]', productForm.description);
       formData.append('product[price]', Math.round(parseFloat(productForm.price) * 100));
-      formData.append('product[is_service]', productForm.isService);
+      formData.append('product[listing_type]', productForm.listingType);
+      formData.append('product[is_service]', productForm.listingType === 'service');
       formData.append('product[active]', productForm.active ? 'true' : 'false');
-      if (productForm.isService && productForm.duration) {
+      if (productForm.listingType === 'service' && productForm.duration) {
         formData.append('product[duration]', productForm.duration);
       }
 
@@ -367,21 +369,34 @@ function ProductsInner() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Type Toggle */}
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setProductForm({ ...productForm, isService: false, duration: '' })}
-                    className={`flex-1 chip ${!productForm.isService ? 'chip-active' : 'chip-filled'}`}
-                  >
-                    Product
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProductForm({ ...productForm, isService: true })}
-                    className={`flex-1 chip ${productForm.isService ? 'chip-active' : 'chip-filled'}`}
-                  >
-                    Service
-                  </button>
+                  {[
+                    { value: "product", label: "Product" },
+                    { value: "service", label: "Service" },
+                    { value: "package", label: "Package" },
+                  ].map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      onClick={() =>
+                        setProductForm({
+                          ...productForm,
+                          listingType: type.value,
+                          duration: type.value === "service" ? productForm.duration : "",
+                        })
+                      }
+                      className={`flex-1 chip ${
+                        productForm.listingType === type.value ? "chip-active" : "chip-filled"
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
                 </div>
+                <p className="text-xs text-[var(--gray-500)] -mt-2">
+                  {productForm.listingType === "package"
+                    ? "Packages show under Book for your event (request to book)."
+                    : "Products and services show under Shop in person."}
+                </p>
 
                 <div>
                   <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Name</label>
@@ -421,7 +436,7 @@ function ProductsInner() {
                   />
                 </div>
 
-                {productForm.isService && (
+                {productForm.listingType === "service" && (
                   <>
                     <div>
                       <label className="block text-sm font-medium text-[var(--gray-700)] mb-2">Duration (minutes)</label>
@@ -567,6 +582,9 @@ function ProductsInner() {
 function ProductCard({ product, onEdit, onDelete, onToggleActive, toggling }) {
   const images = product.images || [];
   const price = (product.price || 0) / 100;
+  const listingType = getListingType(product);
+  const typeLabel =
+    listingType === "package" ? "Package" : listingType === "service" ? "Service" : null;
 
   return (
     <div className={`card bg-white overflow-hidden ${product.active === false ? 'opacity-70' : ''}`}>
@@ -588,9 +606,9 @@ function ProductCard({ product, onEdit, onDelete, onToggleActive, toggling }) {
         <div className="flex items-start justify-between gap-1 mb-1">
           <h3 className="font-semibold text-sm line-clamp-1">{product.name}</h3>
           <div className="flex items-center gap-1">
-            {product.isService && (
+            {typeLabel && (
               <span className="chip text-[10px] px-1.5 py-0.5 bg-[var(--magenta-500)]/10 text-[var(--magenta-600)] flex-shrink-0">
-                Service
+                {typeLabel}
               </span>
             )}
             {product.active === false && (
@@ -601,7 +619,7 @@ function ProductCard({ product, onEdit, onDelete, onToggleActive, toggling }) {
           </div>
         </div>
         <p className="text-lg font-bold text-[var(--foreground)]">${price.toFixed(2)}</p>
-        {product.isService && (
+        {listingType === "service" && (
           <div className="text-xs text-[var(--gray-500)] space-y-0.5">
             {product.duration && <p>{product.duration} min</p>}
           </div>

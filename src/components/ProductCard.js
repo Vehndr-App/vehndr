@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "../contexts/CartContext";
 import { getStorefrontPath } from "../utils/storefrontLinks";
+import { getListingType, isPackageListing, isServiceListing } from "../utils/listingType";
 
 export default function ProductCard({ product, compact = false }) {
   const { addItem } = useCart();
@@ -12,7 +13,9 @@ export default function ProductCard({ product, compact = false }) {
   const [isAdding, setIsAdding] = useState(false);
   const [showFeedback, setShowFeedback] = useState(null); // 'success' | 'options' | null
   
-  const isService = product.isService === true;
+  const listingType = getListingType(product);
+  const isService = isServiceListing(product);
+  const isPackage = isPackageListing(product);
   const priceFormatted = (product.price / 100).toFixed(2);
   const hasImage = product.images && product.images.length > 0;
   const hasOptions = product.options && product.options.length > 0;
@@ -26,8 +29,8 @@ export default function ProductCard({ product, compact = false }) {
     e.preventDefault();
     e.stopPropagation();
     
-    // For services or products with options, navigate to product page
-    if (isService || hasOptions) {
+    // Packages / services / optioned products need the detail page (or book flow)
+    if (isPackage || isService || hasOptions) {
       router.push(productPath);
       return;
     }
@@ -76,22 +79,22 @@ export default function ProductCard({ product, compact = false }) {
           </div>
         )}
         
-        {/* Service/Product Badge */}
-        {isService && (
+        {/* Listing type badge */}
+        {(isService || isPackage) && (
           <div className="absolute top-2 left-2 px-2 py-0.5 bg-gradient-primary text-white text-[10px] font-bold rounded-full uppercase tracking-wide">
-            Service
+            {isPackage ? "Package" : "Service"}
           </div>
         )}
 
         {/* Options indicator */}
-        {hasOptions && !isService && (
+        {hasOptions && listingType === "product" && (
           <div className="absolute top-2 left-2 px-2 py-0.5 bg-[var(--gray-900)]/80 text-white text-[10px] font-medium rounded-full">
             Options
           </div>
         )}
 
         {/* Quick Add Button */}
-        {!isService && (
+        {listingType === "product" && (
           <button
             onClick={handleQuickAdd}
             disabled={isAdding}
