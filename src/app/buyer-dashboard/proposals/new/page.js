@@ -193,13 +193,18 @@ function NewProposalPageInner() {
   const searchParams = useSearchParams();
   const vendorId = searchParams.get("vendor_id");
   const eventId = searchParams.get("event_id");
+  const budgetFromUrl = (searchParams.get("budget") || "").replace(/[^0-9]/g, "");
 
   const [vendor, setVendor] = useState(null);
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const [coordinatorType, setCoordinatorType] = useState("hiring_vendor");
-  const [fields, setFields] = useState({ budget: "", vendingFee: "", tip: "" });
+  const [fields, setFields] = useState({
+    budget: budgetFromUrl && Number(budgetFromUrl) > 0 ? budgetFromUrl : "",
+    vendingFee: "",
+    tip: "",
+  });
   const [message, setMessage] = useState("");
   const [messageEdited, setMessageEdited] = useState(false);
   const [submitting, setSubmitting] = useState(false);

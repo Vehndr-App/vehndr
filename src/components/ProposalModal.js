@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createEvent, getMyEvents, updateEvent } from "../services/events";
@@ -1357,19 +1357,6 @@ function SendStep({
                 />
               </div>
             </div>
-            {pricing && (
-              <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] px-4 py-3 space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-[var(--violet-700)]">You pay (est.)</span>
-                  <span className="font-bold text-[var(--violet-900)]">~{formatFee(pricing.totalChargeCents)}</span>
-                </div>
-                {pricing.taxCents > 0 && (
-                  <p className="text-[10px] text-[var(--violet-500)]">
-                    Includes {formatSalesTaxLabel(vendor)} and platform fee
-                  </p>
-                )}
-              </div>
-            )}
             <div>
               <FieldLabel hint="Optional — you can also tip later.">Tip (USD)</FieldLabel>
               <div className="relative">
@@ -1385,6 +1372,44 @@ function SendStep({
                 />
               </div>
             </div>
+            {pricing && (
+              <div className="rounded-xl bg-[var(--violet-50)] border border-[var(--violet-100)] overflow-hidden">
+                <div className="px-4 py-2.5 border-b border-[var(--violet-100)]">
+                  <p className="text-[10px] font-semibold text-[var(--violet-700)] uppercase tracking-wider">
+                    Why the total is higher
+                  </p>
+                </div>
+                <div className="px-4 py-3 space-y-1.5">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--violet-700)]">Your budget</span>
+                    <span className="font-semibold text-[var(--gray-800)]">{formatFee(pricing.subtotalCents)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-[var(--violet-700)]">VEHNDR platform fee (10%)</span>
+                    <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(pricing.coordinatorFeeCents)}</span>
+                  </div>
+                  {pricing.taxCents > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[var(--violet-700)]">{formatSalesTaxLabel(vendor)}</span>
+                      <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(pricing.taxCents)}</span>
+                    </div>
+                  )}
+                  {tipCents > 0 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-[var(--violet-700)]">Tip</span>
+                      <span className="font-semibold text-[var(--gray-800)]">+ {formatFee(tipCents)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-xs font-bold pt-1.5 mt-0.5 border-t border-[var(--violet-200)]">
+                    <span className="text-[var(--violet-900)]">You pay (est.)</span>
+                    <span className="text-[var(--violet-900)]">~{formatFee(pricing.totalChargeCents)}</span>
+                  </div>
+                  <p className="text-[10px] text-[var(--violet-500)] leading-relaxed pt-1">
+                    Estimate if the vendor matches your budget. Final total may change if they send a different offer.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -1492,7 +1517,14 @@ function AuthState({ vendor, onClose, loginRedirect }) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, resumeDraft = null }) {
+export default function ProposalModal({
+  vendor,
+  isOpen,
+  onClose,
+  loginRedirect,
+  resumeDraft = null,
+  initialBudget = null,
+}) {
   const router = useRouter();
   const { user } = useAuth();
   const isLoggedIn = Boolean(user);
@@ -1509,6 +1541,20 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, 
   const [createdEventInFlow, setCreatedEventInFlow] = useState(false);
   const [sendDraft, setSendDraft] = useState(null);
   const resumeStartedRef = useRef(false);
+
+  const budgetPrefill = useMemo(() => {
+    if (initialBudget == null || initialBudget === "") return "";
+    const digits = String(initialBudget).replace(/[^0-9]/g, "");
+    return digits && Number(digits) > 0 ? digits : "";
+  }, [initialBudget]);
+
+  const packageSendDraft = useMemo(() => {
+    if (!budgetPrefill) return null;
+    return {
+      coordinatorType: "hiring_vendor",
+      fields: { budget: budgetPrefill, vendingFee: "", tip: "" },
+    };
+  }, [budgetPrefill]);
 
   const defaultTimesRef = useRef({ startTime: INITIAL_FORM.startTime, endTime: INITIAL_FORM.endTime });
   useEffect(() => {
@@ -1777,7 +1823,7 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, 
             />
           ) : step === "send" ? (
             <SendStep
-              key={sendDraft ? "resumed" : "fresh"}
+              key={sendDraft ? "resumed" : budgetPrefill ? `budget-${budgetPrefill}` : "fresh"}
               vendor={vendor}
               event={selectedEvent}
               form={form}
@@ -1785,7 +1831,7 @@ export default function ProposalModal({ vendor, isOpen, onClose, loginRedirect, 
               setField={setField}
               showOptionalNudge={createdEventInFlow && isOptionalSparse(form)}
               createdEventInFlow={createdEventInFlow}
-              sendDraft={sendDraft}
+              sendDraft={sendDraft || packageSendDraft}
               isLoggedIn={isLoggedIn}
               onNeedAuth={handleNeedAuth}
               onBack={() => {

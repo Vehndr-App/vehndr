@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { getVendorProfile, getVendorProducts } from "../../../services/vendors";
 import ProductCard from "../../../components/ProductCard";
@@ -8,7 +9,7 @@ import ProposalModal from "../../../components/ProposalModal";
 import StorefrontHeroGallery from "../../../components/storefront/StorefrontHeroGallery";
 import StorefrontPhotoTour from "../../../components/storefront/StorefrontPhotoTour";
 import StorefrontGalleryCarousel from "../../../components/storefront/StorefrontGalleryCarousel";
-import { getStorefrontUrl } from "../../../utils/storefrontLinks";
+import { getStorefrontUrl, getStorefrontPath } from "../../../utils/storefrontLinks";
 import {
   getVendorBookingPriceLabel,
   VENDOR_BOOKING_FOOTER_SUBTITLE,
@@ -21,6 +22,7 @@ import {
   MARKETPLACE_COMING_SOON_BLURB,
 } from "../../../utils/vendorMarketplace";
 import { loadBookingDraft } from "../../../utils/bookingDraft";
+import { useCart } from "../../../contexts/CartContext";
 
 function clampFocalPoint(value) {
   const numeric = Number(value);
@@ -40,7 +42,6 @@ export default function StorefrontPage() {
   const [vendor, setVendor] = useState(null);
   const [products, setProducts] = useState([]);
   const [sort, setSort] = useState("recommended");
-  const [activeTab, setActiveTab] = useState("all");
   const [galleryView, setGalleryView] = useState("closed");
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [carouselReturnToTour, setCarouselReturnToTour] = useState(false);
@@ -48,7 +49,10 @@ export default function StorefrontPage() {
   const [inquiryOpen, setInquiryOpen] = useState(false);
   const [bookingDraft, setBookingDraft] = useState(null);
   const [preselectedEvent, setPreselectedEvent] = useState(null);
+  const [door, setDoor] = useState("book"); // "book" | "shop"
+  const [prefillBudget, setPrefillBudget] = useState(""); // dollars, from package price
   const { user } = useAuth();
+  const { totalItems } = useCart();
 
   useEffect(() => {
     (async () => {
@@ -74,14 +78,16 @@ export default function StorefrontPage() {
     router.replace(`/store/${vendorId}`, { scroll: false });
   }, [user, vendor, searchParams, vendorId, router]);
 
-  const filteredProducts = useMemo(() => {
-    if (activeTab === "products") return products.filter((p) => !p.isService);
-    if (activeTab === "services") return products.filter((p) => p.isService);
-    return products;
-  }, [products, activeTab]);
+  const hasHeroImage = vendor?.heroImage && vendor.heroImage.length > 0;
+  const galleryImages = vendor?.galleryImages || [];
+  const allImages = hasHeroImage ? [vendor.heroImage, ...galleryImages] : galleryImages;
+  const shopItems = useMemo(() => products.filter((p) => !p.isService), [products]);
+  const packages = useMemo(() => products.filter((p) => p.isService), [products]);
+  const productCount = shopItems.length;
+  const serviceCount = packages.length;
 
-  const sortedProducts = useMemo(() => {
-    const list = [...filteredProducts];
+  const sortedShopItems = useMemo(() => {
+    const list = [...shopItems];
     switch (sort) {
       case "price_asc":
         return list.sort((a, b) => a.price - b.price);
@@ -92,23 +98,31 @@ export default function StorefrontPage() {
       default:
         return list;
     }
-  }, [filteredProducts, sort]);
-
-  const hasHeroImage = vendor?.heroImage && vendor.heroImage.length > 0;
-  const galleryImages = vendor?.galleryImages || [];
-  const allImages = hasHeroImage ? [vendor.heroImage, ...galleryImages] : galleryImages;
-  const productCount = products.filter((p) => !p.isService).length;
-  const serviceCount = products.filter((p) => p.isService).length;
+  }, [shopItems, sort]);
   const storefrontUrl = useMemo(() => getStorefrontUrl(vendor), [vendor]);
+  const storefrontPath = useMemo(() => getStorefrontPath(vendor), [vendor]);
   const heroObjectPosition = useMemo(() => getHeroObjectPosition(vendor), [vendor]);
 
   const footerPriceLabel = useMemo(() => getVendorBookingPriceLabel(vendor), [vendor]);
   const marketplaceBookable = vendor ? isVendorMarketplaceBookable(vendor) : true;
+  const isBookDoor = door === "book";
 
-  function handleBookClick() {
+  function budgetDollarsFromPackage(pkg) {
+    if (!pkg || typeof pkg.price !== "number" || pkg.price <= 0) return "";
+    return String(Math.round(pkg.price / 100));
+  }
+
+  function handleBookClick(pkg) {
     if (!marketplaceBookable) return;
+    const budget = budgetDollarsFromPackage(pkg);
+    setPrefillBudget(budget);
     if (preselectedEventId && user) {
-      router.push(`/buyer-dashboard/proposals/new?vendor_id=${vendor.id}&event_id=${preselectedEventId}`);
+      const params = new URLSearchParams({
+        vendor_id: String(vendor.id),
+        event_id: String(preselectedEventId),
+      });
+      if (budget) params.set("budget", budget);
+      router.push(`/buyer-dashboard/proposals/new?${params.toString()}`);
       return;
     }
     setInquiryOpen(true);
@@ -239,58 +253,124 @@ export default function StorefrontPage() {
 
         <StorefrontMetaChips vendor={vendor} />
 
-        <div className="flex gap-1 p-1 bg-[var(--gray-100)] rounded-[var(--radius-lg)] mb-4 w-fit">
-          <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")}>
-            All ({products.length})
-          </TabButton>
-          {productCount > 0 && (
-            <TabButton active={activeTab === "products"} onClick={() => setActiveTab("products")}>
-              Products ({productCount})
-            </TabButton>
-          )}
-          {serviceCount > 0 && (
-            <TabButton active={activeTab === "services"} onClick={() => setActiveTab("services")}>
-              Services ({serviceCount})
-            </TabButton>
-          )}
+        {/* Door toggle: Book for events vs Shop in person */}
+        <div className="mb-3">
+          <div className="flex gap-1 p-1 bg-[var(--gray-100)] rounded-full w-full sm:w-fit">
+            <button
+              type="button"
+              onClick={() => setDoor("book")}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                isBookDoor
+                  ? "bg-white text-[var(--gray-900)] shadow-sm"
+                  : "text-[var(--gray-500)] hover:text-[var(--gray-700)]"
+              }`}
+            >
+              Book for your event
+            </button>
+            <button
+              type="button"
+              onClick={() => setDoor("shop")}
+              className={`flex-1 sm:flex-none px-4 py-2.5 rounded-full text-sm font-semibold transition-all ${
+                !isBookDoor
+                  ? "bg-white text-[var(--gray-900)] shadow-sm"
+                  : "text-[var(--gray-500)] hover:text-[var(--gray-700)]"
+              }`}
+            >
+              Shop in person
+            </button>
+          </div>
+          <p className="text-xs text-[var(--gray-500)] mt-2.5 leading-relaxed">
+            {isBookDoor
+              ? "Hire this vendor for your wedding, party, or event."
+              : "For on-site / in-person shopping. Browse items and check out here."}
+          </p>
         </div>
 
-        <div className="mb-6 scroll-horizontal scrollbar-hide -mx-4 px-4 gap-2">
-          <SortChip label="Recommended" active={sort === "recommended"} onClick={() => setSort("recommended")} />
-          <SortChip label="Price: Low to High" active={sort === "price_asc"} onClick={() => setSort("price_asc")} />
-          <SortChip label="Price: High to Low" active={sort === "price_desc"} onClick={() => setSort("price_desc")} />
-          <SortChip label="A–Z" active={sort === "name_asc"} onClick={() => setSort("name_asc")} />
-        </div>
+        {isBookDoor ? (
+          <div className="mb-2">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <h2 className="text-sm font-semibold text-[var(--gray-900)]">Packages</h2>
+              {marketplaceBookable && (
+                <button
+                  type="button"
+                  onClick={handleBookClick}
+                  className="text-sm font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)]"
+                >
+                  Request to book
+                </button>
+              )}
+            </div>
 
-        {sortedProducts.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-            {sortedProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
+            {packages.length > 0 ? (
+              <div className="space-y-3">
+                {packages.map((pkg) => (
+                  <PackageCard
+                    key={pkg.id}
+                    pkg={pkg}
+                    href={`${storefrontPath}/products/${pkg.id}`}
+                    onRequest={marketplaceBookable ? () => handleBookClick(pkg) : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-8 text-center">
+                <p className="text-sm font-medium text-[var(--gray-800)] mb-1">No packages listed yet</p>
+                <p className="text-xs text-[var(--gray-500)] mb-4">
+                  You can still send a custom booking request.
+                </p>
+                {marketplaceBookable && (
+                  <button
+                    type="button"
+                    onClick={handleBookClick}
+                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-white"
+                    style={{ background: "var(--gradient-vendor)" }}
+                  >
+                    Request to book
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--gray-100)] flex items-center justify-center">
-              <svg
-                width="32"
-                height="32"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--gray-400)"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="9" cy="21" r="1" />
-                <circle cx="20" cy="21" r="1" />
-                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-              </svg>
+          <>
+            <div className="mb-6 scroll-horizontal scrollbar-hide -mx-4 px-4 gap-2">
+              <SortChip label="Recommended" active={sort === "recommended"} onClick={() => setSort("recommended")} />
+              <SortChip label="Price: Low to High" active={sort === "price_asc"} onClick={() => setSort("price_asc")} />
+              <SortChip label="Price: High to Low" active={sort === "price_desc"} onClick={() => setSort("price_desc")} />
+              <SortChip label="A–Z" active={sort === "name_asc"} onClick={() => setSort("name_asc")} />
             </div>
-            <h3 className="text-lg font-semibold text-[var(--gray-900)] mb-1">No items yet</h3>
-            <p className="text-[var(--gray-500)]">
-              This vendor hasn&apos;t added any {activeTab === "all" ? "items" : activeTab} yet.
-            </p>
-          </div>
+
+            {sortedShopItems.length > 0 ? (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+                {sortedShopItems.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[var(--gray-100)] flex items-center justify-center">
+                  <svg
+                    width="32"
+                    height="32"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="var(--gray-400)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="9" cy="21" r="1" />
+                    <circle cx="20" cy="21" r="1" />
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-[var(--gray-900)] mb-1">No shop items yet</h3>
+                <p className="text-[var(--gray-500)] text-sm">
+                  This vendor hasn&apos;t added in-person shop items yet.
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         <div className="mt-8 mb-4 grid grid-cols-3 gap-3">
@@ -313,12 +393,12 @@ export default function StorefrontPage() {
         <StorefrontStorySections vendor={vendor} />
       </div>
 
-      {/* Sticky booking bar — Airbnb Reserve style */}
+      {/* Sticky footer — booking on Door 1, cart on Door 2 */}
       <div
         className="fixed bottom-0 left-0 right-0 z-30 footer-safe overflow-hidden"
         style={{ boxShadow: "0 -4px 24px rgba(0,0,0,0.08)" }}
       >
-        {preselectedEvent && (
+        {isBookDoor && preselectedEvent && (
           <div className="bg-[var(--gray-900)] px-4 sm:px-6 py-2.5 flex items-center gap-2.5">
             <div className="mx-auto max-w-6xl w-full flex items-center gap-2.5">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 opacity-70">
@@ -332,33 +412,55 @@ export default function StorefrontPage() {
 
         <div className="bg-white/90 backdrop-blur-xl border-t border-[var(--gray-100)]">
           <div className="mx-auto max-w-6xl px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <p className="text-base font-bold text-[var(--gray-900)] underline decoration-[var(--gray-300)] underline-offset-2">
-                {footerPriceLabel}
-              </p>
-              <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-snug">
-                {marketplaceBookable
-                  ? (preselectedEvent ? "Ready to send your request" : VENDOR_BOOKING_FOOTER_SUBTITLE)
-                  : "This vendor is not bookable yet in your area"}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={handleBookClick}
-              disabled={!marketplaceBookable}
-              className={`tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold whitespace-nowrap min-w-[140px] sm:min-w-[160px] ${
-                marketplaceBookable
-                  ? "text-white"
-                  : "text-[var(--gray-600)] bg-[var(--gray-100)] cursor-not-allowed"
-              }`}
-              style={
-                marketplaceBookable
-                  ? { background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }
-                  : undefined
-              }
-            >
-              {marketplaceBookable ? "Request to Book" : "Coming soon"}
-            </button>
+            {isBookDoor ? (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-bold text-[var(--gray-900)] underline decoration-[var(--gray-300)] underline-offset-2">
+                    {footerPriceLabel}
+                  </p>
+                  <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-snug">
+                    {marketplaceBookable
+                      ? (preselectedEvent ? "Ready to send your request" : VENDOR_BOOKING_FOOTER_SUBTITLE)
+                      : "This vendor is not bookable yet in your area"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleBookClick}
+                  disabled={!marketplaceBookable}
+                  className={`tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold whitespace-nowrap min-w-[140px] sm:min-w-[160px] ${
+                    marketplaceBookable
+                      ? "text-white"
+                      : "text-[var(--gray-600)] bg-[var(--gray-100)] cursor-not-allowed"
+                  }`}
+                  style={
+                    marketplaceBookable
+                      ? { background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }
+                      : undefined
+                  }
+                >
+                  {marketplaceBookable ? "Request to Book" : "Coming soon"}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-base font-bold text-[var(--gray-900)]">
+                    {totalItems > 0 ? `${totalItems} in cart` : "Shop items"}
+                  </p>
+                  <p className="text-xs text-[var(--gray-500)] mt-0.5 leading-snug">
+                    In-person style shopping — checkout when you&apos;re ready
+                  </p>
+                </div>
+                <Link
+                  href="/cart"
+                  className="tap-scale flex-shrink-0 px-6 sm:px-8 py-3.5 rounded-xl text-sm font-bold whitespace-nowrap min-w-[140px] sm:min-w-[160px] text-white text-center"
+                  style={{ background: "var(--gradient-vendor)", boxShadow: "var(--shadow-button)" }}
+                >
+                  {totalItems > 0 ? "View cart" : "Go to cart"}
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -369,8 +471,10 @@ export default function StorefrontPage() {
         onClose={() => {
           setInquiryOpen(false);
           setBookingDraft(null);
+          setPrefillBudget("");
         }}
         resumeDraft={bookingDraft}
+        initialBudget={prefillBudget}
       />
 
       {galleryView === "tour" && allImages.length > 0 && (
@@ -550,19 +654,59 @@ function StorefrontStorySections({ vendor }) {
   );
 }
 
-function TabButton({ active, onClick, children }) {
+function PackageCard({ pkg, href, onRequest }) {
+  const price = typeof pkg.price === "number" ? (pkg.price / 100).toFixed(2) : null;
+  const hasImage = pkg.images && pkg.images.length > 0;
+
   return (
-    <button
-      className={`px-4 py-2 text-sm font-medium rounded-[var(--radius-md)] transition-all ${
-        active
-          ? "bg-white text-[var(--gray-900)] shadow-sm"
-          : "text-[var(--gray-500)] hover:text-[var(--gray-700)]"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      {children}
-    </button>
+    <div className="flex gap-3 rounded-2xl border border-[var(--gray-100)] bg-white p-3 shadow-[var(--shadow-sm)]">
+      <Link
+        href={href}
+        className="relative w-20 h-20 sm:w-24 sm:h-24 flex-shrink-0 rounded-xl overflow-hidden bg-[var(--gray-100)]"
+      >
+        {hasImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={pkg.images[0]} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-2xl text-[var(--violet-300)]">
+            ✨
+          </div>
+        )}
+      </Link>
+      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+        <div>
+          <Link href={href} className="block">
+            <p className="text-sm font-semibold text-[var(--gray-900)] leading-snug line-clamp-2">
+              {pkg.name}
+            </p>
+          </Link>
+          {pkg.description && (
+            <p className="text-xs text-[var(--gray-500)] mt-1 line-clamp-2">{pkg.description}</p>
+          )}
+        </div>
+        <div className="flex items-center justify-between gap-2 mt-2">
+          {price != null && (
+            <p className="text-sm font-bold text-[var(--gray-900)]">${price}</p>
+          )}
+          {onRequest ? (
+            <button
+              type="button"
+              onClick={onRequest}
+              className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)]"
+            >
+              Request
+            </button>
+          ) : (
+            <Link
+              href={href}
+              className="text-xs font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)]"
+            >
+              View
+            </Link>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
