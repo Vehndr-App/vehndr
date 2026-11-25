@@ -3,13 +3,20 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getVendorCategoryLabel, normalizeVendorCategories } from "../constants/categories";
+import {
+  SERVICE_AREA_NOTE,
+  SERVICE_AREA_OPTIONS,
+  getServiceAreaOption,
+} from "../constants/serviceAreas";
 
 export default function SearchFilters({ categories = [], variant = "full", basePath = "/", eventType = "", glass = false }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [searchQuery, setSearchQuery] = useState(searchParams.get("search") || "");
+  const [serviceArea, setServiceArea] = useState(searchParams.get("location") || "");
   const [isDateOpen, setIsDateOpen] = useState(false);
+  const [isWhereOpen, setIsWhereOpen] = useState(false);
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(!glass); // glass hero starts collapsed
   const [selectedDate, setSelectedDate] = useState(null);
@@ -32,14 +39,19 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
   });
   
   const dateRef = useRef(null);
+  const whereRef = useRef(null);
   const filtersRef = useRef(null);
   const searchInputRef = useRef(null);
+  const selectedArea = getServiceAreaOption(serviceArea);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dateRef.current && !dateRef.current.contains(event.target)) {
         setIsDateOpen(false);
+      }
+      if (whereRef.current && !whereRef.current.contains(event.target)) {
+        setIsWhereOpen(false);
       }
       if (filtersRef.current && !filtersRef.current.contains(event.target)) {
         setIsFiltersOpen(false);
@@ -81,6 +93,7 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
     const params = new URLSearchParams();
     if (searchQuery) params.set("search", searchQuery);
     if (eventType) params.set("event_type", eventType);
+    if (serviceArea) params.set("location", serviceArea);
     if (filters.categories && filters.categories.length > 0) {
       params.set("category", filters.categories.join(','));
     }
@@ -97,10 +110,12 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
     router.push(`${basePath}${params.toString() ? `?${params.toString()}` : ""}`);
     setIsFiltersOpen(false);
     setIsDateOpen(false);
+    setIsWhereOpen(false);
   };
 
   const clearFilters = () => {
     setSearchQuery("");
+    setServiceArea("");
     setFilters({
       categories: [],
       minPrice: "",
@@ -192,6 +207,7 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
   if (glass && !isExpanded) {
     const summary =
       searchQuery ||
+      (serviceArea ? selectedArea.label : null) ||
       (selectedDate
         ? selectedDate.toLocaleDateString("en-US", { month: "short", day: "numeric" })
         : null) ||
@@ -216,7 +232,7 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
             {summary || "Search vendors"}
           </div>
           <div className="text-xs text-[var(--gray-500)] truncate">
-            {summary ? "Tap to edit search" : "Date · filters · categories"}
+            {summary ? "Tap to edit search" : "TX & AZ · date · filters"}
           </div>
         </div>
         <span className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-primary text-white flex items-center justify-center">
@@ -286,10 +302,87 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
           {/* Divider */}
           <div className={dividerClass} />
 
+          {/* Where / city */}
+          <div ref={whereRef} className="relative flex-1 min-w-[7.5rem]">
+            <button
+              type="button"
+              onClick={() => {
+                setIsWhereOpen(!isWhereOpen);
+                setIsDateOpen(false);
+                setIsFiltersOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors text-left`}
+              aria-expanded={isWhereOpen}
+              aria-haspopup="listbox"
+            >
+              <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                  <circle cx="12" cy="10" r="3"/>
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-medium text-[var(--gray-500)]">Where</div>
+                <div className="text-sm font-semibold text-[var(--gray-900)] truncate">
+                  {serviceArea ? selectedArea.label : "TX & AZ"}
+                </div>
+              </div>
+            </button>
+
+            {isWhereOpen && (
+              <div className="absolute bottom-full sm:bottom-auto sm:top-full left-0 mb-2 sm:mb-0 sm:mt-2 w-[260px] bg-white rounded-[var(--radius-xl)] shadow-[var(--shadow-xl)] border border-[var(--gray-100)] z-[9999] overflow-hidden">
+                <div className="px-3 py-2.5 bg-[var(--violet-50)] border-b border-[var(--violet-100)]">
+                  <p className="text-[11px] font-semibold text-[var(--violet-700)] leading-snug">
+                    {SERVICE_AREA_NOTE}
+                  </p>
+                </div>
+                <div className="max-h-64 overflow-y-auto py-1" role="listbox">
+                  {SERVICE_AREA_OPTIONS.map((opt, index) => {
+                    const prev = SERVICE_AREA_OPTIONS[index - 1];
+                    const showStateLabel =
+                      opt.kind === "state" ||
+                      (opt.kind === "city" && prev?.state !== opt.state && prev?.kind !== "state");
+                    const stateTitle =
+                      opt.state === "tx" ? "Texas" : opt.state === "az" ? "Arizona" : null;
+
+                    return (
+                      <div key={opt.value || "all"}>
+                        {opt.kind === "all" ? null : showStateLabel && stateTitle && opt.kind === "state" ? (
+                          <div className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--gray-400)]">
+                            {stateTitle}
+                          </div>
+                        ) : null}
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={serviceArea === opt.value}
+                          onClick={() => {
+                            setServiceArea(opt.value);
+                            setIsWhereOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                            serviceArea === opt.value
+                              ? "bg-[var(--violet-50)] text-[var(--violet-700)] font-semibold"
+                              : "text-[var(--gray-800)] hover:bg-[var(--gray-50)]"
+                          } ${opt.kind === "city" ? "pl-5" : ""}`}
+                        >
+                          {opt.label}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Divider */}
+          <div className={dividerClass} />
+
           {/* Date Picker */}
           <div ref={dateRef} className="relative flex-1">
             <button
-              onClick={() => { setIsDateOpen(!isDateOpen); setIsFiltersOpen(false); }}
+              onClick={() => { setIsDateOpen(!isDateOpen); setIsFiltersOpen(false); setIsWhereOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors text-left`}
             >
               <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
@@ -429,7 +522,7 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
           {/* Filters Button */}
           <div className="flex-1">
             <button
-              onClick={() => { setIsFiltersOpen(true); setIsDateOpen(false); }}
+              onClick={() => { setIsFiltersOpen(true); setIsDateOpen(false); setIsWhereOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors text-left`}
             >
               <div className="w-10 h-10 rounded-full bg-[var(--magenta-100)] flex items-center justify-center flex-shrink-0">
@@ -467,6 +560,9 @@ export default function SearchFilters({ categories = [], variant = "full", baseP
           </button>
         </div>
       </div>
+      <p className={`mt-2 text-center text-xs ${glass ? "text-white/80 drop-shadow-sm" : "text-[var(--gray-500)]"}`}>
+        {SERVICE_AREA_NOTE}
+      </p>
 
       {/* Filters Modal/Drawer */}
       {isFiltersOpen && (

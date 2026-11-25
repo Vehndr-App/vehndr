@@ -16,6 +16,7 @@ import {
   vendorMatchesAnyCategory
 } from "../constants/categories";
 import { getStorefrontPath } from "../utils/storefrontLinks";
+import { vendorMatchesServiceArea } from "../constants/serviceAreas";
 
 // Fetch events function
 async function listEvents(params = {}) {
@@ -24,6 +25,7 @@ async function listEvents(params = {}) {
     if (params.search) queryParams.set("search", params.search);
     if (params.type) queryParams.set("event_type", normalizeEventType(params.type));
     if (params.date) queryParams.set("date", params.date);
+    if (params.location) queryParams.set("location", params.location);
     
     const url = `/api/events${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
     const response = await api(url);
@@ -38,6 +40,7 @@ export default async function Home({ searchParams }) {
   const params = await searchParams;
   const mode = typeof params?.mode === "string" ? params.mode : "vendors";
   const search = typeof params?.search === "string" ? params.search : null;
+  const location = typeof params?.location === "string" ? params.location : null;
   const category = typeof params?.category === "string" ? params.category : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
   const maxPrice = typeof params?.maxPrice === "string" ? params.maxPrice : null;
@@ -54,17 +57,19 @@ export default async function Home({ searchParams }) {
   let allCategories = [];
 
   if (mode === "events") {
-    events = await listEvents({ search, type: eventType, date: eventDate });
+    events = await listEvents({ search, type: eventType, date: eventDate, location });
   } else {
     // Fetch all vendors once; derive categories from the full list, filter client-side
-    const allVendors = await listVendors({ search, minPrice, maxPrice });
+    const allVendors = await listVendors({ search, minPrice, maxPrice, location });
     const categoryFilters = category ? category.split(",").filter(Boolean) : [];
     allCategories = Array.from(
       new Set(allVendors.flatMap((v) => normalizeVendorCategories(v.categories ?? [])))
     ).sort();
-    vendors = category
-      ? allVendors.filter((v) => vendorMatchesAnyCategory(v.categories ?? [], categoryFilters))
-      : allVendors;
+    vendors = allVendors.filter((v) => {
+      if (category && !vendorMatchesAnyCategory(v.categories ?? [], categoryFilters)) return false;
+      if (location && !vendorMatchesServiceArea(v, location)) return false;
+      return true;
+    });
   }
 
   // Group vendors by category

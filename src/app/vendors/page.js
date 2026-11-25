@@ -20,6 +20,7 @@ import { isVendorMarketplaceBookable } from "../../utils/vendorMarketplace";
 export default async function VendorsSelectPage({ searchParams }) {
   const params = await searchParams;
   const searchQuery = typeof params?.search === "string" ? params.search : "";
+  const location = typeof params?.location === "string" ? params.location : null;
   const category = typeof params?.category === "string" ? params.category : null;
   const eventType = typeof params?.event_type === "string" ? normalizeEventType(params.event_type) : null;
   const minPrice = typeof params?.minPrice === "string" ? params.minPrice : null;
@@ -30,7 +31,7 @@ export default async function VendorsSelectPage({ searchParams }) {
   // #endregion
 
   // Fetch filtered vendors for display
-  const vendors = await listVendors({ search: searchQuery, category, eventType, minPrice, maxPrice });
+  const vendors = await listVendors({ search: searchQuery, category, eventType, minPrice, maxPrice, location });
   const vendorIdSet = new Set(vendors.map((vendor) => vendor?.id ?? null));
   const uniqueVendorCount = vendorIdSet.size;
   const vendorsMissingId = vendors.filter((vendor) => !vendor?.id).length;

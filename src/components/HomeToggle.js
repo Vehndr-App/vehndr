@@ -5,6 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import SearchFilters from "./SearchFilters";
 import { EVENT_TYPES } from "../constants/categories";
+import {
+  SERVICE_AREA_NOTE,
+  SERVICE_AREA_OPTIONS,
+  getServiceAreaOption,
+} from "../constants/serviceAreas";
 import { useAuth } from "../contexts/AuthContext";
 
 export default function HomeToggle({ categories = [], initialMode = "vendors" }) {
@@ -113,7 +118,7 @@ export default function HomeToggle({ categories = [], initialMode = "vendors" })
       </div>
 
       {/* Search card floats over video */}
-      <div className="w-full max-w-3xl mx-auto">
+      <div className="w-full max-w-5xl mx-auto">
         {mode === "vendors" ? (
           <SearchFilters categories={categories} glass />
         ) : (
@@ -129,7 +134,10 @@ function EventSearchFilters({ glass = false }) {
   const [search, setSearch] = useState("");
   const [eventType, setEventType] = useState("");
   const [date, setDate] = useState("");
+  const [serviceArea, setServiceArea] = useState("");
+  const [isWhereOpen, setIsWhereOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(!glass);
+  const selectedArea = getServiceAreaOption(serviceArea);
 
   const handleSearch = () => {
     const params = new URLSearchParams();
@@ -137,6 +145,7 @@ function EventSearchFilters({ glass = false }) {
     if (search) params.set("search", search);
     if (eventType) params.set("event_type", eventType);
     if (date) params.set("date", date);
+    if (serviceArea) params.set("location", serviceArea);
     router.push(`/?${params.toString()}`);
   };
 
@@ -151,7 +160,11 @@ function EventSearchFilters({ glass = false }) {
   const dividerClass = glass ? "hidden sm:block w-px bg-[var(--gray-200)] my-2" : "hidden sm:block w-px bg-[var(--gray-200)] my-2";
 
   if (glass && !isExpanded) {
-    const summary = search || (eventType ? "Filtered" : null) || (date || null);
+    const summary =
+      search ||
+      (serviceArea ? selectedArea.label : null) ||
+      (eventType ? "Filtered" : null) ||
+      (date || null);
     return (
       <button
         type="button"
@@ -171,7 +184,7 @@ function EventSearchFilters({ glass = false }) {
             {summary || "Search events"}
           </div>
           <div className="text-xs text-[var(--gray-500)] truncate">
-            {summary ? "Tap to edit search" : "Type · date · location"}
+            {summary ? "Tap to edit search" : "TX & AZ · type · date"}
           </div>
         </div>
         <span className="flex-shrink-0 w-10 h-10 rounded-full bg-gradient-primary text-white flex items-center justify-center">
@@ -225,6 +238,59 @@ function EventSearchFilters({ glass = false }) {
               />
             </div>
           </label>
+        </div>
+
+        {/* Divider */}
+        <div className={dividerClass} />
+
+        {/* Where */}
+        <div className="relative flex-1 min-w-[7.5rem]">
+          <button
+            type="button"
+            onClick={() => setIsWhereOpen(!isWhereOpen)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-[var(--radius-xl)] ${rowHoverBtn} transition-colors text-left`}
+          >
+            <div className="w-10 h-10 rounded-full bg-[var(--violet-100)] flex items-center justify-center flex-shrink-0">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--violet-600)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                <circle cx="12" cy="10" r="3"/>
+              </svg>
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-medium text-[var(--gray-500)]">Where</div>
+              <div className="text-sm font-semibold text-[var(--gray-900)] truncate">
+                {serviceArea ? selectedArea.label : "TX & AZ"}
+              </div>
+            </div>
+          </button>
+          {isWhereOpen && (
+            <div className="absolute bottom-full sm:bottom-auto sm:top-full left-0 mb-2 sm:mb-0 sm:mt-2 w-[260px] bg-white rounded-[var(--radius-xl)] shadow-[var(--shadow-xl)] border border-[var(--gray-100)] z-[9999] overflow-hidden">
+              <div className="px-3 py-2.5 bg-[var(--violet-50)] border-b border-[var(--violet-100)]">
+                <p className="text-[11px] font-semibold text-[var(--violet-700)] leading-snug">
+                  {SERVICE_AREA_NOTE}
+                </p>
+              </div>
+              <div className="max-h-64 overflow-y-auto py-1">
+                {SERVICE_AREA_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value || "all"}
+                    type="button"
+                    onClick={() => {
+                      setServiceArea(opt.value);
+                      setIsWhereOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                      serviceArea === opt.value
+                        ? "bg-[var(--violet-50)] text-[var(--violet-700)] font-semibold"
+                        : "text-[var(--gray-800)] hover:bg-[var(--gray-50)]"
+                    } ${opt.kind === "city" ? "pl-5" : ""}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Divider */}
@@ -294,6 +360,9 @@ function EventSearchFilters({ glass = false }) {
           <span className="hidden sm:inline">Search</span>
         </button>
       </div>
+      <p className={`mt-2 text-center text-xs ${glass ? "text-white/80 drop-shadow-sm" : "text-[var(--gray-500)]"}`}>
+        {SERVICE_AREA_NOTE}
+      </p>
     </div>
   );
 }

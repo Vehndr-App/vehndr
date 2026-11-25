@@ -7,6 +7,7 @@ export async function listVendors(params = {}) {
   if (params.eventType) queryParams.set("event_type", params.eventType);
   if (params.minPrice) queryParams.set("min_price", params.minPrice);
   if (params.maxPrice) queryParams.set("max_price", params.maxPrice);
+  if (params.location) queryParams.set("location", params.location);
 
   const queryString = queryParams.toString();
   const url = `/api/vendors${queryString ? `?${queryString}` : ""}`;
