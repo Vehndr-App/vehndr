@@ -1,13 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { EVENT_BESTIE_OPEN } from "../../constants/eventBestie";
-import {
-  readMascotHidden,
-  writeMascotHidden,
-  writeMascotSettled,
-} from "../../constants/mascot";
 
 const SUPPORT_EMAIL = "admin@vehndr.com";
 
@@ -18,18 +12,6 @@ function openChat() {
 }
 
 export default function SupportPage() {
-  const [mascotHidden, setMascotHidden] = useState(false);
-
-  useEffect(() => {
-    setMascotHidden(readMascotHidden());
-  }, []);
-
-  function showMascotAgain() {
-    writeMascotHidden(false);
-    writeMascotSettled(false);
-    setMascotHidden(false);
-  }
-
   return (
     <div className="mx-auto max-w-2xl px-6 py-12">
       <h1 className="text-3xl font-bold text-[var(--gray-900)]">
@@ -88,15 +70,6 @@ export default function SupportPage() {
                   <path d="M7 17L17 7"/><path d="M17 7h-6v6"/>
                 </svg>
               </button>
-              {mascotHidden && (
-                <button
-                  type="button"
-                  onClick={showMascotAgain}
-                  className="mt-3 ml-0 sm:ml-3 inline-flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--gray-200)] bg-white px-4 py-2.5 text-sm font-semibold text-[var(--gray-700)] hover:bg-[var(--gray-50)]"
-                >
-                  Show mascot again
-                </button>
-              )}
             </div>
           </div>
         </section>

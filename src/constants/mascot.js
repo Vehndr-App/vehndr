@@ -15,7 +15,7 @@ export const MASCOT_SPEECH = {
   idle: "Hi! Need a hand?",
 };
 
-/** localStorage key — when "1", floating mascot stays hidden on this browser */
+/** Legacy localStorage key — cleared on load; permanent hide is no longer offered */
 export const MASCOT_HIDDEN_KEY = "vehndr_mascot_hidden";
 
 /** localStorage — bubble dismissed + animation paused (mascot still visible) */

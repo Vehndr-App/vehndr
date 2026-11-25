@@ -5,7 +5,6 @@ import { Capacitor } from "@capacitor/core";
 import { EVENT_BESTIE_OPEN } from "../constants/eventBestie";
 import {
   MASCOT_VISIBILITY_EVENT,
-  readMascotHidden,
   readMascotSettled,
   writeMascotHidden,
   writeMascotSettled,
@@ -66,11 +65,11 @@ export default function EventBestie() {
   const inputRef = useRef(null);
   const [isNativePlatform, setIsNativePlatform] = useState(null);
   const [viewportRect, setViewportRect] = useState(null);
-  const [mascotHidden, setMascotHidden] = useState(false);
   const [mascotSettled, setMascotSettled] = useState(false);
 
   useEffect(() => {
-    setMascotHidden(readMascotHidden());
+    // Clear any old "hide forever" preference so the mascot always stays available
+    writeMascotHidden(false);
     setMascotSettled(readMascotSettled());
   }, []);
 
@@ -128,18 +127,15 @@ export default function EventBestie() {
   // Open from support page (or anywhere) via custom event
   useEffect(() => {
     const handler = () => {
-      setMascotHidden(readMascotHidden());
       setIsOpen(true);
     };
     window.addEventListener(EVENT_BESTIE_OPEN, handler);
     return () => window.removeEventListener(EVENT_BESTIE_OPEN, handler);
   }, []);
 
-  // Stay in sync if Support (or elsewhere) shows/hides/settles the mascot
+  // Stay in sync if settle state changes elsewhere
   useEffect(() => {
     const onVisibility = (e) => {
-      if (typeof e?.detail?.hidden === "boolean") setMascotHidden(e.detail.hidden);
-      else setMascotHidden(readMascotHidden());
       if (typeof e?.detail?.settled === "boolean") setMascotSettled(e.detail.settled);
       else setMascotSettled(readMascotSettled());
     };
@@ -252,18 +248,12 @@ export default function EventBestie() {
   // On native (iOS/Android) we hide the launcher but still show the panel when opened (e.g. from support page)
   if (isNativePlatform === null) return null;
 
-  const showLauncher = !isNativePlatform && !mascotHidden;
+  const showLauncher = !isNativePlatform;
   const mascotMood = isLoading ? "thinking" : isOpen ? "responding" : "idle";
 
   function settleMascot() {
     writeMascotSettled(true);
     setMascotSettled(true);
-  }
-
-  function hideMascot() {
-    writeMascotHidden(true);
-    setMascotHidden(true);
-    setIsOpen(false);
   }
 
   return (
@@ -281,7 +271,6 @@ export default function EventBestie() {
             setIsOpen((open) => !open);
           }}
           onSettle={settleMascot}
-          onHide={hideMascot}
           settled={mascotSettled}
           mood={mascotMood}
         />

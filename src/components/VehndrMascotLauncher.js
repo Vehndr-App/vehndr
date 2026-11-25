@@ -11,7 +11,6 @@ import { MASCOT_ANIMATIONS, MASCOT_SPEECH } from "../constants/mascot";
  * @param {boolean} props.isOpen
  * @param {() => void} props.onToggle
  * @param {() => void} [props.onSettle] - dismiss bubble + freeze animation (keep mascot)
- * @param {() => void} [props.onHide] - fully hide mascot for this browser
  * @param {boolean} [props.settled] - quiet mode: still image, no bubble
  * @param {'idle'|'welcome'|'thinking'|'responding'} [props.mood]
  * @param {string} [props.className]
@@ -20,7 +19,6 @@ export default function VehndrMascotLauncher({
   isOpen,
   onToggle,
   onSettle,
-  onHide,
   settled = false,
   mood = "idle",
   className = "",
@@ -135,17 +133,6 @@ export default function VehndrMascotLauncher({
           </span>
         )}
       </button>
-
-      {!isOpen && onHide && (
-        <button
-          type="button"
-          onClick={onHide}
-          className="text-[10px] font-medium text-[var(--gray-400)] hover:text-[var(--gray-600)] px-1 py-0.5 mr-1"
-          title="Hide mascot completely (you can bring her back from Support)"
-        >
-          Hide completely
-        </button>
-      )}
     </div>
   );
 }
