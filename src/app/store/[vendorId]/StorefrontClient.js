@@ -233,7 +233,9 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        <p className="text-[var(--gray-600)] text-sm mt-4 mb-6">{vendor.description}</p>
+        <p className="text-[var(--gray-600)] text-sm mt-4 mb-6 whitespace-pre-wrap leading-relaxed">
+          {vendor.description}
+        </p>
 
         <StorefrontMetaChips vendor={vendor} />
 

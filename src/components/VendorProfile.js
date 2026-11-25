@@ -808,10 +808,13 @@ export default function VendorProfile({ user, onSuccess }) {
                 required
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                rows={4}
-                className="input h-auto py-3"
-                placeholder="Tell customers about your business..."
+                rows={6}
+                className="input h-auto py-3 whitespace-pre-wrap"
+                placeholder={"Tell customers about your business...\n\nPress Enter to start a new line or paragraph."}
               />
+              <p className="text-xs text-[var(--gray-500)] mt-2">
+                Tip: press Enter to add line breaks — they’ll show on your storefront.
+              </p>
             </div>
 
             <LocationField
