@@ -75,10 +75,6 @@ export default function RegisterPage() {
     const category = formData.get("category");
     const role = formData.get("role");
 
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H1',location:'register/page.js:47',message:'handleRegister start',data:{hasEmail:!!email,role,hasPassword:!!password,hasPasswordConfirmation:!!passwordConfirmation,hasRecaptchaRef:!!recaptchaRef.current},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-
     // Client-side validation
     if (password !== passwordConfirmation) {
       setError("Passwords do not match");
@@ -119,11 +115,6 @@ export default function RegisterPage() {
     }
 
     try {
-      console.log("Attempting registration with:", email, role);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/10bfb25e-a71c-4a63-9b69-e5a8b576d54d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sessionId:'debug-session',runId:'pre-fix',hypothesisId:'H3',location:'register/page.js:77',message:'calling register()',data:{role,hasRecaptchaToken:!!recaptchaToken},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-
       await register({
         email,
         password,

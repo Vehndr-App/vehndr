@@ -940,7 +940,7 @@ export default function VendorProfile({ user, onSuccess }) {
                     }
                     setError(null);
                     // Resize and set directly (no editor for profile photo)
-                    const resized = await resizeImage(file, 400, 400);
+                    const resized = await resizeImage(file, { maxWidth: 400, maxHeight: 400, quality: 0.85 });
                     setFormData(prev => ({ ...prev, profileImage: resized }));
                   }
                 }}

@@ -39,7 +39,7 @@ const DRESS_CODES = [
 
 export default function NewEventPage() {
   return (
-    <AuthGate allowedRoles={["coordinator"]}>
+    <AuthGate allowedRoles={["coordinator", "customer", "vendor", "admin"]}>
       <NewEventInner />
     </AuthGate>
   );
@@ -119,28 +119,43 @@ function NewEventInner() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.append("event[name]", eventData.name);
-      formData.append("event[description]", eventData.description);
-      formData.append("event[start_time]", `${eventData.date}T${eventData.startTime}`);
-      if (eventData.endTime) {
-        formData.append("event[end_time]", `${eventData.date}T${eventData.endTime}`);
+      // Include local timezone so "7:00 PM" is not saved as UTC by accident
+      const tzOffsetMinutes = -new Date().getTimezoneOffset();
+      const tzSign = tzOffsetMinutes >= 0 ? "+" : "-";
+      const tzAbs = Math.abs(tzOffsetMinutes);
+      const tz = `${tzSign}${String(Math.floor(tzAbs / 60)).padStart(2, "0")}:${String(tzAbs % 60).padStart(2, "0")}`;
+      const startDate = `${eventData.date}T${eventData.startTime}:00${tz}`;
+      const endDate = eventData.endTime
+        ? `${eventData.date}T${eventData.endTime}:00${tz}`
+        : startDate;
+      const location = [eventData.location.trim(), eventData.locationDetails.trim()]
+        .filter(Boolean)
+        .join(" — ");
+
+      const descriptionParts = [eventData.description.trim()];
+      if (eventData.theme) {
+        const themeLabel = EVENT_THEMES.find((t) => t.id === eventData.theme)?.label;
+        if (themeLabel) descriptionParts.push(`Theme: ${themeLabel}`);
       }
-      formData.append("event[location]", eventData.location);
-      formData.append("event[dress_code]", eventData.dressCode);
-      formData.append("event[theme]", eventData.theme);
-      formData.append("event[category]", eventData.category);
+      if (eventData.dressCode && eventData.dressCode !== "none") {
+        const dressLabel = DRESS_CODES.find((d) => d.id === eventData.dressCode)?.label;
+        if (dressLabel) descriptionParts.push(`Dress code: ${dressLabel}`);
+      }
+
+      const formData = new FormData();
+      formData.append("event[name]", eventData.name.trim());
+      formData.append("event[description]", descriptionParts.filter(Boolean).join("\n\n"));
+      formData.append("event[start_date]", startDate);
+      formData.append("event[end_date]", endDate);
+      formData.append("event[location]", location);
+      formData.append("event[category]", eventData.category || eventData.eventType);
       formData.append("event[event_type]", eventData.eventType);
+      formData.append("event[is_public]", String(!!eventData.isPublic));
       eventData.desiredVendorCategories.forEach((category) => {
         formData.append("event[desired_vendor_categories][]", category);
       });
-      formData.append("event[is_public]", eventData.isPublic);
-      if (eventData.coverImage) {
-        formData.append("event[cover_image]", eventData.coverImage);
-      }
-      
       selectedVendors.forEach((vendor) => {
-        formData.append(`event[vendor_ids][]`, vendor.id);
+        formData.append("event[vendor_ids][]", vendor.id);
       });
 
       const response = await api("/api/events", {
@@ -149,10 +164,18 @@ function NewEventInner() {
         headers: {}
       });
 
-      router.push(`/events/${response.id || response.event?.id}`);
+      const newId = response.id || response.event?.id;
+      if (!newId) throw new Error("Event created but no id returned");
+      router.push(`/events/${newId}`);
     } catch (err) {
       console.error("Failed to create event", err);
-      setError(err?.details?.error || "Failed to create event. Please try again.");
+      const details = err?.details?.errors;
+      setError(
+        (Array.isArray(details) && details.join(", ")) ||
+          err?.details?.error ||
+          err?.message ||
+          "Failed to create event. Please try again."
+      );
       setLoading(false);
     }
   };
@@ -177,6 +200,7 @@ function NewEventInner() {
 
   const totalSteps = 4;
   const progress = (step / totalSteps) * 100;
+  const stepLabels = ["Basics", "When & where", "Vendors", "Review"];
 
   return (
     <>
@@ -189,8 +213,9 @@ function NewEventInner() {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between">
+        <div className="mx-auto max-w-2xl px-4 py-3 flex items-center justify-between gap-3">
           <button
+            type="button"
             onClick={() => step > 1 ? setStep(step - 1) : router.back()}
             className="flex items-center gap-2 text-sm font-medium text-[var(--gray-600)] hover:text-[var(--gray-900)]"
           >
@@ -199,9 +224,15 @@ function NewEventInner() {
             </svg>
             Back
           </button>
-          <span className="text-sm text-[var(--gray-500)]">Step {step} of {totalSteps}</span>
+          <div className="text-center min-w-0">
+            <p className="text-sm font-semibold text-[var(--gray-800)] truncate">
+              {stepLabels[step - 1]}
+            </p>
+            <p className="text-xs text-[var(--gray-500)]">Step {step} of {totalSteps}</p>
+          </div>
           <button
-            onClick={() => router.push('/coordinator-dashboard')}
+            type="button"
+            onClick={() => router.push(user?.role === "coordinator" ? "/coordinator-dashboard" : "/")}
             className="text-sm font-medium text-[var(--gray-500)] hover:text-[var(--gray-700)]"
           >
             Cancel
@@ -285,10 +316,10 @@ function NewEventInner() {
                 </div>
               </div>
 
-              {/* Cover Image */}
+              {/* Cover Image (preview on this screen; theme shows if none uploaded yet) */}
               <div>
                 <label className="block text-sm font-semibold text-[var(--gray-700)] mb-2">
-                  Cover Image
+                  Cover Image <span className="font-normal text-[var(--gray-400)]">(optional)</span>
                 </label>
                 <div
                   onClick={() => {
@@ -339,8 +370,9 @@ function NewEventInner() {
             </div>
 
             <button
+              type="button"
               onClick={() => setStep(2)}
-              disabled={!eventData.name}
+              disabled={!eventData.name.trim() || !eventData.eventType}
               className="w-full mt-8 h-14 rounded-[var(--radius-xl)] bg-gradient-primary text-white font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all"
             >
               Continue
@@ -510,8 +542,9 @@ function NewEventInner() {
             </div>
 
             <button
+              type="button"
               onClick={() => setStep(3)}
-              disabled={!eventData.date || !eventData.startTime || !eventData.location}
+              disabled={!eventData.date || !eventData.startTime || !eventData.location.trim()}
               className="w-full mt-8 h-14 rounded-[var(--radius-xl)] bg-gradient-primary text-white font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg transition-all"
             >
               Continue
@@ -639,10 +672,10 @@ function NewEventInner() {
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            {vendor.hero_image_url ? (
+                            {(vendor.heroImage || vendor.hero_image_url) ? (
                               /* eslint-disable-next-line @next/next/no-img-element */
                               <img
-                                src={vendor.hero_image_url}
+                                src={vendor.heroImage || vendor.hero_image_url}
                                 alt={vendor.name}
                                 className="w-12 h-12 rounded-xl object-cover"
                               />

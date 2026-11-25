@@ -107,9 +107,17 @@ export default function Navbar() {
               <div className="flex items-center gap-2 min-w-0">
                 <Link 
                   href="/" 
-                  className="flex items-center shrink-0"
+                  className="flex items-center gap-2 shrink-0"
                   aria-label="Vehndr home"
                 >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/vehndr-mark.png"
+                    alt=""
+                    width={44}
+                    height={44}
+                    className="h-11 w-11 rounded-full object-cover shrink-0"
+                  />
                   <span className="font-display text-xl tracking-tight text-gradient-primary">
                     vehndr
                   </span>
