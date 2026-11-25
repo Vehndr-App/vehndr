@@ -86,6 +86,7 @@ export default function VendorProfile({ user, onSuccess }) {
     languagesSpoken: [],
     trustedBy: [],
     trustedByText: "",
+    pastEvents: [],
     faqs: [],
     teamMembers: [],
   });
@@ -183,6 +184,11 @@ export default function VendorProfile({ user, onSuccess }) {
         languagesSpoken: vendorData.languagesSpoken || vendorData.languages_spoken || [],
         trustedBy: vendorData.trustedBy || vendorData.trusted_by || [],
         trustedByText: (vendorData.trustedBy || vendorData.trusted_by || []).join("\n"),
+        pastEvents: (vendorData.pastEvents || vendorData.past_events || []).map((event) => ({
+          name: event.name || "",
+          year: event.year || "",
+          location: event.location || "",
+        })),
         faqs: (vendorData.faqs || []).map((faq) => ({
           question: faq.question || "",
           answer: faq.answer || "",
@@ -313,6 +319,18 @@ export default function VendorProfile({ user, onSuccess }) {
             .filter((faq) => faq.question && faq.answer)
         )
       );
+      formDataToSend.append(
+        "vendor[past_events_json]",
+        JSON.stringify(
+          (formData.pastEvents || [])
+            .map((event) => ({
+              name: (event.name || "").trim(),
+              year: (event.year || "").trim(),
+              location: (event.location || "").trim(),
+            }))
+            .filter((event) => event.name)
+        )
+      );
 
       const teamPayload = (formData.teamMembers || [])
         .map((member) => ({
@@ -408,6 +426,11 @@ export default function VendorProfile({ user, onSuccess }) {
         languagesSpoken: resultData.languagesSpoken || resultData.languages_spoken || [],
         trustedBy: resultData.trustedBy || resultData.trusted_by || [],
         trustedByText: (resultData.trustedBy || resultData.trusted_by || []).join("\n"),
+        pastEvents: (resultData.pastEvents || resultData.past_events || []).map((event) => ({
+          name: event.name || "",
+          year: event.year || "",
+          location: event.location || "",
+        })),
         faqs: (resultData.faqs || []).map((faq) => ({
           question: faq.question || "",
           answer: faq.answer || "",

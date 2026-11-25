@@ -434,10 +434,16 @@ function StorefrontMetaChips({ vendor }) {
 function StorefrontStorySections({ vendor }) {
   const bestFor = vendor.bestFor || vendor.best_for || [];
   const trustedBy = (vendor.trustedBy || vendor.trusted_by || []).filter(Boolean);
+  const pastEvents = (vendor.pastEvents || vendor.past_events || []).filter((event) => event?.name);
   const faqs = (vendor.faqs || []).filter((faq) => faq?.question && faq?.answer);
   const teamMembers = (vendor.teamMembers || vendor.team_members || []).filter((m) => m?.name);
 
-  const hasAny = bestFor.length > 0 || trustedBy.length > 0 || faqs.length > 0 || teamMembers.length > 0;
+  const hasAny =
+    bestFor.length > 0 ||
+    trustedBy.length > 0 ||
+    pastEvents.length > 0 ||
+    faqs.length > 0 ||
+    teamMembers.length > 0;
   if (!hasAny) return null;
 
   return (
@@ -468,6 +474,35 @@ function StorefrontStorySections({ vendor }) {
               </span>
             ))}
           </div>
+        </section>
+      )}
+
+      {pastEvents.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Events worked</h2>
+          <ul className="space-y-2">
+            {pastEvents.map((event, index) => {
+              const meta = [event.year, event.location].filter(Boolean).join(" · ");
+              return (
+                <li
+                  key={`${event.name}-${index}`}
+                  className="flex items-start gap-3 rounded-xl border border-[var(--gray-100)] bg-[var(--gray-50)] px-4 py-3"
+                >
+                  <span className="mt-0.5 text-[var(--violet-500)]" aria-hidden>
+                    ✦
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--gray-900)] leading-snug">
+                      {event.name}
+                    </p>
+                    {meta && (
+                      <p className="text-xs text-[var(--gray-500)] mt-0.5">{meta}</p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       )}
 

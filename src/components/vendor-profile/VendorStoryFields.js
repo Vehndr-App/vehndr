@@ -32,6 +32,7 @@ export default function VendorStoryFields({ formData, setFormData }) {
     formData.trustedByText != null
       ? formData.trustedByText
       : (formData.trustedBy || []).join("\n");
+  const pastEvents = formData.pastEvents || [];
   const faqs = formData.faqs || [];
   const teamMembers = formData.teamMembers || [];
 
@@ -145,7 +146,7 @@ export default function VendorStoryFields({ formData, setFormData }) {
         <div className="mb-2">
           <p className="text-sm font-medium text-[var(--gray-700)]">Trusted by</p>
           <p className="text-xs text-[var(--gray-500)]">
-            Companies, venues, or events you have worked with (one per line).
+            Companies, brands, or venues you have worked with (one per line).
           </p>
         </div>
         <textarea
@@ -174,8 +175,103 @@ export default function VendorStoryFields({ formData, setFormData }) {
               };
             })
           }
-          placeholder={"Hotel Van Zandt\nAustin City Limits\nPrivate weddings"}
+          placeholder={"Hotel Van Zandt\nAustin City Limits\nYetí Coolers"}
         />
+      </div>
+
+      {/* Past events */}
+      <div>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <p className="text-sm font-medium text-[var(--gray-700)]">Events worked</p>
+            <p className="text-xs text-[var(--gray-500)]">
+              Specific events you have done — helps planners see your experience.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() =>
+              setFormData((prev) => ({
+                ...prev,
+                pastEvents: [
+                  ...(prev.pastEvents || []),
+                  { name: "", year: "", location: "" },
+                ].slice(0, 40),
+              }))
+            }
+            className="text-sm font-semibold text-[var(--violet-600)] hover:text-[var(--violet-700)]"
+          >
+            + Add event
+          </button>
+        </div>
+        <div className="space-y-3">
+          {pastEvents.length === 0 && (
+            <p className="text-sm text-[var(--gray-400)]">No events listed yet.</p>
+          )}
+          {pastEvents.map((event, index) => (
+            <div
+              key={index}
+              className="p-4 rounded-[var(--radius-lg)] border border-[var(--gray-200)] space-y-2"
+            >
+              <input
+                type="text"
+                className="input"
+                placeholder="Event name (e.g. ACL Festival)"
+                value={event.name || ""}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    pastEvents: (prev.pastEvents || []).map((item, i) =>
+                      i === index ? { ...item, name: e.target.value } : item
+                    ),
+                  }))
+                }
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="Year (optional)"
+                  value={event.year || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      pastEvents: (prev.pastEvents || []).map((item, i) =>
+                        i === index ? { ...item, year: e.target.value } : item
+                      ),
+                    }))
+                  }
+                />
+                <input
+                  type="text"
+                  className="input"
+                  placeholder="City / venue (optional)"
+                  value={event.location || ""}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      pastEvents: (prev.pastEvents || []).map((item, i) =>
+                        i === index ? { ...item, location: e.target.value } : item
+                      ),
+                    }))
+                  }
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    pastEvents: (prev.pastEvents || []).filter((_, i) => i !== index),
+                  }))
+                }
+                className="text-xs font-medium text-[var(--error)]"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Team */}
