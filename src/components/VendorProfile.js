@@ -325,7 +325,8 @@ export default function VendorProfile({ user, onSuccess }) {
       formDataToSend.append("vendor[team_members_json]", JSON.stringify(teamPayload));
       (formData.teamMembers || []).forEach((member) => {
         if (member.photoFile && member.id) {
-          formDataToSend.append(`team_member_photos[${member.id}]`, member.photoFile);
+          formDataToSend.append("team_member_photo_ids[]", member.id);
+          formDataToSend.append("team_member_photos[]", member.photoFile);
         }
       });
 

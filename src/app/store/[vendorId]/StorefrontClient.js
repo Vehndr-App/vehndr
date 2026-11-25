@@ -247,7 +247,7 @@ export default function StorefrontPage() {
           </div>
         )}
 
-        <StorefrontStorySections vendor={vendor} />
+        <StorefrontMetaChips vendor={vendor} />
 
         <div className="flex gap-1 p-1 bg-[var(--gray-100)] rounded-[var(--radius-lg)] mb-4 w-fit">
           <TabButton active={activeTab === "all"} onClick={() => setActiveTab("all")}>
@@ -319,6 +319,8 @@ export default function StorefrontPage() {
             </div>
           ))}
         </div>
+
+        <StorefrontStorySections vendor={vendor} />
       </div>
 
       {/* Sticky booking bar — Airbnb Reserve style */}
@@ -404,41 +406,42 @@ export default function StorefrontPage() {
   );
 }
 
-function StorefrontStorySections({ vendor }) {
+function StorefrontMetaChips({ vendor }) {
   const years = vendor.yearsInBusiness ?? vendor.years_in_business;
-  const bestFor = vendor.bestFor || vendor.best_for || [];
   const languages = vendor.languagesSpoken || vendor.languages_spoken || [];
+  const hasYears = years != null && years !== "";
+  if (!hasYears && languages.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 mb-6">
+      {hasYears && (
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--gray-50)] border border-[var(--gray-100)] text-xs font-medium text-[var(--gray-700)]">
+          {Number(years) === 1 ? "1 year in business" : `${years} years in business`}
+        </span>
+      )}
+      {languages.map((language) => (
+        <span
+          key={language}
+          className="inline-flex items-center px-3 py-1.5 rounded-full bg-[var(--mint-50)] border border-[var(--mint-100)] text-xs font-medium text-[var(--gray-700)]"
+        >
+          {language}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function StorefrontStorySections({ vendor }) {
+  const bestFor = vendor.bestFor || vendor.best_for || [];
   const trustedBy = (vendor.trustedBy || vendor.trusted_by || []).filter(Boolean);
   const faqs = (vendor.faqs || []).filter((faq) => faq?.question && faq?.answer);
   const teamMembers = (vendor.teamMembers || vendor.team_members || []).filter((m) => m?.name);
 
-  const hasMeta =
-    (years != null && years !== "") || bestFor.length > 0 || languages.length > 0;
-  const hasAny =
-    hasMeta || trustedBy.length > 0 || faqs.length > 0 || teamMembers.length > 0;
-
+  const hasAny = bestFor.length > 0 || trustedBy.length > 0 || faqs.length > 0 || teamMembers.length > 0;
   if (!hasAny) return null;
 
   return (
-    <div className="space-y-6 mb-8">
-      {hasMeta && (
-        <div className="flex flex-wrap gap-2">
-          {years != null && years !== "" && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--gray-50)] border border-[var(--gray-100)] text-xs font-medium text-[var(--gray-700)]">
-              {Number(years) === 1 ? "1 year in business" : `${years} years in business`}
-            </span>
-          )}
-          {languages.map((language) => (
-            <span
-              key={language}
-              className="inline-flex items-center px-3 py-1.5 rounded-full bg-[var(--mint-50)] border border-[var(--mint-100)] text-xs font-medium text-[var(--gray-700)]"
-            >
-              {language}
-            </span>
-          ))}
-        </div>
-      )}
-
+    <div className="space-y-6 mt-10 mb-8 pt-8 border-t border-[var(--gray-100)]">
       {bestFor.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-[var(--gray-900)] mb-2">Best for</h2>
@@ -472,33 +475,36 @@ function StorefrontStorySections({ vendor }) {
         <section>
           <h2 className="text-sm font-semibold text-[var(--gray-900)] mb-3">Team</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            {teamMembers.map((member) => (
-              <div
-                key={member.id || member.name}
-                className="flex items-center gap-3 p-3 rounded-xl border border-[var(--gray-100)] bg-white"
-              >
-                <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--gray-100)] flex-shrink-0">
-                  {(member.photoUrl || member.photo_url) ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={member.photoUrl || member.photo_url}
-                      alt=""
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-[var(--gray-400)]">
-                      {(member.name || "?").charAt(0).toUpperCase()}
-                    </div>
-                  )}
+            {teamMembers.map((member) => {
+              const photoSrc = member.photoUrl || member.photo_url;
+              return (
+                <div
+                  key={member.id || member.name}
+                  className="flex items-center gap-3 p-3 rounded-xl border border-[var(--gray-100)] bg-white"
+                >
+                  <div className="w-12 h-12 rounded-full overflow-hidden bg-[var(--gray-100)] flex-shrink-0">
+                    {photoSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={photoSrc}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-sm font-semibold text-[var(--gray-400)]">
+                        {(member.name || "?").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[var(--gray-900)] truncate">{member.name}</p>
+                    {member.title && (
+                      <p className="text-xs text-[var(--gray-500)] truncate">{member.title}</p>
+                    )}
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-[var(--gray-900)] truncate">{member.name}</p>
-                  {member.title && (
-                    <p className="text-xs text-[var(--gray-500)] truncate">{member.title}</p>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
       )}
