@@ -124,6 +124,50 @@ export async function resizeImages(files, options = {}) {
 }
 
 /**
+ * Convert iPhone HEIC/HEIF files to JPEG so browsers and the API can use them.
+ * @param {File} file
+ * @returns {Promise<File>}
+ */
+export async function convertHeicIfNeeded(file) {
+  if (!file) return file;
+
+  const name = (file.name || "").toLowerCase();
+  const type = (file.type || "").toLowerCase();
+  const isHeic =
+    type.includes("heic") ||
+    type.includes("heif") ||
+    name.endsWith(".heic") ||
+    name.endsWith(".heif");
+
+  if (!isHeic) return file;
+
+  const heic2any = (await import("heic2any")).default;
+  const jpegBlob = await heic2any({
+    blob: file,
+    toType: "image/jpeg",
+    quality: 0.85,
+  });
+  const resultBlob = Array.isArray(jpegBlob) ? jpegBlob[0] : jpegBlob;
+  const fileName = (file.name || "photo.heic").replace(/\.[^/.]+$/, ".jpg");
+
+  return new File([resultBlob], fileName, {
+    type: "image/jpeg",
+    lastModified: Date.now(),
+  });
+}
+
+/**
+ * Convert HEIC if needed, then resize for upload.
+ * @param {File} file
+ * @param {Object} options - Resize options (see resizeImage)
+ * @returns {Promise<File>}
+ */
+export async function prepareImageForUpload(file, options = {}) {
+  const converted = await convertHeicIfNeeded(file);
+  return resizeImage(converted, options);
+}
+
+/**
  * Get human-readable file size.
  * @param {number} bytes - File size in bytes
  * @returns {string} - Formatted size string

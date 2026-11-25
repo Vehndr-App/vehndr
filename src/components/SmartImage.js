@@ -51,8 +51,9 @@ export default function SmartImage({ src, alt, className, fallbackClassName, ...
       return;
     }
 
-    // Check if the URL suggests HEIC format
-    const isHeic = src.toLowerCase().includes('.heic') || src.toLowerCase().includes('.heif');
+    // Check if the URL suggests HEIC format (path or S3 content-disposition / content-type)
+    const lower = src.toLowerCase();
+    const isHeic = lower.includes("heic") || lower.includes("heif");
     
     if (isHeic) {
       convertHeicToJpeg(src);

@@ -36,6 +36,7 @@ import {
 import {
   resizeImage,
   resizeImages,
+  prepareImageForUpload,
   formatFileSize,
   validateFileSize,
   validateFileType
@@ -341,12 +342,21 @@ export default function VendorProfile({ user, onSuccess }) {
         }))
         .filter((member) => member.name);
       formDataToSend.append("vendor[team_members_json]", JSON.stringify(teamPayload));
-      (formData.teamMembers || []).forEach((member) => {
-        if (member.photoFile && member.id) {
-          formDataToSend.append("team_member_photo_ids[]", member.id);
-          formDataToSend.append("team_member_photos[]", member.photoFile);
+      for (const member of formData.teamMembers || []) {
+        if (!member.photoFile || !member.id) continue;
+        let photo = member.photoFile;
+        try {
+          photo = await prepareImageForUpload(member.photoFile, {
+            maxWidth: 1200,
+            maxHeight: 1200,
+            quality: 0.85,
+          });
+        } catch (err) {
+          console.warn("Team photo prepare failed on save:", err);
         }
-      });
+        formDataToSend.append("team_member_photo_ids[]", member.id);
+        formDataToSend.append("team_member_photos[]", photo);
+      }
 
       // Add profile image if a new file was selected
       if (formData.profileImage) {

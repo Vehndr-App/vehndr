@@ -24,6 +24,7 @@ import {
 import { loadBookingDraft } from "../../../utils/bookingDraft";
 import { useCart } from "../../../contexts/CartContext";
 import { getListingType, isPackageListing, isShopListing } from "../../../utils/listingType";
+import SmartImage from "../../../components/SmartImage";
 
 function clampFocalPoint(value) {
   const numeric = Number(value);
@@ -603,8 +604,7 @@ function StorefrontStorySections({ vendor }) {
                   className="relative aspect-square w-full rounded-full overflow-hidden bg-[var(--gray-100)] shadow-sm"
                 >
                   {photoSrc ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <SmartImage
                       src={photoSrc}
                       alt=""
                       className="absolute inset-0 w-full h-full object-cover"

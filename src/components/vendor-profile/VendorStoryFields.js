@@ -1,6 +1,7 @@
 "use client";
 
 import { EVENT_TYPES } from "../../constants/categories";
+import { prepareImageForUpload } from "../../utils/imageResize";
 
 const LANGUAGE_OPTIONS = [
   "English",
@@ -323,20 +324,38 @@ export default function VendorStoryFields({ formData, setFormData }) {
                   )}
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,.heic,.heif"
                     className="absolute inset-0 opacity-0 cursor-pointer"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
-                      const preview = URL.createObjectURL(file);
-                      setFormData((prev) => ({
-                        ...prev,
-                        teamMembers: (prev.teamMembers || []).map((item, i) =>
-                          i === index
-                            ? { ...item, photoFile: file, photoFilePreview: preview }
-                            : item
-                        ),
-                      }));
+                      try {
+                        const prepared = await prepareImageForUpload(file, {
+                          maxWidth: 1200,
+                          maxHeight: 1200,
+                          quality: 0.85,
+                        });
+                        const preview = URL.createObjectURL(prepared);
+                        setFormData((prev) => ({
+                          ...prev,
+                          teamMembers: (prev.teamMembers || []).map((item, i) =>
+                            i === index
+                              ? { ...item, photoFile: prepared, photoFilePreview: preview }
+                              : item
+                          ),
+                        }));
+                      } catch (err) {
+                        console.warn("Team photo prepare failed:", err);
+                        const preview = URL.createObjectURL(file);
+                        setFormData((prev) => ({
+                          ...prev,
+                          teamMembers: (prev.teamMembers || []).map((item, i) =>
+                            i === index
+                              ? { ...item, photoFile: file, photoFilePreview: preview }
+                              : item
+                          ),
+                        }));
+                      }
                     }}
                   />
                 </label>
